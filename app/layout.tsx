@@ -13,6 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.URL || 'http://localhost:3000'),
   title: 'ReparoSM | Repair System Master',
   description: 'Controle produtos, serviços, estoque, clientes e resultados da sua assistência técnica em um só lugar.',
   openGraph: {

@@ -34,6 +34,7 @@ yarn-error.log*
 *.sqlite3
 *.db
 /backups/
+*.tsbuildinfo
 
 # deployment and generated files
 .vercel
