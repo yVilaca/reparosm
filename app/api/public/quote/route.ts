@@ -1,4 +1,5 @@
 import { getRecord, listRecords, saveRecord } from '@/lib/db';
+import { getAccount } from '@/lib/repos/accounts';
 import { clientFromOrder, findMatchingClient, orderFromQuote } from '@/lib/orders';
 import { publicRecord } from '@/lib/public-data';
 import type { DataObject } from '@/lib/types';
@@ -36,8 +37,8 @@ export async function POST(request: Request) {
   const quote = record.data;
   const answeredAt = new Date().toISOString();
   const owner = quote._accountId || 'account-admin';
-  const account = await getRecord(owner);
-  if (!account || account.type !== 'account' || account.data.status !== 'active')
+  const account = await getAccount(owner);
+  if (account?.status !== 'active')
     return Response.json({ error: 'Assistência indisponível' }, { status: 403 });
   if (quote.status && ['Aprovado', 'Recusado'].includes(quote.status))
     return Response.json({ error: 'Este orçamento já foi respondido.' }, { status: 409 });

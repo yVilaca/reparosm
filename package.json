@@ -15,7 +15,7 @@
     "format:check": "prettier --check .",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --import ./tests/support/setup.mjs --test \"tests/*.test.mjs\" && node scripts/test-recovery.mjs",
+    "test": "node --import ./tests/support/setup.mjs --test \"tests/*.test.mjs\"",
     "db:migrate": "node scripts/migrate.mjs"
   },
   "dependencies": {

@@ -1,5 +1,6 @@
 import { deleteRecord, getRecord, listRecords, saveRecord } from '@/lib/db';
 import { currentAccount, sameOrigin } from '@/lib/auth';
+import { getAccount } from '@/lib/repos/accounts';
 import { publicRecord, businessTypes } from '@/lib/public-data';
 import { filmCatalog } from '@/lib/film-catalog';
 import { clientFromOrder, findMatchingClient } from '@/lib/orders';
@@ -31,8 +32,8 @@ export async function GET(request: Request) {
   const type = url.searchParams.get('type') || undefined;
   if (isPublic && (type === 'part' || type === 'shop')) {
     const owner = url.searchParams.get('account');
-    const shopAccount = owner ? await getRecord(owner) : null;
-    if (!shopAccount || shopAccount.type !== 'account' || shopAccount.data.status !== 'active')
+    const shopAccount = owner ? await getAccount(owner) : null;
+    if (shopAccount?.status !== 'active')
       return Response.json({ error: 'Vitrine indisponível', records: [] }, { status: 404 });
     const records = (await listRecords(type)).filter(
       (record) =>

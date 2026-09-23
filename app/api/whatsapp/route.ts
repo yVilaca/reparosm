@@ -1,6 +1,6 @@
 import { currentAccount, sameOrigin } from '@/lib/auth';
-import { deleteRecord } from '@/lib/db';
 import {
+  deleteWhatsappConfiguration,
   saveWhatsappConfiguration,
   sendWhatsappTemplate,
   validateWhatsappConfiguration,
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   }
   if (!isObject(body)) return Response.json({ error: 'Dados inválidos' }, { status: 400 });
   if (body.action === 'disconnect') {
-    await deleteRecord(`whatsapp-config-${account.id}`);
+    await deleteWhatsappConfiguration(account.id);
     return Response.json({ ok: true });
   }
   const existing = await whatsappConfiguration(account.id);

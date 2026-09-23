@@ -1,7 +1,8 @@
 import {
   accountByUsername,
+  clientIp,
   currentAccount,
-  currentSession,
+  endSession,
   ensureAdmin,
   normalizeUser,
   passwordHash,
@@ -11,7 +12,14 @@ import {
   sessionCookie,
   verifyPassword,
 } from '@/lib/auth';
-import { deleteRecord, getRecord, saveRecord } from '@/lib/db';
+import { requestPasswordReset, setPasswordHash } from '@/lib/repos/accounts';
+import {
+  clearLoginFailures,
+  createSession,
+  MAX_LOGIN_FAILURES,
+  recentLoginFailures,
+  recordLoginFailure,
+} from '@/lib/repos/sessions';
 import type { DataObject } from '@/lib/types';
 
 const json = (body: unknown, init: ResponseInit = {}) =>
@@ -42,8 +50,7 @@ export async function POST(request: Request) {
   if (!isObject(body)) return json({ error: 'Solicitação inválida.' }, { status: 400 });
   const secure = new URL(request.url).protocol === 'https:';
   if (body.action === 'logout') {
-    const session = await currentSession(request);
-    if (session) await deleteRecord(session.record.id);
+    await endSession(request);
     return new Response(JSON.stringify({ ok: true }), {
       headers: {
         'Content-Type': 'application/json',
@@ -56,18 +63,7 @@ export async function POST(request: Request) {
     const username = normalizeUser(String(body.username || '')).slice(0, 80);
     if (username.length < 3) return json({ error: 'Informe seu usuário.' }, { status: 400 });
     const account = await accountByUsername(username);
-    if (account?.type === 'account' && account.data.role === 'merchant') {
-      const id = `password-request-${account.id}`,
-        existing = await getRecord(id);
-      if (existing?.data?.status !== 'pending') {
-        await saveRecord(id, 'password-request', {
-          accountId: account.id,
-          username,
-          status: 'pending',
-          createdAt: new Date().toISOString(),
-        });
-      }
-    }
+    if (account?.role === 'merchant') await requestPasswordReset(account.id);
     return json({
       ok: true,
       message:
@@ -75,44 +71,36 @@ export async function POST(request: Request) {
     });
   }
   if (body.action !== 'login') return json({ error: 'Ação inválida.' }, { status: 400 });
-  const username = normalizeUser(String(body.username || ''));
+  const username = normalizeUser(String(body.username || '')).slice(0, 80);
+  const password = String(body.password || '');
+  const ip = clientIp(request);
+  if ((await recentLoginFailures(username, ip)) >= MAX_LOGIN_FAILURES)
+    return json(
+      { error: 'Muitas tentativas. Aguarde 15 minutos e tente novamente.' },
+      { status: 429 },
+    );
   const account = await accountByUsername(username),
-    verified =
-      account?.type === 'account'
-        ? await verifyPassword(
-            username,
-            String(body.password || ''),
-            String(account.data.passwordHash || ''),
-          )
-        : { valid: false, legacy: false };
-  if (!account || !verified.valid)
+    verified = account
+      ? await verifyPassword(username, password, account.passwordHash)
+      : { valid: false, legacy: false };
+  if (!account || !verified.valid) {
+    await recordLoginFailure(username, ip);
     return json({ error: 'Usuário ou senha incorretos.' }, { status: 401 });
-  if (account.data.status !== 'active')
+  }
+  await clearLoginFailures(username, ip);
+  if (account.status !== 'active')
     return json(
       { error: 'Esta conta não está liberada. Fale com o administrador.' },
       { status: 403 },
     );
-  const data = verified.legacy
-    ? {
-        ...account.data,
-        passwordHash: await passwordHash(username, String(body.password || '')),
-        mustChangePassword: false,
-      }
-    : account.data;
-  if (verified.legacy) await saveRecord(account.id, 'account', data);
+  if (verified.legacy) await setPasswordHash(account.id, await passwordHash(username, password));
   await revokeSessions(account.id);
-  const token = crypto.randomUUID(),
-    expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
-  await saveRecord(`session-${token}`, 'session', {
-    accountId: account.id,
-    expiresAt,
-    createdAt: new Date().toISOString(),
-  });
-  return new Response(JSON.stringify({ account: publicAccount({ id: account.id, ...data }) }), {
+  const token = await createSession(account.id);
+  return new Response(JSON.stringify({ account: publicAccount(account) }), {
     headers: {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-store',
-      'Set-Cookie': sessionCookie(token, 60 * 60 * 12, secure),
+      'Set-Cookie': sessionCookie(token, undefined, secure),
     },
   });
 }

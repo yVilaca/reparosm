@@ -1,4 +1,4 @@
-import { getRecord, saveRecord } from '@/lib/db';
+import { query, saveRecord } from '@/lib/db';
 import { hasValidWhatsapp, whatsappPhone } from '@/lib/format';
 import type { DataObject, Order } from '@/lib/types';
 
@@ -63,10 +63,13 @@ async function decrypt(data: unknown) {
 export async function whatsappConfiguration(
   accountId: string,
 ): Promise<WhatsAppConfiguration | null> {
-  const saved = await getRecord(`whatsapp-config-${accountId}`);
-  if (saved?.type === 'whatsapp-config')
+  const [saved] = await query<{ iv: string; cipher: string }>(
+    'SELECT iv, cipher FROM whatsapp_configs WHERE account_id = $1',
+    [accountId],
+  );
+  if (saved)
     try {
-      return await decrypt(saved.data);
+      return await decrypt(saved);
     } catch {
       return null;
     }
@@ -87,11 +90,17 @@ export async function whatsappConfiguration(
   };
 }
 export async function saveWhatsappConfiguration(accountId: string, config: WhatsAppConfiguration) {
-  const encrypted = await encrypt(config);
-  return saveRecord(`whatsapp-config-${accountId}`, 'whatsapp-config', {
-    ...encrypted,
-    updatedAt: new Date().toISOString(),
-  });
+  const { iv, cipher } = await encrypt(config);
+  await query(
+    `INSERT INTO whatsapp_configs (account_id, iv, cipher) VALUES ($1, $2, $3)
+     ON CONFLICT (account_id) DO UPDATE SET iv = excluded.iv, cipher = excluded.cipher,
+       updated_at = now()`,
+    [accountId, iv, cipher],
+  );
+}
+
+export async function deleteWhatsappConfiguration(accountId: string) {
+  await query('DELETE FROM whatsapp_configs WHERE account_id = $1', [accountId]);
 }
 
 export async function validateWhatsappConfiguration(config: WhatsAppConfiguration) {
