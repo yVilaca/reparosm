@@ -4,7 +4,8 @@ import './globals.css';
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.URL || 'http://localhost:3000'),
   title: 'ReparoSM | Repair System Master',
-  description: 'Controle produtos, serviços, estoque, clientes e resultados da sua assistência técnica em um só lugar.',
+  description:
+    'Controle produtos, serviços, estoque, clientes e resultados da sua assistência técnica em um só lugar.',
   openGraph: {
     title: 'ReparoSM | Repair System Master',
     description: 'Produtos, ordens de serviço, estoque e resultados em um só lugar.',
