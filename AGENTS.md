@@ -41,3 +41,22 @@ no API key, $0).
 <!-- graft:end -->
 
 Graft is a project devDependency (not global): if `graft` is not on PATH, run it as `pnpm exec graft ...`. Run `pnpm install` first on a fresh clone, then `pnpm exec graft build`.
+
+## Regra obrigatória do projeto
+
+O Graft deve ser usado em toda tarefa neste repositório, sem exceção:
+
+1. Antes de entender ou alterar código, execute `pnpm exec graft check`; se o grafo estiver stale, execute `pnpm exec graft build`.
+2. Para explorar o código, use primeiro `pnpm exec graft map`, `ask`, `grep`, `skeleton` ou `callers`; só depois recorra a buscas/leitura direta quando necessário.
+3. Depois de alterações relevantes, execute `pnpm exec graft build` e `pnpm exec graft check` antes de finalizar.
+4. Nunca inclua o cache local `graft/` em commits, salvo solicitação explícita.
+
+## Regra obrigatória do Ponytail
+
+O Ponytail deve ser aplicado em toda tarefa de código neste repositório, no modo `full` por padrão:
+
+1. Antes de criar algo, verificar se ele é necessário, se já existe no projeto, se a biblioteca padrão ou a plataforma resolve o problema e escolher a menor solução que funcione.
+2. Preferir reutilização, exclusão e soluções nativas; não adicionar abstrações, dependências ou boilerplate sem necessidade comprovada.
+3. Manter validação em limites de confiança, tratamento de erros, segurança e acessibilidade; a simplificação nunca pode removê-los.
+4. Para lógica não trivial, deixar um teste ou verificação executável mínimo.
+5. Marcar atalhos deliberados com `ponytail:` e registrar o limite conhecido e o caminho de evolução.
