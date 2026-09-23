@@ -28,6 +28,10 @@ test('accepts the minimum valid shape for every business record', () => {
   }
 });
 
+test('accepts numeric part costs', () => {
+  assert.equal(validateRecord('part', { name: 'Tela', stock: 2, cost: 80, price: 150 }).ok, true);
+});
+
 test('rejects missing required fields', () => {
   assert.equal(validateRecord('order', { code: 'OS-1', device: 'iPhone' }).ok, false);
   assert.equal(validateRecord('client', { name: 'Ana' }).ok, false);

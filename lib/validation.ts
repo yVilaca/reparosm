@@ -107,7 +107,7 @@ const validateQuote = (value: unknown): ValidationResult<Quote> => {
 
 const validatePart = (value: unknown): ValidationResult<Part> => {
   const data = objectValue(value);
-  if (!data || !validateStrings(data, ['name', 'category', 'cost', 'sku', 'image'], ['name']))
+  if (!data || !validateStrings(data, ['name', 'category', 'sku', 'image'], ['name']))
     return { ok: false, error: 'Produto inválido.' };
   if (!validateNumbers(data, ['stock', 'cost', 'price'], ['stock', 'price']))
     return { ok: false, error: 'Valores do produto inválidos.' };
