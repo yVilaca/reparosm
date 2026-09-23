@@ -209,10 +209,101 @@ test('deleting a client keeps its orders', { skip }, async () => {
   assert.ok(orders.every((o) => o.data.clientId !== client.id));
 });
 
-test('types not yet migrated still use records, scoped by account', { skip }, async () => {
-  const { body } = await save(A, 'payment', { description: 'Sinal', value: 50 });
-  assert.equal((await list(A, 'payment'))[0].id, body.record.id);
+test('payments and expenses share a table but stay separate types', { skip }, async () => {
+  const payment = await save(A, 'payment', {
+    description: 'Sinal',
+    value: '50.5',
+    date: '2026-09-23',
+  });
+  const expense = await save(A, 'expense', { description: 'Aluguel', value: 900, method: 'Pix' });
+  assert.equal(payment.status, 201);
+  assert.deepEqual(
+    (await list(A, 'payment')).map((r) => [r.id, r.data.value, r.data.date]),
+    [[payment.body.record.id, 50.5, '2026-09-23']],
+  );
+  assert.deepEqual(
+    (await list(A, 'expense')).map((r) => r.id),
+    [expense.body.record.id],
+  );
+  assert.equal(
+    (await save(A, 'expense', { description: 'x', value: 1 }, payment.body.record.id)).status,
+    400,
+  );
   assert.deepEqual(await list(B, 'payment'), []);
-  assert.equal((await remove(B, body.record.id)).status, 403);
-  assert.ok((await list(A)).some((r) => r.type === 'film'));
+  assert.equal((await remove(B, payment.body.record.id)).status, 403);
+});
+
+test(
+  'parts: stock must be a whole number and the vitrine shows only published stock',
+  { skip },
+  async () => {
+    assert.equal((await save(A, 'part', { name: 'Tela', stock: -1, price: 10 })).status, 400);
+    assert.equal((await save(A, 'part', { name: 'Tela', stock: 1.5, price: 10 })).status, 400);
+    await save(A, 'part', { name: 'Tela', stock: 3, cost: 80, price: 200, published: true });
+    await save(A, 'part', { name: 'Oculta', stock: 3, price: 50, published: false });
+    await save(A, 'part', { name: 'Esgotada', stock: 0, price: 50, published: true });
+    const vitrine = await (
+      await state.GET(new Request(`${base}?public=1&type=part&account=${A.id}`))
+    ).json();
+    assert.deepEqual(
+      vitrine.records.map((r) => r.data),
+      [{ name: 'Tela', price: 200, stock: 3, published: true }],
+    );
+  },
+);
+
+test('messages keep an order link only for the same account', { skip }, async () => {
+  const [mine] = await list(A, 'order');
+  const ok = await save(A, 'message', {
+    orderId: mine.id,
+    customer: 'Ana',
+    phone: '11999998888',
+    kind: 'Contato',
+    message: 'Oi',
+    status: 'Enviado',
+    sentAt: '2026-09-23T12:00:00.000Z',
+  });
+  assert.equal(ok.body.record.data.orderId, mine.id);
+  assert.equal(ok.body.record.data.sentAt, '2026-09-23T12:00:00.000Z');
+  const foreign = await save(B, 'message', {
+    orderId: mine.id,
+    customer: 'X',
+    phone: '1',
+    kind: 'Contato',
+    message: 'Oi',
+    status: 'Enviado',
+  });
+  assert.equal(foreign.body.record.data.orderId, undefined);
+});
+
+test('films, automations and tutorials are stored per account', { skip }, async () => {
+  await save(A, 'film', {
+    brand: 'Apple',
+    model: 'iPhone 15',
+    compatible: 'iPhone 15',
+    size: 'Frontal',
+  });
+  const films = await list(A, 'film');
+  assert.ok(films.some((f) => f.data.model === 'iPhone 15'));
+  assert.ok(films.some((f) => f.id.startsWith('film-default-')));
+  assert.equal(
+    (await remove(A, films.find((f) => f.id.startsWith('film-default-')).id)).status,
+    403,
+  );
+  const auto = await save(A, 'automation', {
+    name: 'Revisão',
+    schedule: '30 dias',
+    message: 'Olá',
+    enabled: true,
+  });
+  await save(
+    A,
+    'automation',
+    { name: 'Revisão', schedule: '30 dias', message: 'Olá', enabled: false },
+    auto.body.record.id,
+  );
+  assert.equal((await list(A, 'automation'))[0].data.enabled, false);
+  await save(A, 'tutorial', { title: 'Troca de tela', url: 'https://exemplo.com' });
+  assert.equal((await list(A, 'tutorial')).length, 1);
+  assert.deepEqual(await list(B, 'tutorial'), []);
 });

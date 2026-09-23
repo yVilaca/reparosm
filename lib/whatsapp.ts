@@ -1,4 +1,5 @@
-import { query, saveRecord } from '@/lib/db';
+import { query } from '@/lib/db';
+import { messages } from '@/lib/repos';
 import { hasValidWhatsapp, whatsappPhone } from '@/lib/format';
 import type { DataObject, Order } from '@/lib/types';
 
@@ -205,8 +206,7 @@ export async function notifyOrder(
   } catch (cause) {
     error = cause instanceof Error ? cause.message : 'Falha de conexão com a Meta.';
   }
-  await saveRecord('message-' + crypto.randomUUID(), 'message', {
-    _accountId: accountId,
+  await messages.save(accountId, `message-${crypto.randomUUID()}`, {
     orderId,
     customer: order.customer,
     phone,

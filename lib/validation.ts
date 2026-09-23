@@ -111,6 +111,8 @@ const validatePart = (value: unknown): ValidationResult<Part> => {
     return { ok: false, error: 'Produto inválido.' };
   if (!validateNumbers(data, ['stock', 'cost', 'price'], ['stock', 'price']))
     return { ok: false, error: 'Valores do produto inválidos.' };
+  if (!Number.isInteger(data.stock) || (data.stock as number) < 0)
+    return { ok: false, error: 'Estoque deve ser um número inteiro, zero ou maior.' };
   if (!validateBooleans(data, ['published'], []))
     return { ok: false, error: 'Publicação inválida.' };
   return { ok: true, data: data as Part };
