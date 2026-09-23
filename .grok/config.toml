@@ -1,0 +1,3 @@
+[mcp_servers.graft]
+command = "npx"
+args = ["--no", "@nanonets/graft", "mcp"]
