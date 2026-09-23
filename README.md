@@ -15,6 +15,20 @@ Esta versão usa **Next.js e Netlify Database (Postgres)**. A estrutura do banco
 - Desenvolvimento: `pnpm dev`.
 - Verificações: `pnpm lint`, `pnpm typecheck` e `pnpm test` (também rodam no CI a cada push/PR).
 - Build para Netlify: `pnpm build`.
+
+### Banco local
+
+Os testes de banco (`tests/*.test.mjs`) criam um banco descartável por arquivo em qualquer Postgres acessível por `DATABASE_URL`; sem essa variável eles são ignorados localmente (o CI sempre os executa com Postgres 17).
+
+```bash
+docker run -d --name reparosm-db -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:17
+export DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres
+pnpm test          # testes, incluindo os de banco
+pnpm db:migrate    # aplica as migrações no banco de DATABASE_URL (desenvolvimento)
+```
+
+Em produção as migrações de `netlify/database/migrations` são aplicadas pela Netlify no deploy; `pnpm db:migrate` é só para desenvolvimento e CI.
+
 - Configuração de publicação: `netlify.toml`, saída `.next`.
 - O banco pode ser substituído por outro Postgres com `DATABASE_URL`; mantenha esta variável somente no servidor.
 
