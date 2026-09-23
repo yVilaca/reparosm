@@ -1,19 +1,9 @@
 import { deleteRecord, getRecord, listRecords, saveRecord } from '@/lib/db';
 import { normalizeUser, passwordHash, passwordProblem, verifyPassword } from '@/lib/security';
-
 export { normalizeUser, passwordHash, passwordProblem, verifyPassword };
-export type AccountData = {
-  username: string;
-  name: string;
-  role: 'admin' | 'merchant';
-  status: 'active' | 'suspended' | 'cancelled';
-  passwordHash: string;
-  mustChangePassword?: boolean;
-  createdAt: string;
-  plan?: string;
-  dueDate?: string;
-};
-export const publicAccount = (account: any) => {
+export type { AccountData } from '@/lib/types';
+
+export const publicAccount = (account: Record<string, unknown>) => {
   const { passwordHash: _, ...safe } = account;
   return safe;
 };

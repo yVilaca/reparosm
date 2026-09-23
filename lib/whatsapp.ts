@@ -1,4 +1,6 @@
 import { getRecord, saveRecord } from '@/lib/db';
+import { hasValidWhatsapp, whatsappPhone } from '@/lib/format';
+import type { DataObject, Order } from '@/lib/types';
 
 export type WhatsAppConfiguration = {
   token: string;
@@ -22,6 +24,8 @@ const base64ToBytes = (value: string) => {
   const raw = atob(value);
   return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 };
+const isObject = (value: unknown): value is DataObject =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 const secretKey = async () => {
   const raw = process.env.WHATSAPP_CONFIG_KEY || '';
   if (!/^[a-f0-9]{64}$/i.test(raw))
@@ -45,7 +49,9 @@ async function encrypt(data: WhatsAppConfiguration) {
     );
   return { iv: bytesToBase64(iv), cipher: bytesToBase64(cipher) };
 }
-async function decrypt(data: any) {
+async function decrypt(data: unknown) {
+  if (!isObject(data) || typeof data.iv !== 'string' || typeof data.cipher !== 'string')
+    throw new Error('Configuração do WhatsApp inválida.');
   const plain = await crypto.subtle.decrypt(
     { name: 'AES-GCM', iv: base64ToBytes(data.iv) },
     await secretKey(),
@@ -93,10 +99,14 @@ export async function validateWhatsappConfiguration(config: WhatsAppConfiguratio
       `https://graph.facebook.com/${config.version}/${encodeURIComponent(config.phoneNumberId)}?fields=display_phone_number,verified_name,quality_rating`,
       { headers: { Authorization: `Bearer ${config.token}` }, signal: AbortSignal.timeout(15000) },
     ),
-    result = (await response.json()) as any;
+    result = ((await response.json()) as DataObject) || {},
+    error =
+      typeof result.error === 'object' && result.error !== null
+        ? (result.error as DataObject)
+        : null;
   if (!response.ok)
     throw new Error(
-      `A Meta recusou a conexão (código ${result?.error?.code || response.status}). Confira o token e o ID do número.`,
+      `A Meta recusou a conexão (código ${error?.code || response.status}). Confira o token e o ID do número.`,
     );
   return {
     displayPhone: String(result.display_phone_number || ''),
@@ -111,9 +121,8 @@ export async function sendWhatsappTemplate(
   template: string,
   values: string[],
 ) {
-  let phone = String(to || '').replace(/\D/g, '');
-  if (phone.length === 10 || phone.length === 11) phone = '55' + phone;
-  if (!/^\d{12,15}$/.test(phone)) throw new Error('Telefone inválido. Use DDD e número.');
+  const phone = whatsappPhone(to);
+  if (!hasValidWhatsapp(to)) throw new Error('Telefone inválido. Use DDD e número.');
   const response = await fetch(
       `https://graph.facebook.com/${config.version}/${config.phoneNumberId}/messages`,
       {
@@ -137,18 +146,25 @@ export async function sendWhatsappTemplate(
         }),
       },
     ),
-    result = (await response.json()) as any;
-  if (!response.ok || !result?.messages?.[0]?.id)
+    result = ((await response.json()) as DataObject) || {},
+    error =
+      typeof result.error === 'object' && result.error !== null
+        ? (result.error as DataObject)
+        : null,
+    messages = Array.isArray(result.messages) ? result.messages : [],
+    firstMessage =
+      typeof messages[0] === 'object' && messages[0] !== null ? (messages[0] as DataObject) : null;
+  if (!response.ok || typeof firstMessage?.id !== 'string')
     throw new Error(
-      `A Meta recusou o envio (código ${result?.error?.code || response.status}). ${result?.error?.error_data?.details || 'Confira o modelo e o destinatário.'}`,
+      `A Meta recusou o envio (código ${error?.code || response.status}). ${error?.error_data || 'Confira o modelo e o destinatário.'}`,
     );
-  return { providerId: String(result.messages[0].id), phone };
+  return { providerId: firstMessage.id, phone };
 }
 
 export async function notifyOrder(
   accountId: string,
   orderId: string,
-  order: any,
+  order: Order,
   event: 'created' | 'status',
 ) {
   const config = await whatsappConfiguration(accountId),

@@ -6,8 +6,12 @@ import {
   validateWhatsappConfiguration,
   whatsappConfiguration,
 } from '@/lib/whatsapp';
+import type { DataObject } from '@/lib/types';
 
-const safe = (config: any, extra: Record<string, unknown> = {}) => ({
+const safe = (
+  config: Awaited<ReturnType<typeof whatsappConfiguration>>,
+  extra: Record<string, unknown> = {},
+) => ({
   configured: Boolean(config?.token && config?.phoneNumberId),
   phoneNumberId: config?.phoneNumberId ? `••••${String(config.phoneNumberId).slice(-4)}` : '',
   displayPhone: config?.displayPhone || '',
@@ -19,6 +23,8 @@ const safe = (config: any, extra: Record<string, unknown> = {}) => ({
   deliveryTracking: false,
   ...extra,
 });
+const isObject = (value: unknown): value is DataObject =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 export async function GET(request: Request) {
   const account = await currentAccount(request);
   if (!account) return Response.json({ error: 'Não autenticado' }, { status: 401 });
@@ -31,12 +37,13 @@ export async function POST(request: Request) {
   if (!sameOrigin(request)) return Response.json({ error: 'Origem inválida' }, { status: 403 });
   const account = await currentAccount(request);
   if (!account) return Response.json({ error: 'Não autenticado' }, { status: 401 });
-  let body: any;
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
     return Response.json({ error: 'Dados inválidos' }, { status: 400 });
   }
+  if (!isObject(body)) return Response.json({ error: 'Dados inválidos' }, { status: 400 });
   if (body.action === 'disconnect') {
     await deleteRecord(`whatsapp-config-${account.id}`);
     return Response.json({ ok: true });

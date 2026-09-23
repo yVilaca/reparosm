@@ -1,19 +1,32 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { formatMoney as money } from '@/lib/format';
+import type { Quote, QuoteStatus } from '@/lib/types';
 
-const money = (n: number) =>
-  Number(n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+type PublicQuote = {
+  code?: string;
+  customer: string;
+  device: string;
+  problem?: string;
+  service: string;
+  notes?: string;
+  total?: number;
+  validUntil?: string;
+  status?: Quote['status'];
+  orderId?: string;
+};
+type PublicQuoteRecord = { id: string; data: PublicQuote };
 export default function PublicQuote() {
   const { id } = useParams<{ id: string }>(),
-    [record, setRecord] = useState<any>(null),
-    [done, setDone] = useState(''),
+    [record, setRecord] = useState<PublicQuoteRecord | null>(null),
+    [done, setDone] = useState<QuoteStatus | ''>(''),
     [loading, setLoading] = useState(true),
     [deciding, setDeciding] = useState(false);
   useEffect(() => {
     fetch(`/api/public/quote?id=${encodeURIComponent(id)}`)
       .then((r) => r.json())
-      .then((x) => setRecord(x.record))
+      .then((x) => setRecord(x.record as PublicQuoteRecord | null))
       .finally(() => setLoading(false));
   }, [id]);
   if (loading)
@@ -32,7 +45,7 @@ export default function PublicQuote() {
       </main>
     );
   const q = record.data;
-  const decide = async (status: string) => {
+  const decide = async (status: 'Aprovado' | 'Recusado') => {
     if (deciding) return;
     setDeciding(true);
     const response = await fetch('/api/public/quote', {
@@ -40,7 +53,7 @@ export default function PublicQuote() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: record.id, status }),
     });
-    const result = await response.json();
+    const result = (await response.json()) as { error?: string; orderId?: string };
     if (response.ok) {
       setDone(status);
       setRecord({ ...record, data: { ...q, status, orderId: result.orderId } });

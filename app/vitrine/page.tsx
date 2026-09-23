@@ -1,12 +1,14 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import { formatMoney, hasValidWhatsapp, whatsappUrl } from '@/lib/format';
+import type { Part, Shop } from '@/lib/types';
 
-const price = (value: number) =>
-  Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+type PublicRecord<T> = { id: string; data: T };
+type PublicResponse<T> = { records?: PublicRecord<T>[]; error?: string };
 
 export default function Vitrine() {
-  const [items, setItems] = useState<any[]>([]),
-    [shop, setShop] = useState<any>({}),
+  const [items, setItems] = useState<Part[]>([]),
+    [shop, setShop] = useState<Shop>({ name: 'ReparoSM', phone: '' }),
     [category, setCategory] = useState('Todos'),
     [loading, setLoading] = useState(true),
     [error, setError] = useState('');
@@ -25,32 +27,41 @@ export default function Vitrine() {
         r.json(),
       ),
     ])
-      .then(([parts, shops]) => {
+      .then(async ([partsResponse, shopsResponse]) => {
+        const parts = (await partsResponse.json()) as PublicResponse<Part>;
+        const shops = (await shopsResponse.json()) as PublicResponse<Shop>;
         if (parts.error || shops.error) {
           setError('Esta vitrine está indisponível. Confira o link com a assistência.');
           return;
         }
         setItems(
-          parts.records
-            .filter((p: any) => p.data.published && Number(p.data.stock) > 0)
-            .map((p: any) => p.data),
+          (parts.records || [])
+            .filter((p) => p.data.published === true && Number(p.data.stock) > 0)
+            .map((p) => p.data),
         );
-        setShop(shops.records[0]?.data || {});
+        setShop(shops.records?.[0]?.data || { name: 'ReparoSM', phone: '' });
       })
       .catch(() => setError('Não foi possível carregar a vitrine. Tente novamente.'))
       .finally(() => setLoading(false));
   }, []);
   const categories = useMemo(
-    () => ['Todos', ...Array.from(new Set(items.map((p) => p.category).filter(Boolean)))],
+    () => [
+      'Todos',
+      ...Array.from(new Set(items.map((p) => p.category))).filter((value): value is string =>
+        Boolean(value),
+      ),
+    ],
     [items],
   );
   const visible = category === 'Todos' ? items : items.filter((p) => p.category === category);
-  const ask = (p: any) => {
-    let digits = String(shop.phone || '').replace(/\D/g, '');
-    if (digits.length === 10 || digits.length === 11) digits = `55${digits}`;
-    if (!digits) return alert('A assistência ainda não cadastrou o WhatsApp.');
+  const ask = (p: Part) => {
+    if (!hasValidWhatsapp(shop.phone))
+      return alert('A assistência ainda não cadastrou o WhatsApp.');
     window.open(
-      `https://wa.me/${digits}?text=${encodeURIComponent(`Olá! Vi ${p.name} na vitrine da ${shop.name || 'ReparoSM'} e tenho interesse. Valor anunciado: ${price(p.price)}.`)}`,
+      whatsappUrl(
+        shop.phone,
+        `Olá! Vi ${p.name} na vitrine da ${shop.name || 'ReparoSM'} e tenho interesse. Valor anunciado: ${formatMoney(p.price)}.`,
+      ),
       '_blank',
       'noopener,noreferrer',
     );
@@ -116,7 +127,7 @@ export default function Vitrine() {
                 <small>{p.category || 'Produto'}</small>
                 <h2>{p.name}</h2>
                 <p>{p.stock} unidades disponíveis</p>
-                <strong>{price(p.price)}</strong>
+                <strong>{formatMoney(p.price)}</strong>
                 <button onClick={() => ask(p)}>Pedir pelo WhatsApp</button>
               </article>
             ))}

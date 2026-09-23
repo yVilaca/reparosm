@@ -1,12 +1,53 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useState, type ChangeEvent } from 'react';
+import { formatMoney as money, hasValidWhatsapp, whatsappUrl } from '@/lib/format';
+import type {
+  BusinessRecordType,
+  DataObject,
+  PublicAccount,
+  RecordData,
+  StoredRecord,
+} from '@/lib/types';
 import './accounts.css';
 import './recovery.css';
 import './mesa.css';
 import './whatsapp.css';
 
-type RecordItem = { id: string; type: string; data: any };
+type RecordItem = StoredRecord;
+type Item<T extends BusinessRecordType> = RecordData[T] & { id: string };
+type OrderItem = Item<'order'>;
+type QuoteItem = Item<'quote'>;
+type PartItem = Item<'part'>;
+type FilmItem = Item<'film'>;
+type ClientItem = Item<'client'>;
+type PaymentItem = Item<'payment'>;
+type ExpenseItem = Item<'expense'>;
+type AutomationItem = Item<'automation'>;
+type MessageItem = Item<'message'>;
+type TutorialItem = Item<'tutorial'>;
+type ShopItem = Item<'shop'>;
+type SaveAction = (type: BusinessRecordType, data: unknown, id?: string) => Promise<void>;
+type PasswordRequestItem = {
+  id: string;
+  accountId: string;
+  username: string;
+  status: 'pending' | 'resolved';
+  createdAt: string;
+};
+type ChatMessage = { role: 'ai' | 'me'; text: string };
+type WhatsAppStatus = {
+  configured: boolean;
+  phoneNumberId?: string;
+  displayPhone?: string;
+  verifiedName?: string;
+  orderTemplate?: string;
+  statusTemplate?: string;
+  language?: string;
+  version?: string;
+  qualityRating?: string;
+};
+type FieldChange = ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>;
 const menu = [
   'Dashboard',
   'Mesa',
@@ -34,10 +75,11 @@ const stages = [
   'Retirada',
 ];
 
-async function api(type?: string, data?: any, id?: string) {
+async function api(type?: BusinessRecordType, data?: unknown, id?: string) {
   if (!type) {
     const r = await fetch('/api/state');
-    return (await r.json()).records as RecordItem[];
+    const result = (await r.json()) as { records?: RecordItem[] };
+    return result.records || [];
   }
   const r = await fetch('/api/state', {
     method: 'POST',
@@ -48,25 +90,18 @@ async function api(type?: string, data?: any, id?: string) {
   if (!r.ok) throw new Error(result.error || 'Não foi possível salvar.');
   return result;
 }
-const money = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-const whatsappUrl = (phone: string, message: string) => {
-  let digits = String(phone || '').replace(/\D/g, '');
-  if (digits.length === 10 || digits.length === 11) digits = `55${digits}`;
-  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
-};
 const openWhatsApp = (phone: string, message: string) => {
-  const digits = String(phone || '').replace(/\D/g, '');
-  if (digits.length < 10) return false;
+  if (!hasValidWhatsapp(phone)) return false;
   window.open(whatsappUrl(phone, message), '_blank', 'noopener,noreferrer');
   return true;
 };
 
 export default function Home() {
   const [active, setActive] = useState('Dashboard');
-  const [account, setAccount] = useState<any>(null),
+  const [account, setAccount] = useState<PublicAccount | null>(null),
     [authLoading, setAuthLoading] = useState(true);
   const [records, setRecords] = useState<RecordItem[]>([]);
-  const [editingOrder, setEditingOrder] = useState<any>(null);
+  const [editingOrder, setEditingOrder] = useState<OrderItem | null>(null);
   const [modal, setModal] = useState<
     'order' | 'quote' | 'part' | 'film' | 'client' | 'payment' | 'expense' | 'tutorial' | null
   >(null);
@@ -78,14 +113,14 @@ export default function Home() {
   useEffect(() => {
     fetch('/api/auth')
       .then(async (r) => {
-        const x = await r.json();
+        const x = (await r.json()) as { account: PublicAccount | null };
         setAccount(x.account);
         if (x.account) await load();
       })
       .catch(() => setAccount(null))
       .finally(() => setAuthLoading(false));
   }, []);
-  const save = async (type: string, data: any, id?: string) => {
+  const save = async (type: BusinessRecordType, data: unknown, id?: string) => {
     try {
       const result = await api(type, data, id);
       await load();
@@ -97,15 +132,17 @@ export default function Home() {
       throw error;
     }
   };
-  const removeOrder = async (order: any) => {
+  const removeOrder = async (order: OrderItem) => {
     if (!confirm(`Excluir definitivamente a ordem ${order.code}?`)) return;
     await fetch(`/api/state?id=${encodeURIComponent(order.id)}`, { method: 'DELETE' });
     await load();
     setToast('Ordem excluída');
     setTimeout(() => setToast(''), 2200);
   };
-  const by = (type: string) =>
-    records.filter((r) => r.type === type).map((r) => ({ id: r.id, ...r.data }));
+  const by = <T extends BusinessRecordType>(type: T): Item<T>[] =>
+    records
+      .filter((record) => record.type === type)
+      .map((record) => ({ id: record.id, ...record.data }) as unknown as Item<T>);
   const orders = by('order'),
     quotes = by('quote'),
     parts = by('part'),
@@ -328,13 +365,13 @@ function Dashboard({
   expenses,
   messages,
 }: {
-  orders: any[];
-  quotes: any[];
-  parts: any[];
-  clients: any[];
-  payments: any[];
-  expenses: any[];
-  messages: any[];
+  orders: OrderItem[];
+  quotes: QuoteItem[];
+  parts: PartItem[];
+  clients: ClientItem[];
+  payments: PaymentItem[];
+  expenses: ExpenseItem[];
+  messages: MessageItem[];
 }) {
   const revenue = payments.reduce((s, p) => s + Number(p.value || 0), 0),
     out = expenses.reduce((s, p) => s + Number(p.value || 0), 0),
@@ -343,7 +380,13 @@ function Dashboard({
     open = orders.filter((o) => o.status !== 'Concluído' && o.stage !== 'Retirada'),
     low = parts.filter((p) => Number(p.stock) < 5),
     approved = quotes.filter((q) => q.status === 'Aprovado');
-  const activity = [
+  const activity: Array<{
+    id?: string;
+    activity: string;
+    label: string;
+    value?: number;
+    when?: string;
+  }> = [
     ...payments.map((x) => ({
       ...x,
       activity: 'Recebimento',
@@ -499,8 +542,8 @@ function Metric({ t, v, d }: { t: string; v: string; d: string }) {
   );
 }
 
-function Mesa({ orders, save, open }: { orders: any[]; save: any; open: () => void }) {
-  const move = (o: any, dir: number) => {
+function Mesa({ orders, save, open }: { orders: OrderItem[]; save: SaveAction; open: () => void }) {
+  const move = (o: OrderItem, dir: number) => {
     const i = Math.max(0, Math.min(stages.length - 1, stages.indexOf(o.stage || 'Recebido') + dir));
     void save('order', { ...o, stage: stages[i] }, o.id);
   };
@@ -562,9 +605,9 @@ function Mesa({ orders, save, open }: { orders: any[]; save: any; open: () => vo
     </>
   );
 }
-function Quotes({ items, save, open }: { items: any[]; save: any; open: () => void }) {
-  const [preview, setPreview] = useState<any>(null);
-  const status = (q: any, s: string) => save('quote', { ...q, status: s }, q.id);
+function Quotes({ items, save, open }: { items: QuoteItem[]; save: SaveAction; open: () => void }) {
+  const [preview, setPreview] = useState<QuoteItem | null>(null);
+  const status = (q: QuoteItem, s: string) => save('quote', { ...q, status: s }, q.id);
   return (
     <>
       {!items.length ? (
@@ -597,7 +640,7 @@ function Quotes({ items, save, open }: { items: any[]; save: any; open: () => vo
                   <td>{q.device}</td>
                   <td>{money(Number(q.total))}</td>
                   <td>
-                    <Badge>{q.status}</Badge>
+                    <Badge>{q.status || 'Aguardando'}</Badge>
                   </td>
                   <td>
                     <button onClick={() => setPreview(q)}>Abrir link</button>
@@ -644,10 +687,10 @@ function Quotes({ items, save, open }: { items: any[]; save: any; open: () => vo
     </>
   );
 }
-function Orders({ items, save, open }: { items: any[]; save: any; open: () => void }) {
-  const send = (o: any) => {
+function Orders({ items, save, open }: { items: OrderItem[]; save: SaveAction; open: () => void }) {
+  const send = (o: OrderItem) => {
     const message = `Olá, ${o.customer}! Atualização da ${o.code}: seu ${o.device} está na etapa “${o.stage || 'Recebido'}”. Qualquer dúvida, estamos à disposição. — ReparoSM`;
-    if (openWhatsApp(o.phone, message))
+    if (openWhatsApp(o.phone || '', message))
       void save('message', {
         customer: o.customer,
         phone: o.phone,
@@ -681,7 +724,7 @@ function Orders({ items, save, open }: { items: any[]; save: any; open: () => vo
               <td>{o.customer}</td>
               <td>{o.device}</td>
               <td>
-                <Badge>{o.stage}</Badge>
+                <Badge>{o.stage || 'Recebido'}</Badge>
               </td>
               <td>{money(Number(o.total))}</td>
               <td>{money(Number(o.cost))}</td>
@@ -711,8 +754,8 @@ function Parts({
   open,
   accountId,
 }: {
-  items: any[];
-  save: any;
+  items: PartItem[];
+  save: SaveAction;
   open: () => void;
   accountId: string;
 }) {
@@ -789,7 +832,7 @@ function Parts({
   );
 }
 
-function OrderModal({ close, save }: { close: () => void; save: any }) {
+function OrderModal({ close, save }: { close: () => void; save: SaveAction }) {
   const [step, setStep] = useState(1),
     [pattern, setPattern] = useState<number[]>([]),
     [labor, setLabor] = useState(0),
@@ -806,7 +849,7 @@ function OrderModal({ close, save }: { close: () => void; save: any }) {
       priority: 'Normal',
     });
   const total = labor + parts;
-  const field = (key: keyof typeof form) => (e: any) =>
+  const field = (key: keyof typeof form) => (e: FieldChange) =>
     setForm((v) => ({ ...v, [key]: e.target.value }));
   const toggle = (n: number) =>
     setPattern((p) => (p.includes(n) ? p.filter((x) => x !== n) : [...p, n]));
@@ -997,7 +1040,7 @@ function OrderModal({ close, save }: { close: () => void; save: any }) {
   );
 }
 
-function QuoteModal({ close, save }: { close: () => void; save: any }) {
+function QuoteModal({ close, save }: { close: () => void; save: SaveAction }) {
   const [labor, setLabor] = useState(0),
     [parts, setParts] = useState(0);
   return (
@@ -1071,15 +1114,15 @@ function OrdersManage({
   edit,
   remove,
 }: {
-  items: any[];
-  save: any;
+  items: OrderItem[];
+  save: SaveAction;
   open: () => void;
-  edit: (o: any) => void;
-  remove: (o: any) => void;
+  edit: (o: OrderItem) => void;
+  remove: (o: OrderItem) => void;
 }) {
-  const send = (o: any) => {
+  const send = (o: OrderItem) => {
     const message = `Olá, ${o.customer}! Atualização da ${o.code}: seu ${o.device} está na etapa “${o.stage || 'Recebido'}”.`;
-    if (openWhatsApp(o.phone, message))
+    if (openWhatsApp(o.phone || '', message))
       void save('message', {
         customer: o.customer,
         phone: o.phone,
@@ -1140,11 +1183,19 @@ function OrdersManage({
     />
   );
 }
-function OrderEditModal({ item, close, save }: { item: any; close: () => void; save: any }) {
+function OrderEditModal({
+  item,
+  close,
+  save,
+}: {
+  item: OrderItem;
+  close: () => void;
+  save: SaveAction;
+}) {
   const [form, setForm] = useState({ ...item }),
     [saving, setSaving] = useState(false);
-  const field = (key: string) => (e: any) =>
-    setForm((v: any) => ({
+  const field = (key: keyof OrderItem) => (e: FieldChange) =>
+    setForm((v) => ({
       ...v,
       [key]: e.target.type === 'number' ? Number(e.target.value) : e.target.value,
     }));
@@ -1281,13 +1332,13 @@ function OrderEditModal({ item, close, save }: { item: any; close: () => void; s
     </div>
   );
 }
-function QuotesManage({ items, open }: { items: any[]; open: () => void }) {
-  const link = (q: any) => `${window.location.origin}/o/${encodeURIComponent(q.id)}`;
-  const copy = async (q: any) => {
+function QuotesManage({ items, open }: { items: QuoteItem[]; open: () => void }) {
+  const link = (q: QuoteItem) => `${window.location.origin}/o/${encodeURIComponent(q.id)}`;
+  const copy = async (q: QuoteItem) => {
     await navigator.clipboard.writeText(link(q));
     alert('Link do orçamento copiado!');
   };
-  const send = (q: any) => {
+  const send = (q: QuoteItem) => {
     const text = `Olá, ${q.customer}! Seu orçamento ${q.code} para ${q.device} está pronto. Visualize, aprove ou recuse aqui: ${link(q)}`;
     if (!openWhatsApp(q.phone, text)) alert('Cadastre um WhatsApp válido no orçamento.');
   };
@@ -1316,7 +1367,7 @@ function QuotesManage({ items, open }: { items: any[]; open: () => void }) {
               <td>{q.problem || q.service || '—'}</td>
               <td>{money(Number(q.total || 0))}</td>
               <td>
-                <Badge>{q.status}</Badge>
+                <Badge>{q.status || 'Aguardando'}</Badge>
               </td>
               <td>
                 <div className="row-actions">
@@ -1341,7 +1392,7 @@ function QuotesManage({ items, open }: { items: any[]; open: () => void }) {
     />
   );
 }
-function QuoteModalSafe({ close, save }: { close: () => void; save: any }) {
+function QuoteModalSafe({ close, save }: { close: () => void; save: SaveAction }) {
   const [labor, setLabor] = useState(0),
     [parts, setParts] = useState(0),
     [saving, setSaving] = useState(false);
@@ -1453,7 +1504,7 @@ function QuoteModalSafe({ close, save }: { close: () => void; save: any }) {
     </div>
   );
 }
-function FilmsSorted({ items, open }: { items: any[]; open: () => void }) {
+function FilmsSorted({ items, open }: { items: FilmItem[]; open: () => void }) {
   const [search, setSearch] = useState(''),
     [brand, setBrand] = useState('Todas');
   const collator = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' }),
@@ -1524,7 +1575,7 @@ function FilmsSorted({ items, open }: { items: any[]; open: () => void }) {
     </>
   );
 }
-function Login({ onLogin }: { onLogin: (account: any) => void }) {
+function Login({ onLogin }: { onLogin: (account: PublicAccount) => void }) {
   const [error, setError] = useState(''),
     [loading, setLoading] = useState(false),
     [forgot, setForgot] = useState(false),
@@ -1644,9 +1695,9 @@ function Login({ onLogin }: { onLogin: (account: any) => void }) {
 }
 
 function PasswordRequests() {
-  const [accounts, setAccounts] = useState<any[]>([]),
-    [requests, setRequests] = useState<any[]>([]),
-    [selected, setSelected] = useState<any>(null),
+  const [accounts, setAccounts] = useState<PublicAccount[]>([]),
+    [requests, setRequests] = useState<PasswordRequestItem[]>([]),
+    [selected, setSelected] = useState<PublicAccount | null>(null),
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
     [busy, setBusy] = useState(false);
@@ -1669,6 +1720,7 @@ function PasswordRequests() {
   const reset = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (busy) return;
+    if (!selected) return setError('Selecione uma conta.');
     const f = new FormData(e.currentTarget);
     if (f.get('password') !== f.get('confirmPassword'))
       return setError('As senhas não correspondem.');
@@ -1730,7 +1782,7 @@ function PasswordRequests() {
               <button
                 disabled={!a}
                 onClick={() => {
-                  setSelected(a);
+                  setSelected(a || null);
                   setError('');
                 }}
               >
@@ -1747,7 +1799,7 @@ function PasswordRequests() {
         <select
           value=""
           onChange={(e) => {
-            setSelected(accounts.find((a) => a.id === e.target.value));
+            setSelected(accounts.find((a) => a.id === e.target.value) || null);
             setError('');
           }}
         >
@@ -1812,7 +1864,7 @@ function PasswordRequests() {
 }
 
 function AccountManager() {
-  const [items, setItems] = useState<any[]>([]),
+  const [items, setItems] = useState<PublicAccount[]>([]),
     [modal, setModal] = useState(false),
     [loading, setLoading] = useState(true),
     [notice, setNotice] = useState('');
@@ -1824,7 +1876,7 @@ function AccountManager() {
   useEffect(() => {
     void load();
   }, []);
-  const update = async (a: any, status: string) => {
+  const update = async (a: PublicAccount, status: string) => {
     const r = await fetch('/api/accounts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1835,7 +1887,7 @@ function AccountManager() {
     setNotice(status === 'active' ? 'Conta ativada.' : 'Conta atualizada.');
     await load();
   };
-  const remove = async (a: any) => {
+  const remove = async (a: PublicAccount) => {
     if (!confirm(`Excluir a conta de ${a.name} e todos os dados dessa loja?`)) return;
     const r = await fetch(`/api/accounts?id=${encodeURIComponent(a.id)}`, { method: 'DELETE' });
     if (!r.ok) {
@@ -2039,7 +2091,7 @@ function AccountModal({ close, saved }: { close: () => void; saved: () => void }
   );
 }
 
-function OrderModalSafe({ close, save }: { close: () => void; save: any }) {
+function OrderModalSafe({ close, save }: { close: () => void; save: SaveAction }) {
   const [step, setStep] = useState(1),
     [pattern, setPattern] = useState<number[]>([]),
     [labor, setLabor] = useState(0),
@@ -2057,7 +2109,7 @@ function OrderModalSafe({ close, save }: { close: () => void; save: any }) {
       priority: 'Normal',
     });
   const total = labor + parts,
-    field = (key: keyof typeof form) => (e: any) =>
+    field = (key: keyof typeof form) => (e: FieldChange) =>
       setForm((v) => ({ ...v, [key]: e.target.value }));
   const toggle = (n: number) =>
     setPattern((p) => (p.includes(n) ? p.filter((x) => x !== n) : [...p, n]));
@@ -2254,7 +2306,7 @@ function OrderModalSafe({ close, save }: { close: () => void; save: any }) {
     </div>
   );
 }
-function PartModal({ close, save }: { close: () => void; save: any }) {
+function PartModal({ close, save }: { close: () => void; save: SaveAction }) {
   const [category, setCategory] = useState('Telas'),
     [custom, setCustom] = useState('');
   return (
@@ -2353,7 +2405,7 @@ function PartModal({ close, save }: { close: () => void; save: any }) {
   );
 }
 
-function Inventory({ items, open }: { items: any[]; open: () => void }) {
+function Inventory({ items, open }: { items: PartItem[]; open: () => void }) {
   const total = items.reduce((s, p) => s + Number(p.stock || 0) * Number(p.cost || 0), 0);
   return (
     <>
@@ -2415,7 +2467,7 @@ function Inventory({ items, open }: { items: any[]; open: () => void }) {
     </>
   );
 }
-function Films({ items, open }: { items: any[]; open: () => void }) {
+function Films({ items, open }: { items: FilmItem[]; open: () => void }) {
   const [search, setSearch] = useState('');
   const found = items.filter((f) =>
     `${f.model} ${f.compatible}`.toLowerCase().includes(search.toLowerCase()),
@@ -2469,7 +2521,7 @@ function Films({ items, open }: { items: any[]; open: () => void }) {
     </>
   );
 }
-function MyShop({ item, save }: { item: any; save: any }) {
+function MyShop({ item, save }: { item?: ShopItem; save: SaveAction }) {
   return (
     <div className="shop-settings">
       <aside>
@@ -2561,7 +2613,7 @@ function MyShop({ item, save }: { item: any; save: any }) {
     </div>
   );
 }
-function FilmModal({ close, save }: { close: () => void; save: any }) {
+function FilmModal({ close, save }: { close: () => void; save: SaveAction }) {
   return (
     <div className="modal-backdrop">
       <form
@@ -2610,13 +2662,21 @@ function FilmModal({ close, save }: { close: () => void; save: any }) {
     </div>
   );
 }
-function Clients({ items, save, open }: { items: any[]; save: any; open: () => void }) {
+function Clients({
+  items,
+  save,
+  open,
+}: {
+  items: ClientItem[];
+  save: SaveAction;
+  open: () => void;
+}) {
   const [search, setSearch] = useState('');
   const visible = items.filter((c) =>
     `${c.name} ${c.phone}`.toLowerCase().includes(search.toLowerCase()),
   );
-  const change = (c: any, status: string) => void save('client', { ...c, status }, c.id);
-  const chat = (c: any) => {
+  const change = (c: ClientItem, status: string) => void save('client', { ...c, status }, c.id);
+  const chat = (c: ClientItem) => {
     const message = `Olá, ${c.name}! Aqui é da ReparoSM. Como podemos ajudar?`;
     if (openWhatsApp(c.phone, message))
       void save('message', {
@@ -2715,7 +2775,7 @@ function Clients({ items, save, open }: { items: any[]; save: any; open: () => v
     </>
   );
 }
-function ClientModal({ close, save }: { close: () => void; save: any }) {
+function ClientModal({ close, save }: { close: () => void; save: SaveAction }) {
   return (
     <div className="modal-backdrop">
       <form
@@ -2802,7 +2862,7 @@ function ClientModal({ close, save }: { close: () => void; save: any }) {
     </div>
   );
 }
-function MyShopV2({ item, save }: { item: any; save: any }) {
+function MyShopV2({ item, save }: { item?: ShopItem; save: SaveAction }) {
   const [tab, setTab] = useState('Perfil');
   const tabs = ['Perfil', 'Horários', 'Equipe', 'Fiscal', 'Documentos'];
   return (
@@ -2978,7 +3038,7 @@ function MyShopV2({ item, save }: { item: any; save: any }) {
     </div>
   );
 }
-function Finance({ payments, expenses }: { payments: any[]; expenses: any[] }) {
+function Finance({ payments, expenses }: { payments: PaymentItem[]; expenses: ExpenseItem[] }) {
   const income = payments.reduce((s, p) => s + Number(p.value || 0), 0),
     out = expenses.reduce((s, p) => s + Number(p.value || 0), 0);
   const rows = [
@@ -3042,7 +3102,7 @@ function MoneyModal({
 }: {
   kind: 'payment' | 'expense';
   close: () => void;
-  save: any;
+  save: SaveAction;
 }) {
   const receive = kind === 'payment';
   return (
@@ -3128,12 +3188,12 @@ function AfterSales({
   shop,
   save,
 }: {
-  items: any[];
-  messages: any[];
-  clients: any[];
-  orders: any[];
-  shop: any;
-  save: any;
+  items: AutomationItem[];
+  messages: MessageItem[];
+  clients: ClientItem[];
+  orders: OrderItem[];
+  shop?: ShopItem;
+  save: SaveAction;
 }) {
   const templates = [
     [
@@ -3200,7 +3260,7 @@ function AfterSales({
   };
   const send = () => {
     if (!selected) return alert('Escolha um cliente ou uma ordem.');
-    if (openWhatsApp(selected.phone, text))
+    if (openWhatsApp(selected.phone || '', text))
       void save('message', {
         customer: selected.name,
         phone: selected.phone,
@@ -3323,7 +3383,7 @@ function AfterSales({
                       <small>{m.phone}</small>
                     </td>
                     <td>{m.kind}</td>
-                    <td>{new Date(m.sentAt).toLocaleString('pt-BR')}</td>
+                    <td>{new Date(m.sentAt || '').toLocaleString('pt-BR')}</td>
                     <td>
                       <Badge>{m.status}</Badge>
                     </td>
@@ -3336,7 +3396,7 @@ function AfterSales({
     </>
   );
 }
-function Warranties({ orders }: { orders: any[] }) {
+function Warranties({ orders }: { orders: OrderItem[] }) {
   const covered = orders
     .filter((o) => o.stage === 'Retirada' || o.status === 'Concluído')
     .map((o) => ({ ...o, days: Number(o.warrantyDays || 90) }));
@@ -3401,14 +3461,14 @@ function BusinessAssistant({
   parts,
   payments,
 }: {
-  orders: any[];
-  parts: any[];
-  payments: any[];
+  orders: OrderItem[];
+  parts: PartItem[];
+  payments: PaymentItem[];
 }) {
   const revenue = payments.reduce((s, p) => s + Number(p.value || 0), 0),
     low = parts.filter((p) => Number(p.stock) < 5),
     [input, setInput] = useState(''),
-    [chat, setChat] = useState<any[]>([
+    [chat, setChat] = useState<ChatMessage[]>([
       {
         role: 'ai',
         text: 'Olá! Sou a Reparo IA. Pergunte sobre ordens, receita, estoque ou prioridades da sua assistência.',
@@ -3507,7 +3567,7 @@ function BusinessAssistant({
     </div>
   );
 }
-function Support({ items, open }: { items: any[]; open: () => void }) {
+function Support({ items, open }: { items: TutorialItem[]; open: () => void }) {
   const guides = [
     ['Começando', 'Cadastre sua assistência e o primeiro cliente.'],
     ['Ordens de serviço', 'Crie uma OS, registre custos e acompanhe pela Mesa.'],
@@ -3583,7 +3643,7 @@ function Support({ items, open }: { items: any[]; open: () => void }) {
     </>
   );
 }
-function TutorialModal({ close, save }: { close: () => void; save: any }) {
+function TutorialModal({ close, save }: { close: () => void; save: SaveAction }) {
   return (
     <div className="modal-backdrop">
       <form
@@ -3650,7 +3710,7 @@ function TutorialModal({ close, save }: { close: () => void; save: any }) {
   );
 }
 function WhatsAppConnection() {
-  const [status, setStatus] = useState<any>(null),
+  const [status, setStatus] = useState<WhatsAppStatus | null>(null),
     [editing, setEditing] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
@@ -3833,9 +3893,9 @@ function WhatsAppConnection() {
     </article>
   );
 }
-function DataTools({ records, save }: { records: RecordItem[]; save: any }) {
-  const [type, setType] = useState('client');
-  const labels: any = {
+function DataTools({ records, save }: { records: RecordItem[]; save: SaveAction }) {
+  const [type, setType] = useState<BusinessRecordType>('client');
+  const labels: Record<string, string> = {
     client: 'Clientes',
     order: 'Ordens de serviço',
     payment: 'Recebimentos',
@@ -3845,10 +3905,13 @@ function DataTools({ records, save }: { records: RecordItem[]; save: any }) {
     film: 'Películas',
   };
   const csv = (kind: string) => {
-    const rows = records.filter((r) => r.type === kind).map((r) => ({ id: r.id, ...r.data }));
-    if (!rows.length) return alert(`Não há ${labels[kind].toLowerCase()} para exportar.`);
+    const rows = records
+      .filter((r) => r.type === kind)
+      .map((r) => ({ id: r.id, ...r.data }) as DataObject & { id: string });
+    if (!rows.length)
+      return alert(`Não há ${(labels[kind] || 'registros').toLowerCase()} para exportar.`);
     const keys = Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
-    const esc = (v: any) =>
+    const esc = (v: unknown) =>
       `"${String(Array.isArray(v) ? v.join(' | ') : (v ?? '')).replaceAll('"', '""')}"`;
     const content =
       '\uFEFF' +
@@ -3912,7 +3975,7 @@ function DataTools({ records, save }: { records: RecordItem[]; save: any }) {
             Use ponto e vírgula como separador. A primeira linha deve conter os nomes dos campos.
           </p>
         </div>
-        <select value={type} onChange={(e) => setType(e.target.value)}>
+        <select value={type} onChange={(e) => setType(e.target.value as BusinessRecordType)}>
           {Object.entries(labels).map(([kind, label]) => (
             <option value={kind} key={kind}>
               {String(label)}

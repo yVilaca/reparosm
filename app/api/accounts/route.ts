@@ -8,6 +8,7 @@ import {
   sameOrigin,
 } from '@/lib/auth';
 import { deleteRecord, getRecord, listRecords, saveRecord } from '@/lib/db';
+import type { DataObject } from '@/lib/types';
 
 const admin = async (request: Request) => {
   const a = await currentAccount(request);
@@ -18,25 +19,30 @@ const denied = () =>
     { error: 'Acesso negado' },
     { status: 403, headers: { 'Cache-Control': 'no-store' } },
   );
+const isObject = (value: unknown): value is DataObject =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+const isOneOf = <T extends string>(value: unknown, values: readonly T[]): value is T =>
+  typeof value === 'string' && values.includes(value as T);
 export async function GET(request: Request) {
   if (!(await admin(request))) return denied();
-  const accounts = (await listRecords('account')).map((a: any) =>
-    publicAccount({ id: a.id, ...a.data }),
-  );
+  const accounts = (await listRecords('account'))
+    .filter((record) => record.type === 'account')
+    .map((account) => publicAccount({ id: account.id, ...account.data }));
   const requests = (await listRecords('password-request'))
-    .filter((r: any) => r.data.status === 'pending')
-    .map((r: any) => ({ id: r.id, ...r.data }));
+    .filter((record) => record.type === 'password-request' && record.data.status === 'pending')
+    .map((request) => ({ id: request.id, ...request.data }));
   return Response.json({ accounts, requests }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
 export async function POST(request: Request) {
   if (!sameOrigin(request) || !(await admin(request))) return denied();
-  let body: any;
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
     return Response.json({ error: 'Dados inválidos' }, { status: 400 });
   }
+  if (!isObject(body)) return Response.json({ error: 'Dados inválidos' }, { status: 400 });
   if (body.action === 'reset-password') {
     const account = await getRecord(String(body.id || ''));
     if (!account || account.type !== 'account' || account.id === 'account-admin')
@@ -69,10 +75,10 @@ export async function POST(request: Request) {
   if (old) {
     if (old.type !== 'account' || old.id === 'account-admin')
       return Response.json({ error: 'Esta conta não pode ser alterada aqui' }, { status: 400 });
-    const status = ['active', 'suspended', 'cancelled'].includes(body.status)
+    const status = isOneOf(body.status, ['active', 'suspended', 'cancelled'] as const)
         ? body.status
         : old.data.status,
-      plan = ['Mensal', 'Trimestral', 'Anual', 'Cortesia'].includes(body.plan)
+      plan = isOneOf(body.plan, ['Mensal', 'Trimestral', 'Anual', 'Cortesia'] as const)
         ? body.plan
         : old.data.plan;
     const data = {
@@ -105,7 +111,7 @@ export async function POST(request: Request) {
         .slice(0, 80),
       role: 'merchant',
       status: 'active',
-      plan: ['Mensal', 'Trimestral', 'Anual', 'Cortesia'].includes(body.plan)
+      plan: isOneOf(body.plan, ['Mensal', 'Trimestral', 'Anual', 'Cortesia'] as const)
         ? body.plan
         : 'Mensal',
       dueDate: String(body.dueDate || '').slice(0, 10),
@@ -126,12 +132,13 @@ export async function DELETE(request: Request) {
   const account = await getRecord(id);
   if (!account || account.type !== 'account')
     return Response.json({ error: 'Conta não encontrada' }, { status: 404 });
-  const records = await listRecords(),
-    owned = records.filter(
-      (r: any) =>
-        r.id !== id &&
-        (r.data?._accountId === id || (r.type === 'session' && r.data?.accountId === id)),
-    );
+  const records = await listRecords();
+  const owned = records.filter(
+    (record) =>
+      record.id !== id &&
+      (record.data._accountId === id ||
+        (record.type === 'session' && record.data.accountId === id)),
+  );
   for (const record of owned) await deleteRecord(record.id);
   await deleteRecord(id);
   return Response.json({ ok: true, removedRecords: owned.length });

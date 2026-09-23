@@ -12,12 +12,15 @@ import {
   verifyPassword,
 } from '@/lib/auth';
 import { deleteRecord, getRecord, saveRecord } from '@/lib/db';
+import type { DataObject } from '@/lib/types';
 
 const json = (body: unknown, init: ResponseInit = {}) =>
   Response.json(body, {
     ...init,
     headers: { 'Cache-Control': 'no-store', ...(init.headers || {}) },
   });
+const isObject = (value: unknown): value is DataObject =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 export async function GET(request: Request) {
   const account = await currentAccount(request);
@@ -30,12 +33,13 @@ export async function POST(request: Request) {
   if (!sameOrigin(request))
     return json({ error: 'Origem da solicitação inválida.' }, { status: 403 });
   await ensureAdmin();
-  let body: any;
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
     return json({ error: 'Solicitação inválida.' }, { status: 400 });
   }
+  if (!isObject(body)) return json({ error: 'Solicitação inválida.' }, { status: 400 });
   const secure = new URL(request.url).protocol === 'https:';
   if (body.action === 'logout') {
     const session = await currentSession(request);

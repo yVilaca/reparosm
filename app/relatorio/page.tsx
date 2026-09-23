@@ -1,16 +1,15 @@
 'use client';
 import { useEffect, useState } from 'react';
-
-const money = (n: number) =>
-  Number(n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+import { formatMoney as money } from '@/lib/format';
+import type { DataObject, StoredRecord } from '@/lib/types';
 export default function Relatorio() {
-  const [records, setRecords] = useState<any[]>([]);
+  const [records, setRecords] = useState<StoredRecord[]>([]);
   useEffect(() => {
     fetch('/api/state')
       .then((r) => r.json())
-      .then((x) => setRecords(x.records || []));
+      .then((x: { records?: StoredRecord[] }) => setRecords(x.records || []));
   }, []);
-  const by = (t: string) => records.filter((r) => r.type === t).map((r) => r.data),
+  const by = (t: string): DataObject[] => records.filter((r) => r.type === t).map((r) => r.data),
     clients = by('client'),
     orders = by('order'),
     payments = by('payment'),
@@ -121,7 +120,15 @@ export default function Relatorio() {
     </main>
   );
 }
-function Report({ title, rows, columns }: { title: string; rows: any[]; columns: string[][] }) {
+function Report({
+  title,
+  rows,
+  columns,
+}: {
+  title: string;
+  rows: DataObject[];
+  columns: Array<[string, string]>;
+}) {
   return (
     <section className="report-section">
       <h2>
@@ -139,8 +146,8 @@ function Report({ title, rows, columns }: { title: string; rows: any[]; columns:
           <tbody>
             {rows.map((r, i) => (
               <tr key={i}>
-                {columns.map((c) => (
-                  <td key={c[1]}>{r[c[1]] ?? '—'}</td>
+                {columns.map(([, key]) => (
+                  <td key={key}>{r[key] == null ? '—' : String(r[key])}</td>
                 ))}
               </tr>
             ))}
