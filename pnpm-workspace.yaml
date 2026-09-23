@@ -1,0 +1,4 @@
+allowBuilds:
+  # Both ship prebuilt binaries; their install scripts are only fallbacks.
+  sharp: false
+  unrs-resolver: false

@@ -1,5 +1,5 @@
 import { deleteRecord, getRecord, listRecords, saveRecord } from '@/lib/db';
-import { legacyPasswordHash, normalizeUser, passwordHash, passwordProblem, verifyPassword } from '@/lib/security';
+import { normalizeUser, passwordHash, passwordProblem, verifyPassword } from '@/lib/security';
 
 export { normalizeUser, passwordHash, passwordProblem, verifyPassword };
 export type AccountData={username:string;name:string;role:'admin'|'merchant';status:'active'|'suspended'|'cancelled';passwordHash:string;mustChangePassword?:boolean;createdAt:string;plan?:string;dueDate?:string};
@@ -38,4 +38,3 @@ export async function currentAccount(request:Request){
 export async function revokeSessions(accountId:string){for(const record of await listRecords('session'))if(record.data?.accountId===accountId)await deleteRecord(record.id);}
 export function sameOrigin(request:Request){const origin=request.headers.get('origin'),site=request.headers.get('sec-fetch-site');if(site&&site!=='same-origin'&&site!=='same-site'&&site!=='none')return false;if(!origin)return true;return origin===new URL(request.url).origin;}
 export const sessionCookie=(token:string,maxAge=60*60*12,secure=false)=>`reparosm_session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${secure?'; Secure':''}`;
-export { legacyPasswordHash };
