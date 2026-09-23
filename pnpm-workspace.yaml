@@ -1,4 +1,22 @@
 allowBuilds:
-  # Both ship prebuilt binaries; their install scripts are only fallbacks.
+  # Ship prebuilt binaries; their install scripts are only fallbacks.
   sharp: false
   unrs-resolver: false
+  # Graft's tree-sitter grammars: node-gyp-build only compiles when no prebuild
+  # matches the platform (tree-sitter-kotlin ships none).
+  tree-sitter: true
+  tree-sitter-go: true
+  tree-sitter-java: true
+  tree-sitter-javascript: true
+  tree-sitter-kotlin: true
+  tree-sitter-php: true
+  tree-sitter-python: true
+  tree-sitter-swift: true
+  tree-sitter-typescript: true
+  '@davisvaughan/tree-sitter-r': true
+  # Downloads a CLI binary Graft does not use.
+  tree-sitter-cli: false
+  # Only sends an install telemetry ping.
+  '@nanonets/graft': false
+minimumReleaseAgeExclude:
+  - '@nanonets/graft@0.19.0'
