@@ -1,5 +1,14 @@
 # Plano: esquema relacional do banco
 
+> **Status (2026-09-23):** Fases 0–4 concluídas (PRs #5–#9). Fase 5 pendente.
+> Desvios em relação ao texto abaixo:
+>
+> - Inventário de produção (Fase 0) não executado; as cópias de dados foram escritas de forma defensiva e testadas com registros inválidos (`tests/migrations.test.mjs`).
+> - `orders.code` não é `UNIQUE`: o app gera `OS-` + 5 dígitos do relógio, que se repetem a cada ~27 h. Próximo passo sugerido: numeração sequencial por conta no servidor.
+> - `cash_entries` não tem `order_id` (a referência é texto livre e nenhuma tela usa o vínculo).
+> - Login: bloqueio de 15 min após 10 falhas por par usuário+IP (tabela `login_failures`).
+> - Backup de `records` antes do `DROP` não foi feito (sistema em desenvolvimento).
+
 Substituir a tabela genérica `records` (id, type, data JSON em texto) por tabelas
 por entidade, com `account_id` em todo dado de negócio.
 

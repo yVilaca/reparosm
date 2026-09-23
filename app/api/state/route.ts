@@ -1,10 +1,10 @@
-import { deleteRecord, getRecord, listRecords, saveRecord, transaction } from '@/lib/db';
+import { transaction } from '@/lib/db';
 import { currentAccount, sameOrigin } from '@/lib/auth';
 import { getAccount } from '@/lib/repos/accounts';
 import { clients, orders, parts, repoFor, tableRepos, shops } from '@/lib/repos';
 import { publicRecord, businessTypes } from '@/lib/public-data';
 import { filmCatalog } from '@/lib/film-catalog';
-import type { BusinessRecordType, DataObject, Order, StoredRecord } from '@/lib/types';
+import type { BusinessRecordType, DataObject, Order } from '@/lib/types';
 import { validateRecord } from '@/lib/validation';
 import { notifyOrder } from '@/lib/whatsapp';
 
@@ -14,14 +14,13 @@ const isObject = (value: unknown): value is DataObject =>
 const isBusinessType = (value: string): value is BusinessRecordType =>
   businessTypes.includes(value);
 
-/** Type of a record id such as 'order-…' or 'shop-main'. */
-const typeOfId = (id: string) => businessTypes.find((type) => id.startsWith(`${type}-`));
+/** Repository for a record id such as 'order-…' or 'shop-main'. */
+const repoForId = (id: string) => {
+  const type = businessTypes.find((type) => id.startsWith(`${type}-`));
+  return type ? repoFor(type) : undefined;
+};
 
 const denied = () => Response.json({ error: 'Acesso negado' }, { status: 403 });
-
-// Types not yet moved to their own table still live in `records`, scoped by `_accountId`.
-const legacyOwner = (record: StoredRecord) => String(record.data._accountId || 'account-admin');
-const isLegacyType = (type: string) => isBusinessType(type) && !repoFor(type);
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -31,13 +30,7 @@ export async function GET(request: Request) {
 
   if (id) {
     if (!account) return Response.json({ error: 'Não autenticado' }, { status: 401 });
-    const type = typeOfId(id);
-    const repo = type && repoFor(type);
-    const record = repo
-      ? await repo.get(account.id, id)
-      : await getRecord(id).then((found) =>
-          found && isLegacyType(found.type) && legacyOwner(found) === account.id ? found : null,
-        );
+    const record = await repoForId(id)?.get(account.id, id);
     return record ? Response.json({ record }) : denied();
   }
 
@@ -57,19 +50,10 @@ export async function GET(request: Request) {
   }
 
   if (!account) return Response.json({ error: 'Não autenticado' }, { status: 401 });
-  const repos = Object.entries(tableRepos)
+  const lists = Object.entries(tableRepos)
     .filter(([repoType]) => !type || repoType === type)
     .map(([, repo]) => repo.list(account.id));
-  const legacy =
-    type && !isLegacyType(type)
-      ? []
-      : (await listRecords(type)).filter(
-          (record) =>
-            isLegacyType(record.type) &&
-            !record.id.startsWith('film-default-') &&
-            legacyOwner(record) === account.id,
-        );
-  const records = [...legacy, ...(await Promise.all(repos)).flat()];
+  const records = (await Promise.all(lists)).flat();
   return Response.json({ records: [...records, ...(!type || type === 'film' ? filmCatalog : [])] });
 }
 
@@ -101,17 +85,8 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Identificador inválido para este cadastro' }, { status: 400 });
 
   if (type === 'order') return saveOrder(account.id, id, validation.data as Order);
-
-  const repo = repoFor(type);
-  if (repo) {
-    const record = await repo.save(account.id, id, validation.data);
-    return record ? Response.json({ record }, { status: 201 }) : denied();
-  }
-
-  const existing = body.id ? await getRecord(body.id) : null;
-  if (existing && (existing.type !== type || legacyOwner(existing) !== account.id)) return denied();
-  const record = await saveRecord(id, type, { ...validation.data, _accountId: account.id });
-  return Response.json({ record }, { status: 201 });
+  const record = await repoFor(type)?.save(account.id, id, validation.data);
+  return record ? Response.json({ record }, { status: 201 }) : denied();
 }
 
 /** Saves the order and its client together, then notifies the customer on a new stage. */
@@ -159,12 +134,6 @@ export async function DELETE(request: Request) {
   }
   const id = new URL(request.url).searchParams.get('id');
   if (!id) return Response.json({ error: 'ID obrigatório' }, { status: 400 });
-  if (id.startsWith('film-default-')) return denied();
-  const type = typeOfId(id);
-  const repo = type && repoFor(type);
-  if (repo) return (await repo.remove(account.id, id)) ? Response.json({ ok: true }) : denied();
-  const record = await getRecord(id);
-  if (!record || !isLegacyType(record.type) || legacyOwner(record) !== account.id) return denied();
-  await deleteRecord(id);
-  return Response.json({ ok: true });
+  const removed = await repoForId(id)?.remove(account.id, id);
+  return removed ? Response.json({ ok: true }) : denied();
 }

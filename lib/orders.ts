@@ -1,11 +1,6 @@
 import type { Order, Quote } from '@/lib/types';
 
-export function orderFromQuote(
-  quote: Quote,
-  quoteId: string,
-  accountId: string,
-  answeredAt: string,
-): Order {
+export function orderFromQuote(quote: Quote, quoteId: string, answeredAt: string): Order {
   const labor = Number(quote.labor || 0);
   const parts = Number(quote.parts || 0);
   const total = Number(quote.total ?? labor + parts);
@@ -29,7 +24,6 @@ export function orderFromQuote(
     priority: 'Normal',
     quoteId,
     quoteCode: quote.code,
-    _accountId: accountId,
     createdAt: answeredAt,
   };
 }

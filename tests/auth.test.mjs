@@ -168,7 +168,7 @@ test('suspended accounts cannot sign in and lose their sessions', { skip }, asyn
   assert.equal((await login('paused', 'Pausedpassword123', '10.0.0.6')).status, 403);
 });
 
-test('deleting an account cascades to its sessions and records', { skip }, async () => {
+test('deleting an account cascades to all of its data', { skip }, async () => {
   const adminCookie = cookieOf(await login('adminreparosm', 'TestAdminPassword123', '10.0.0.7'));
   const created = await (
     await accounts.POST(
@@ -181,20 +181,16 @@ test('deleting an account cascades to its sessions and records', { skip }, async
   const id = created.account.id;
   await login('gone', 'Gonepassword123', '10.0.0.7');
   await auth.POST(request({ action: 'forgot-password', username: 'gone' }));
-  await db.saveRecord('order-gone', 'order', {
-    code: 'OS-1',
-    customer: 'A',
-    device: 'B',
-    _accountId: id,
-  });
+  const { clients, orders } = await import('../lib/repos/index.ts');
+  await orders.save(id, 'order-gone', { code: 'OS-1', customer: 'A', device: 'B' });
+  await clients.upsertFromOrder(id, { customer: 'A', phone: '', status: 'Aberto' });
   const response = await accounts.DELETE(
     new Request(`https://test.local/api/accounts?id=${id}`, {
       method: 'DELETE',
       headers: { origin: 'https://test.local', cookie: adminCookie },
     }),
   );
-  assert.deepEqual(await response.json(), { ok: true, removedRecords: 1 });
-  for (const table of ['sessions', 'password_requests'])
+  assert.deepEqual(await response.json(), { ok: true });
+  for (const table of ['sessions', 'password_requests', 'orders', 'clients'])
     assert.equal((await db.query(`SELECT 1 FROM ${table} WHERE account_id = $1`, [id])).length, 0);
-  assert.equal(await db.getRecord('order-gone'), null);
 });

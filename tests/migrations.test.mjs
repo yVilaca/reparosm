@@ -359,3 +359,8 @@ test(
     );
   },
 );
+
+test('0005 drops the records table', { skip }, async () => {
+  await db.apply('0005_drop_records');
+  assert.deepEqual(await db.query(`SELECT to_regclass('records') AS name`), [{ name: null }]);
+});
