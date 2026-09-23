@@ -21,7 +21,12 @@ export interface AccountData extends DataObject {
   plan?: string;
   dueDate?: string;
   accessPolicy?: string;
+  passwordResetAt?: string;
   updatedAt?: string;
+}
+
+export interface Account extends AccountData {
+  id: string;
 }
 
 export interface PublicAccount extends DataObject {
@@ -38,13 +43,8 @@ export interface PublicAccount extends DataObject {
   updatedAt?: string;
 }
 
-export interface SessionData extends DataObject {
-  accountId: string;
-  expiresAt: string;
-  createdAt: string;
-}
-
-export interface PasswordRequestData extends DataObject {
+export interface PasswordRequest {
+  id: string;
   accountId: string;
   username: string;
   status: 'pending' | 'resolved';
@@ -215,17 +215,7 @@ export interface Shop extends DataObject {
   website?: string;
 }
 
-export interface WhatsAppConfigRecord extends DataObject {
-  iv: string;
-  cipher: string;
-  updatedAt: string;
-}
-
 export interface RecordData {
-  account: AccountData;
-  session: SessionData;
-  'password-request': PasswordRequestData;
-  'whatsapp-config': WhatsAppConfigRecord;
   order: Order;
   quote: Quote;
   part: Part;

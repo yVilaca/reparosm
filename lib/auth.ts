@@ -1,40 +1,53 @@
-import { deleteRecord, getRecord, listRecords, saveRecord } from '@/lib/db';
+import { query } from '@/lib/db';
+import { findAccountByUsername } from '@/lib/repos/accounts';
+import {
+  accountForSession,
+  deleteSession,
+  revokeSessions,
+  SESSION_SECONDS,
+} from '@/lib/repos/sessions';
 import { normalizeUser, passwordHash, passwordProblem, verifyPassword } from '@/lib/security';
-export { normalizeUser, passwordHash, passwordProblem, verifyPassword };
-export type { AccountData } from '@/lib/types';
+export { normalizeUser, passwordHash, passwordProblem, verifyPassword, revokeSessions };
+export type { Account } from '@/lib/types';
 
-export const publicAccount = (account: Record<string, unknown>) => {
+export const publicAccount = <T extends { passwordHash?: string }>(account: T) => {
   const { passwordHash: _, ...safe } = account;
   return safe;
 };
 
-export async function ensureAdmin() {
-  const id = 'account-admin',
-    existing = await getRecord(id);
-  if (existing?.data?.accessPolicy === 'admin-managed-v2') return existing;
+async function setupAdmin() {
+  const [admin] = await query<{ access_policy: string | null }>(
+    `SELECT access_policy FROM accounts WHERE id = 'account-admin'`,
+  );
+  if (admin?.access_policy === 'admin-managed-v2') return;
   const hash = process.env.ADMIN_PASSWORD_HASH;
   if (!hash?.startsWith('pbkdf2$')) throw new Error('Acesso administrativo não configurado.');
-  // One-time migration requested by the owner; preserve all store records.
-  await revokeSessions(id);
-  return saveRecord(id, 'account', {
-    ...existing?.data,
-    username: 'adminreparosm',
-    name: existing?.data?.name || 'Administrador',
-    role: 'admin',
-    status: 'active',
-    passwordHash: hash,
-    mustChangePassword: false,
-    createdAt: existing?.data?.createdAt || new Date().toISOString(),
-    plan: 'Administrador',
-    accessPolicy: 'admin-managed-v2',
+  // One-time migration requested by the owner: the administrator password comes from the
+  // server environment; every other account and record is preserved.
+  await query(
+    `INSERT INTO accounts (id, username, name, role, status, password_hash, plan, access_policy)
+     VALUES ('account-admin', 'adminreparosm', 'Administrador', 'admin', 'active', $1,
+             'Administrador', 'admin-managed-v2')
+     ON CONFLICT (id) DO UPDATE SET username = 'adminreparosm', role = 'admin',
+       status = 'active', password_hash = $1, must_change_password = false,
+       plan = 'Administrador', access_policy = 'admin-managed-v2', updated_at = now()`,
+    [hash],
+  );
+  await revokeSessions('account-admin');
+}
+
+let adminReady: Promise<void> | undefined;
+/** Makes sure the administrator account exists; checked once per server instance. */
+export function ensureAdmin() {
+  adminReady ??= setupAdmin().catch((error) => {
+    adminReady = undefined;
+    throw error;
   });
+  return adminReady;
 }
 
 export async function accountByUsername(username: string) {
-  const administrator = await getRecord('account-admin');
-  if (administrator?.data?.username === username) return administrator;
-  if (username === 'admin' || username === 'adminreparosm') return null;
-  return getRecord(`account-${username}`);
+  return findAccountByUsername(username);
 }
 
 const cookie = (request: Request, name: string) =>
@@ -44,34 +57,27 @@ const cookie = (request: Request, name: string) =>
     .map((x) => x.trim())
     .find((x) => x.startsWith(`${name}=`))
     ?.slice(name.length + 1);
-export async function currentSession(request: Request) {
-  const token = cookie(request, 'reparosm_session');
-  if (!token) return null;
-  const session = await getRecord(`session-${token}`),
-    expires = Date.parse(String(session?.data?.expiresAt || ''));
-  if (
-    !session ||
-    session.type !== 'session' ||
-    !Number.isFinite(expires) ||
-    expires <= Date.now()
-  ) {
-    if (session) await deleteRecord(session.id);
-    return null;
-  }
-  return { token, record: session };
-}
+
+/** The signed-in, active account for this request, or null. */
 export async function currentAccount(request: Request) {
   await ensureAdmin();
-  const session = await currentSession(request);
-  if (!session) return null;
-  const account = await getRecord(String(session.record.data.accountId || ''));
-  if (!account || account.type !== 'account' || account.data.status !== 'active') return null;
-  return { id: account.id, ...account.data };
+  const token = cookie(request, 'reparosm_session');
+  if (!token) return null;
+  const account = await accountForSession(token);
+  return account?.status === 'active' ? account : null;
 }
-export async function revokeSessions(accountId: string) {
-  for (const record of await listRecords('session'))
-    if (record.data?.accountId === accountId) await deleteRecord(record.id);
+
+export async function endSession(request: Request) {
+  const token = cookie(request, 'reparosm_session');
+  if (token) await deleteSession(token);
 }
+
+/** Client IP as reported by Netlify's edge, falling back to the proxy header. */
+export const clientIp = (request: Request) =>
+  request.headers.get('x-nf-client-connection-ip') ||
+  request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+  'unknown';
+
 export function sameOrigin(request: Request) {
   const origin = request.headers.get('origin'),
     site = request.headers.get('sec-fetch-site');
@@ -79,5 +85,5 @@ export function sameOrigin(request: Request) {
   if (!origin) return true;
   return origin === new URL(request.url).origin;
 }
-export const sessionCookie = (token: string, maxAge = 60 * 60 * 12, secure = false) =>
+export const sessionCookie = (token: string, maxAge = SESSION_SECONDS, secure = false) =>
   `reparosm_session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${secure ? '; Secure' : ''}`;
