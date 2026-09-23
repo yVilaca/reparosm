@@ -10,10 +10,11 @@ Esta versão usa **Next.js e Netlify Database (Postgres)**. A estrutura do banco
 
 ## Desenvolvimento
 
-- Node.js 22.13 ou superior.
-- Instalação: `npm ci`.
-- Desenvolvimento: `npm run dev`.
-- Build para Netlify: `npm run build`.
+- Node.js 22.18 ou superior e pnpm (versão fixada em `packageManager`; `corepack enable` instala a correta).
+- Instalação: `pnpm install --frozen-lockfile`.
+- Desenvolvimento: `pnpm dev`.
+- Verificações: `pnpm lint`, `pnpm typecheck` e `pnpm test` (também rodam no CI a cada push/PR).
+- Build para Netlify: `pnpm build`.
 - Configuração de publicação: `netlify.toml`, saída `.next`.
 - O banco pode ser substituído por outro Postgres com `DATABASE_URL`; mantenha esta variável somente no servidor.
 

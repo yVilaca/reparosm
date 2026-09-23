@@ -1,16 +1,5 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
-
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
-
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.URL || 'http://localhost:3000'),
@@ -19,13 +8,13 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'ReparoSM | Repair System Master',
     description: 'Produtos, ordens de serviço, estoque e resultados em um só lugar.',
-    images: ['/og.png'],
+    images: ['/og.jpg'],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'ReparoSM | Repair System Master',
     description: 'Produtos, ordens de serviço, estoque e resultados em um só lugar.',
-    images: ['/og.png'],
+    images: ['/og.jpg'],
   },
 };
 
@@ -36,11 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }
