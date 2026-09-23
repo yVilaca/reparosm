@@ -1,4 +1,5 @@
 import { query, type Query } from '@/lib/db';
+import { dateOrNull, iso, type Timestamp } from '@/lib/repos/rows';
 import type { Account, AccountRole, AccountStatus, PasswordRequest } from '@/lib/types';
 
 type AccountRow = {
@@ -12,17 +13,15 @@ type AccountRow = {
   plan: string | null;
   due_date: string | null;
   access_policy: string | null;
-  password_reset_at: string | Date | null;
-  created_at: string | Date;
-  updated_at: string | Date;
+  password_reset_at: Timestamp | null;
+  created_at: Timestamp;
+  updated_at: Timestamp;
 };
 
 // due_date as text: pg turns `date` into a local-midnight Date, which can shift the day.
 export const accountColumns = `a.id, a.username, a.name, a.role, a.status, a.password_hash,
   a.must_change_password, a.plan, a.due_date::text AS due_date, a.access_policy,
   a.password_reset_at, a.created_at, a.updated_at`;
-
-const iso = (value: string | Date) => new Date(value).toISOString();
 
 export const toAccount = (row: AccountRow): Account => ({
   id: row.id,
@@ -39,9 +38,6 @@ export const toAccount = (row: AccountRow): Account => ({
   createdAt: iso(row.created_at),
   updatedAt: iso(row.updated_at),
 });
-
-const dateOrNull = (value: string | undefined) =>
-  value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
 
 export async function getAccount(id: string, run: Query = query) {
   const [row] = await run<AccountRow>(`SELECT ${accountColumns} FROM accounts a WHERE a.id = $1`, [
@@ -139,7 +135,7 @@ export async function resolvePasswordRequest(accountId: string) {
 }
 
 export async function listPendingPasswordRequests(): Promise<PasswordRequest[]> {
-  const rows = await query<{ account_id: string; username: string; created_at: string | Date }>(
+  const rows = await query<{ account_id: string; username: string; created_at: Timestamp }>(
     `SELECT r.account_id, a.username, r.created_at FROM password_requests r
      JOIN accounts a ON a.id = r.account_id
      WHERE r.status = 'pending' ORDER BY r.created_at`,
