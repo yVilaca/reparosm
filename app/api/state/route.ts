@@ -1,7 +1,7 @@
 import { deleteRecord, getRecord, listRecords, saveRecord, transaction } from '@/lib/db';
 import { currentAccount, sameOrigin } from '@/lib/auth';
 import { getAccount } from '@/lib/repos/accounts';
-import { clients, orders, repoFor, tableRepos, shops } from '@/lib/repos';
+import { clients, orders, parts, repoFor, tableRepos, shops } from '@/lib/repos';
 import { publicRecord, businessTypes } from '@/lib/public-data';
 import { filmCatalog } from '@/lib/film-catalog';
 import type { BusinessRecordType, DataObject, Order, StoredRecord } from '@/lib/types';
@@ -50,12 +50,8 @@ export async function GET(request: Request) {
     const records =
       type === 'shop'
         ? await shops.list(owner)
-        : (await listRecords('part')).filter(
-            (record) =>
-              legacyOwner(record) === owner &&
-              record.type === 'part' &&
-              record.data.published === true &&
-              Number(record.data.stock) > 0,
+        : (await parts.list(owner)).filter(
+            (record) => record.data.published === true && Number(record.data.stock) > 0,
           );
     return Response.json({ records: records.map(publicRecord) });
   }

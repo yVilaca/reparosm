@@ -2,6 +2,15 @@ import type { Query } from '@/lib/db';
 import * as clients from '@/lib/repos/clients';
 import * as orders from '@/lib/repos/orders';
 import * as quotes from '@/lib/repos/quotes';
+import {
+  automations,
+  expenses,
+  films,
+  messages,
+  parts,
+  payments,
+  tutorials,
+} from '@/lib/repos/rest';
 import * as shops from '@/lib/repos/shops';
 import type { BusinessRecordType, RecordData, StoredRecord } from '@/lib/types';
 
@@ -24,9 +33,16 @@ export const tableRepos: { [T in BusinessRecordType]?: TableRepo<T> } = {
   client: clients,
   quote: quotes,
   order: orders,
+  part: parts,
+  payment: payments,
+  expense: expenses,
+  message: messages,
+  film: films,
+  automation: automations,
+  tutorial: tutorials,
 };
 
 export const repoFor = (type: string) =>
   (tableRepos as Record<string, TableRepo | undefined>)[type];
 
-export { clients, orders, quotes, shops };
+export { clients, messages, orders, parts, quotes, shops };

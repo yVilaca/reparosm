@@ -132,6 +132,41 @@ before(async () => {
       { name: 'Loja', phone: '11', instagram: '@loja', _accountId: 'account-loja' },
     ],
     ['payment-1', 'payment', { description: 'Sinal', value: 10, _accountId: 'account-loja' }],
+    [
+      'expense-1',
+      'expense',
+      { description: 'Aluguel', value: 'x', date: 'ontem', _accountId: 'account-loja' },
+    ],
+    [
+      'part-1',
+      'part',
+      { name: 'Tela', stock: -2, price: '99.9', published: true, _accountId: 'account-loja' },
+    ],
+    [
+      'message-1',
+      'message',
+      {
+        orderId: 'order-1',
+        customer: 'Ana',
+        status: 'Enviado',
+        sentAt: '2026-09-22T10:00:00.000Z',
+        _accountId: 'account-loja',
+      },
+    ],
+    ['message-2', 'message', { orderId: 'order-2', customer: 'Ana', _accountId: 'account-loja' }],
+    [
+      'film-1',
+      'film',
+      { brand: 'Apple', model: 'X', compatible: 'X, XS', _accountId: 'account-loja' },
+    ],
+    ['film-default-apple-x', 'film', { brand: 'Apple', model: 'X', compatible: 'X' }],
+    [
+      'automation-1',
+      'automation',
+      { name: 'Revisão', schedule: '30', message: 'Oi', enabled: true, _accountId: 'account-loja' },
+    ],
+    ['tutorial-1', 'tutorial', { title: 'Tela', url: 'https://x', _accountId: 'account-loja' }],
+    ['mystery-1', 'mystery', { _accountId: 'account-loja' }],
   ];
   for (const [id, type, data] of legacy)
     await db.query('INSERT INTO records (id, type, data) VALUES ($1, $2, $3)', [
@@ -196,14 +231,23 @@ test('0002 drops raw-token sessions and only its rows from records', { skip }, a
   assert.deepEqual(
     (await db.query('SELECT id FROM records ORDER BY id')).map((r) => r.id),
     [
+      'automation-1',
       'client-1',
       'client-2',
+      'expense-1',
+      'film-1',
+      'film-default-apple-x',
+      'message-1',
+      'message-2',
+      'mystery-1',
       'order-1',
       'order-2',
       'order-ghost',
+      'part-1',
       'payment-1',
       'quote-1',
       'shop-main',
+      'tutorial-1',
     ],
   );
 });
@@ -264,10 +308,54 @@ test('0003 copies shops, clients, quotes and orders with safe conversions', { sk
   ]);
   assert.deepEqual(
     (await db.query('SELECT id FROM records ORDER BY id')).map((r) => r.id),
-    ['payment-1'],
+    [
+      'automation-1',
+      'expense-1',
+      'film-1',
+      'film-default-apple-x',
+      'message-1',
+      'message-2',
+      'mystery-1',
+      'part-1',
+      'payment-1',
+      'tutorial-1',
+    ],
   );
   assert.equal(
     (await db.query(`SELECT 1 FROM pg_proc WHERE proname LIKE 'migration_%'`)).length,
     0,
   );
 });
+
+test(
+  '0004 copies inventory, cash, messages, films, automations and tutorials',
+  { skip },
+  async () => {
+    await db.apply('0004_rest');
+    assert.deepEqual(
+      await db.query('SELECT id, stock, price::text AS price, published FROM parts'),
+      [{ id: 'part-1', stock: 0, price: '99.90', published: true }],
+    );
+    assert.deepEqual(
+      await db.query('SELECT id, kind, value::text AS value, date FROM cash_entries ORDER BY id'),
+      [
+        { id: 'expense-1', kind: 'out', value: '0.00', date: null },
+        { id: 'payment-1', kind: 'in', value: '10.00', date: null },
+      ],
+    );
+    assert.deepEqual(await db.query('SELECT id, order_id FROM messages ORDER BY id'), [
+      { id: 'message-1', order_id: 'order-1' },
+      { id: 'message-2', order_id: null },
+    ]);
+    assert.deepEqual(
+      (await db.query('SELECT id FROM films')).map((r) => r.id),
+      ['film-1'],
+    );
+    assert.equal((await db.query('SELECT 1 FROM automations WHERE enabled')).length, 1);
+    assert.equal((await db.query('SELECT 1 FROM tutorials')).length, 1);
+    assert.deepEqual(
+      (await db.query('SELECT id FROM records ORDER BY id')).map((r) => r.id),
+      ['mystery-1'],
+    );
+  },
+);
