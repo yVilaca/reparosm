@@ -53,7 +53,6 @@ export interface PasswordRequest {
 }
 
 export interface Order extends DataObject {
-  _accountId?: string;
   code: string;
   customer: string;
   phone?: string;
@@ -82,7 +81,6 @@ export interface Order extends DataObject {
 }
 
 export interface Quote extends DataObject {
-  _accountId?: string;
   code?: string;
   customer: string;
   phone: string;
@@ -101,7 +99,6 @@ export interface Quote extends DataObject {
 }
 
 export interface Part extends DataObject {
-  _accountId?: string;
   name: string;
   category?: string;
   stock: number;
@@ -113,7 +110,6 @@ export interface Part extends DataObject {
 }
 
 export interface Film extends DataObject {
-  _accountId?: string;
   brand: string;
   model: string;
   compatible: string;
@@ -121,7 +117,6 @@ export interface Film extends DataObject {
 }
 
 export interface Client extends DataObject {
-  _accountId?: string;
   name: string;
   phone: string;
   email?: string;
@@ -140,7 +135,6 @@ export interface Client extends DataObject {
 }
 
 export interface Payment extends DataObject {
-  _accountId?: string;
   description: string;
   reference?: string;
   value: number;
@@ -150,7 +144,6 @@ export interface Payment extends DataObject {
 }
 
 export interface Expense extends DataObject {
-  _accountId?: string;
   description: string;
   reference?: string;
   value: number;
@@ -160,7 +153,6 @@ export interface Expense extends DataObject {
 }
 
 export interface Automation extends DataObject {
-  _accountId?: string;
   name: string;
   schedule: string;
   message: string;
@@ -168,7 +160,6 @@ export interface Automation extends DataObject {
 }
 
 export interface Message extends DataObject {
-  _accountId?: string;
   orderId?: string;
   customer: string;
   phone: string;
@@ -181,7 +172,6 @@ export interface Message extends DataObject {
 }
 
 export interface Tutorial extends DataObject {
-  _accountId?: string;
   title: string;
   url: string;
   category?: string;
@@ -190,7 +180,6 @@ export interface Tutorial extends DataObject {
 }
 
 export interface Shop extends DataObject {
-  _accountId?: string;
   name: string;
   phone: string;
   address?: string;

@@ -33,7 +33,7 @@ export async function get(accountId: string, _id: string, run: Query = query) {
 
 export async function save(accountId: string, _id: string, data: Shop, run: Query = query) {
   const profile: DataObject = { ...data };
-  for (const key of ['name', 'phone', '_accountId', 'id', 'updatedAt']) delete profile[key];
+  for (const key of ['name', 'phone', 'id', 'updatedAt']) delete profile[key];
   await run(
     `INSERT INTO shops (account_id, name, phone, profile) VALUES ($1, $2, $3, $4)
      ON CONFLICT (account_id) DO UPDATE SET name = excluded.name, phone = excluded.phone,

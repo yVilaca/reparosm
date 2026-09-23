@@ -2,53 +2,65 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { createTestDatabase, skipWithoutDatabase } from './support/db.mjs';
 
+const skip = skipWithoutDatabase;
 let db;
 before(async () => {
-  if (!skipWithoutDatabase) db = await createTestDatabase();
+  if (skip) return;
+  db = await createTestDatabase();
+  await db.query('CREATE TABLE notes (id text PRIMARY KEY, body text NOT NULL)');
 });
 after(async () => db?.drop());
 
-test('migrations create the records table', { skip: skipWithoutDatabase }, async () => {
-  const [row] = await db.query(`SELECT to_regclass('records') AS name`);
-  assert.equal(row.name, 'records');
+test('migrations leave one table per entity and no records table', { skip }, async () => {
+  const tables = (
+    await db.query(
+      `SELECT table_name FROM information_schema.tables
+       WHERE table_schema = 'public' AND table_name <> 'notes' ORDER BY table_name`,
+    )
+  ).map((row) => row.table_name);
+  assert.deepEqual(tables, [
+    'accounts',
+    'automations',
+    'cash_entries',
+    'clients',
+    'films',
+    'local_migrations',
+    'login_failures',
+    'messages',
+    'orders',
+    'parts',
+    'password_requests',
+    'quotes',
+    'sessions',
+    'shops',
+    'tutorials',
+    'whatsapp_configs',
+  ]);
 });
 
-test(
-  'records round-trip through save, get, list and delete',
-  { skip: skipWithoutDatabase },
-  async () => {
-    await db.saveRecord('order-1', 'order', { code: 'OS-1', customer: 'Ana', device: 'iPhone' });
-    assert.equal((await db.getRecord('order-1')).data.code, 'OS-1');
-    await db.saveRecord('order-1', 'order', { code: 'OS-2', customer: 'Ana', device: 'iPhone' });
-    assert.deepEqual(
-      (await db.listRecords('order')).map((r) => r.data.code),
-      ['OS-2'],
-    );
-    await db.deleteRecord('order-1');
-    assert.equal(await db.getRecord('order-1'), null);
-  },
-);
+test('query binds parameters', { skip }, async () => {
+  await db.query('INSERT INTO notes (id, body) VALUES ($1, $2)', ['a', "it's safe"]);
+  assert.deepEqual(await db.query('SELECT body FROM notes WHERE id = $1', ['a']), [
+    { body: "it's safe" },
+  ]);
+});
 
-test('transaction rolls back every statement on error', { skip: skipWithoutDatabase }, async () => {
+test('transaction rolls back every statement on error', { skip }, async () => {
   await assert.rejects(
     db.transaction(async (run) => {
-      await run(`INSERT INTO records (id, type, data) VALUES ('client-x', 'client', '{}')`);
+      await run(`INSERT INTO notes (id, body) VALUES ('x', 'lost')`);
       throw new Error('boom');
     }),
     /boom/,
   );
-  assert.equal(await db.getRecord('client-x'), null);
+  assert.deepEqual(await db.query(`SELECT 1 FROM notes WHERE id = 'x'`), []);
 });
 
-test(
-  'transaction commits and returns the callback result',
-  { skip: skipWithoutDatabase },
-  async () => {
-    const result = await db.transaction(async (run) => {
-      await run(`INSERT INTO records (id, type, data) VALUES ('client-y', 'client', '{}')`);
-      return 'ok';
-    });
-    assert.equal(result, 'ok');
-    assert.ok(await db.getRecord('client-y'));
-  },
-);
+test('transaction commits and returns the callback result', { skip }, async () => {
+  const result = await db.transaction(async (run) => {
+    await run(`INSERT INTO notes (id, body) VALUES ('y', 'kept')`);
+    return 'ok';
+  });
+  assert.equal(result, 'ok');
+  assert.equal((await db.query(`SELECT 1 FROM notes WHERE id = 'y'`)).length, 1);
+});

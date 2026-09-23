@@ -7,7 +7,6 @@ import {
   revokeSessions,
   sameOrigin,
 } from '@/lib/auth';
-import { transaction } from '@/lib/db';
 import {
   createAccount,
   deleteAccount,
@@ -123,14 +122,7 @@ export async function DELETE(request: Request) {
     return Response.json({ error: 'Esta conta não pode ser excluída' }, { status: 400 });
   if (!(await getAccount(id)))
     return Response.json({ error: 'Conta não encontrada' }, { status: 404 });
-  // Business data still lives in `records` until the relational migration finishes.
-  const removedRecords = await transaction(async (run) => {
-    const removed = await run(
-      `DELETE FROM records WHERE data::jsonb->>'_accountId' = $1 RETURNING id`,
-      [id],
-    );
-    await deleteAccount(id, run);
-    return removed.length;
-  });
-  return Response.json({ ok: true, removedRecords });
+  // Every table references accounts with ON DELETE CASCADE.
+  await deleteAccount(id);
+  return Response.json({ ok: true });
 }

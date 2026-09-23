@@ -17,13 +17,11 @@ test('turns an approved quote into an owned order', () => {
       total: 250,
     },
     'quote-1',
-    'account-a',
     '2026-09-23T12:00:00.000Z',
   );
 
   assert.equal(result.code, 'OS-12');
   assert.equal(result.quoteId, 'quote-1');
-  assert.equal(result._accountId, 'account-a');
   assert.equal(result.total, 250);
   assert.equal(result.stage, 'Recebido');
   assert.equal(result.status, 'Aberto');
