@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { Client, Expense, Message, Order, Part, Payment, Quote } from '@/lib/types';
 import { formatMoney } from '@/lib/format';
 
@@ -28,11 +29,11 @@ export default function DashboardRoute({
   messages: Row<Message>[];
 }) {
   const revenue = payments.reduce((sum, payment) => sum + Number(payment.value || 0), 0);
-  const out = expenses.reduce((sum, expense) => sum + Number(expense.value || 0), 0);
-  const profit = revenue - out;
   const goal = 50000;
   const open = orders.filter((order) => order.status !== 'Concluído' && order.stage !== 'Retirada');
   const low = parts.filter((part) => Number(part.stock) < 5);
+  const waitingApproval = quotes.filter((quote) => quote.status === 'Aguardando');
+  const readyPickup = orders.filter((order) => order.stage === 'Retirada');
   const approved = quotes.filter((quote) => quote.status === 'Aprovado');
   const activity: Activity[] = [
     ...payments.map((payment) => ({
@@ -70,12 +71,67 @@ export default function DashboardRoute({
         <div>
           <p>REPAROSM</p>
           <h1>Dashboard</h1>
-          <small>Visão geral da sua assistência.</small>
+          <small>Veja o que precisa da sua atenção hoje.</small>
+        </div>
+        <div className="top-actions">
+          <Link className="top-action-link" href="/mesa">
+            Abrir Mesa
+          </Link>
+          <Link className="primary" href="/ordens">
+            + Nova ordem
+          </Link>
         </div>
       </header>
+      <section className="panel attention-panel">
+        <div className="panel-head">
+          <div>
+            <h2>O que precisa de atenção</h2>
+            <p>Ações rápidas para manter a assistência em movimento.</p>
+          </div>
+          <Link className="link" href="/mesa">
+            Ver fluxo completo
+          </Link>
+        </div>
+        <div className="attention-grid">
+          <Link className="attention-card attention-purple" href="/mesa">
+            <strong>{open.length}</strong>
+            <span>ordens em atendimento</span>
+            <small>Acompanhar na Mesa</small>
+          </Link>
+          <Link className="attention-card attention-amber" href="/orcamentos">
+            <strong>{waitingApproval.length}</strong>
+            <span>aguardando aprovação</span>
+            <small>Ver orçamentos</small>
+          </Link>
+          <Link className="attention-card attention-mint" href="/mesa">
+            <strong>{readyPickup.length}</strong>
+            <span>aguardando retirada</span>
+            <small>Conferir clientes</small>
+          </Link>
+          <Link className="attention-card attention-red" href="/estoque?view=inventory">
+            <strong>{low.length}</strong>
+            <span>itens com estoque baixo</span>
+            <small>Repor estoque</small>
+          </Link>
+        </div>
+      </section>
+      <div className="metrics">
+        <Metric title="Ordens abertas" value={String(open.length)} detail="Em atendimento" />
+        <Metric
+          title="Aguardando retirada"
+          value={String(readyPickup.length)}
+          detail="Prontas para o cliente"
+        />
+        <Metric
+          title="Aprovações pendentes"
+          value={String(waitingApproval.length)}
+          detail="Orçamentos enviados"
+        />
+        <Metric title="Estoque baixo" value={String(low.length)} detail="Abaixo de 5 unidades" />
+      </div>
       <article className="monthly-goal">
         <div>
-          <span>META MENSAL DE RECEITA</span>
+          <span>Meta mensal de receita</span>
           <h3>
             {formatMoney(revenue)} <small>de {formatMoney(goal)}</small>
           </h3>
@@ -93,24 +149,6 @@ export default function DashboardRoute({
           <small>Baseado nos recebimentos registrados</small>
         </div>
       </article>
-      <div className="metrics">
-        <Metric
-          title="Receita recebida"
-          value={formatMoney(revenue)}
-          detail={`${payments.length} recebimentos`}
-        />
-        <Metric
-          title="Despesas"
-          value={formatMoney(out)}
-          detail={`${expenses.length} lançamentos`}
-        />
-        <Metric
-          title="Resultado do caixa"
-          value={formatMoney(profit)}
-          detail="Receita menos despesas"
-        />
-        <Metric title="Ordens abertas" value={String(open.length)} detail="Em atendimento" />
-      </div>
       <div className="dashboard-overview">
         <section className="panel">
           <div className="panel-head">

@@ -1391,6 +1391,91 @@
   background: #c55454;
   border-color: #c55454;
 }
+
+.attention-panel {
+  margin-bottom: 16px;
+}
+
+.attention-panel h2 {
+  margin: 0 0 5px;
+  font-size: 20px;
+}
+
+.attention-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.attention-card {
+  display: flex;
+  min-height: 126px;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 15px;
+  color: var(--ink);
+  border: 1px solid transparent;
+  border-radius: 13px;
+  text-decoration: none;
+  transition:
+    border-color 0.18s,
+    transform 0.18s;
+}
+
+.attention-card:hover {
+  border-color: currentColor;
+  transform: translateY(-2px);
+}
+
+.attention-card strong {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.attention-card span {
+  max-width: 13ch;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.attention-card small {
+  font-size: 12px;
+  color: inherit;
+  opacity: 0.78;
+}
+
+.attention-purple {
+  color: #5032ce;
+  background: #f0edff;
+}
+
+.attention-amber {
+  color: #9a6710;
+  background: #fff5dc;
+}
+
+.attention-mint {
+  color: #147653;
+  background: #e2f9ef;
+}
+
+.attention-red {
+  color: #b63d3d;
+  background: #fff0f0;
+}
+
+@media (max-width: 900px) {
+  .attention-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 460px) {
+  .attention-grid {
+    grid-template-columns: 1fr;
+  }
+}
 .monthly-goal {
   background: linear-gradient(110deg, #2b234d, #5a40a0);
   color: #fff;
