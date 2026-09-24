@@ -7,7 +7,6 @@ import { OrderCreateModal } from '@/components/order-modals';
 import { formatMoney as money, hasValidWhatsapp, whatsappUrl } from '@/lib/format';
 import type {
   BusinessRecordType,
-  DataObject,
   Order,
   PublicAccount,
   RecordData,
@@ -171,7 +170,8 @@ export default function Home() {
             x === 'Garantias' ||
             x === 'Assistente IA' ||
             x === 'Minha assistência' ||
-            x === 'Tutoriais & suporte' ? (
+            x === 'Tutoriais & suporte' ||
+            x === 'Dados & exportação' ? (
               <Link
                 className="sidebar-link"
                 href={
@@ -193,7 +193,9 @@ export default function Home() {
                                   ? '/minha-assistencia'
                                   : x === 'Tutoriais & suporte'
                                     ? '/suporte'
-                                    : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
+                                    : x === 'Dados & exportação'
+                                      ? '/dados'
+                                      : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
                 }
                 key={x}
               >
@@ -273,7 +275,6 @@ export default function Home() {
         )}
         {active === 'Mesa' && <Mesa orders={orders} save={save} open={() => setModal('order')} />}
         {active === 'Películas' && <FilmsSorted items={films} open={() => setModal('film')} />}
-        {active === 'Dados & exportação' && <DataTools records={records} save={save} />}
         {active === 'Contas de lojistas' && account.role === 'admin' && <AccountManager />}
       </section>
       {modal === 'order' && <OrderCreateModal close={() => setModal(null)} save={saveOrder} />}
@@ -1544,107 +1545,6 @@ function FilmModal({ close, save }: { close: () => void; save: SaveAction }) {
         </div>
       </form>
     </div>
-  );
-}
-function DataTools({ records, save }: { records: RecordItem[]; save: SaveAction }) {
-  const [type, setType] = useState<BusinessRecordType>('client');
-  const labels: Record<string, string> = {
-    client: 'Clientes',
-    order: 'Ordens de serviço',
-    payment: 'Recebimentos',
-    expense: 'Despesas',
-    part: 'Estoque',
-    quote: 'Orçamentos',
-    film: 'Películas',
-  };
-  const csv = (kind: string) => {
-    const rows = records
-      .filter((r) => r.type === kind)
-      .map((r) => ({ id: r.id, ...r.data }) as DataObject & { id: string });
-    if (!rows.length)
-      return alert(`Não há ${(labels[kind] || 'registros').toLowerCase()} para exportar.`);
-    const keys = Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
-    const esc = (v: unknown) =>
-      `"${String(Array.isArray(v) ? v.join(' | ') : (v ?? '')).replaceAll('"', '""')}"`;
-    const content =
-      '\uFEFF' +
-      [keys.join(';'), ...rows.map((r) => keys.map((k) => esc(r[k])).join(';'))].join('\n');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }));
-    a.download = `reparosm-${kind}-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
-  const importCsv = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const lines = String(reader.result || '')
-        .replace(/^\uFEFF/, '')
-        .split(/\r?\n/)
-        .filter(Boolean);
-      const parse = (line: string) =>
-        line
-          .split(/;(?=(?:[^"]*"[^"]*")*[^"]*$)/)
-          .map((x) => x.replace(/^"|"$/g, '').replaceAll('""', '"'));
-      const headers = parse(lines[0]);
-      for (const line of lines.slice(1)) {
-        const values = parse(line),
-          data: Record<string, string> = {};
-        headers.forEach((h, i) => {
-          if (h !== 'id') data[h] = values[i] || '';
-        });
-        await save(type, data);
-      }
-      alert(`${Math.max(0, lines.length - 1)} registros importados.`);
-    };
-    reader.readAsText(file, 'utf-8');
-  };
-  return (
-    <>
-      <article className="data-hero">
-        <div>
-          <span>⇩</span>
-          <div>
-            <h2>Central de dados</h2>
-            <p>Exporte cópias, importe planilhas CSV e gere o relatório completo da loja.</p>
-          </div>
-        </div>
-        <button onClick={() => window.open('/relatorio', '_blank')}>Gerar relatório PDF ↗</button>
-      </article>
-      <div className="export-grid">
-        {Object.entries(labels).map(([kind, label]) => (
-          <article className="panel" key={kind}>
-            <span>ARQUIVO CSV</span>
-            <h3>{String(label)}</h3>
-            <p>{records.filter((r) => r.type === kind).length} registros disponíveis</p>
-            <button onClick={() => csv(kind)}>Baixar CSV</button>
-          </article>
-        ))}
-      </div>
-      <article className="panel import-card">
-        <div>
-          <h3>Importar arquivo CSV</h3>
-          <p>
-            Use ponto e vírgula como separador. A primeira linha deve conter os nomes dos campos.
-          </p>
-        </div>
-        <select value={type} onChange={(e) => setType(e.target.value as BusinessRecordType)}>
-          {Object.entries(labels).map(([kind, label]) => (
-            <option value={kind} key={kind}>
-              {String(label)}
-            </option>
-          ))}
-        </select>
-        <label>
-          Selecionar CSV
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            onChange={(e) => e.target.files?.[0] && importCsv(e.target.files[0])}
-          />
-        </label>
-      </article>
-    </>
   );
 }
 function Badge({ children }: { children: string }) {
