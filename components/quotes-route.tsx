@@ -2,11 +2,13 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useFeedback } from '@/components/feedback';
 import QuoteModal, { type QuoteRow, type SaveQuote } from '@/components/quote-modal';
 import { formatMoney, hasValidWhatsapp, whatsappUrl } from '@/lib/format';
 import type { Quote } from '@/lib/types';
 
 export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow[] }) {
+  const { notify, confirm } = useFeedback();
   const [quotes, setQuotes] = useState(initialQuotes);
   const [modal, setModal] = useState<'create' | 'edit' | null>(null);
   const [editing, setEditing] = useState<QuoteRow | null>(null);
@@ -30,7 +32,10 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
       setEditing(null);
       setModal(null);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível salvar o orçamento.');
+      notify(
+        error instanceof Error ? error.message : 'Não foi possível salvar o orçamento.',
+        'error',
+      );
       throw error;
     }
   };
@@ -43,7 +48,7 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
     setModal('edit');
   };
   const remove = async (quote: QuoteRow) => {
-    if (!confirm(`Excluir definitivamente o orçamento ${quote.code || quote.id}?`)) return;
+    if (!(await confirm(`Excluir definitivamente o orçamento ${quote.code || quote.id}?`))) return;
     try {
       const response = await fetch(`/api/quotes?id=${encodeURIComponent(quote.id)}`, {
         method: 'DELETE',
@@ -52,22 +57,25 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
       if (!response.ok) throw new Error(result.error || 'Não foi possível excluir o orçamento.');
       setQuotes((current) => current.filter((item) => item.id !== quote.id));
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível excluir o orçamento.');
+      notify(
+        error instanceof Error ? error.message : 'Não foi possível excluir o orçamento.',
+        'error',
+      );
     }
   };
   const link = (quote: QuoteRow) => `${window.location.origin}/o/${encodeURIComponent(quote.id)}`;
   const copy = async (quote: QuoteRow) => {
     try {
       await navigator.clipboard.writeText(link(quote));
-      alert('Link do orçamento copiado!');
+      notify('Link do orçamento copiado.', 'success');
     } catch {
-      alert('Não foi possível copiar o link do orçamento.');
+      notify('Não foi possível copiar o link do orçamento.', 'error');
     }
   };
   const send = (quote: QuoteRow) => {
     const message = `Olá, ${quote.customer}! Seu orçamento ${quote.code} para ${quote.device} está pronto. Visualize, aprove ou recuse aqui: ${link(quote)}`;
     if (!hasValidWhatsapp(quote.phone)) {
-      alert('Cadastre um WhatsApp válido no orçamento.');
+      notify('Cadastre um WhatsApp válido no orçamento.', 'error');
       return;
     }
     window.open(whatsappUrl(quote.phone, message), '_blank', 'noopener,noreferrer');

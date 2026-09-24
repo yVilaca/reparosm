@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useFeedback } from '@/components/feedback';
 import type { BusinessRecordType, DataObject, StoredRecord } from '@/lib/types';
 
 const labels: Partial<Record<BusinessRecordType, string>> = {
@@ -34,6 +35,7 @@ const parseCsv = (line: string) =>
     .map((value) => value.replace(/^"|"$/g, '').replaceAll('""', '"'));
 
 export default function DataToolsRoute({ records }: { records: StoredRecord[] }) {
+  const { notify } = useFeedback();
   const [type, setType] = useState<BusinessRecordType>('client');
   const save = async (recordType: BusinessRecordType, data: DataObject) => {
     const response = await fetch(`/api/${resources[recordType]}`, {
@@ -48,8 +50,10 @@ export default function DataToolsRoute({ records }: { records: StoredRecord[] })
     const rows = records
       .filter((record) => record.type === kind)
       .map((record) => ({ id: record.id, ...record.data }) as DataObject & { id: string });
-    if (!rows.length)
-      return alert(`Não há ${(labels[kind] || 'registros').toLowerCase()} para exportar.`);
+    if (!rows.length) {
+      notify(`Não há ${(labels[kind] || 'registros').toLowerCase()} para exportar.`, 'info');
+      return;
+    }
     const keys = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
     const escape = (value: unknown) =>
       `"${String(Array.isArray(value) ? value.join(' | ') : (value ?? '')).replaceAll('"', '""')}"`;
@@ -82,12 +86,15 @@ export default function DataToolsRoute({ records }: { records: StoredRecord[] })
           });
           await save(type, data);
         }
-        alert(`${Math.max(0, lines.length - 1)} registros importados.`);
+        notify(`${Math.max(0, lines.length - 1)} registros importados.`, 'success');
       } catch (error) {
-        alert(error instanceof Error ? error.message : 'Não foi possível importar o CSV.');
+        notify(
+          error instanceof Error ? error.message : 'Não foi possível importar o CSV.',
+          'error',
+        );
       }
     };
-    reader.onerror = () => alert('Não foi possível ler o arquivo CSV.');
+    reader.onerror = () => notify('Não foi possível ler o arquivo CSV.', 'error');
     reader.readAsText(file, 'utf-8');
   };
   return (

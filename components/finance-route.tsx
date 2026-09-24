@@ -8,6 +8,7 @@ import MoneyModal, {
   type MoneyRow,
   type SaveMoney,
 } from '@/components/money-modal';
+import { useFeedback } from '@/components/feedback';
 import { formatMoney } from '@/lib/format';
 import type { Expense, Payment } from '@/lib/types';
 
@@ -18,6 +19,7 @@ export default function FinanceRoute({
   initialPayments: Array<Payment & { id: string }>;
   initialExpenses: Array<Expense & { id: string }>;
 }) {
+  const { notify, confirm } = useFeedback();
   const [rows, setRows] = useState<MoneyRow[]>([
     ...initialPayments.map((data) => ({ ...data, kind: 'payment' as const })),
     ...initialExpenses.map((data) => ({ ...data, kind: 'expense' as const })),
@@ -45,7 +47,10 @@ export default function FinanceRoute({
       setEditing(null);
       setModal(null);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível salvar o lançamento.');
+      notify(
+        error instanceof Error ? error.message : 'Não foi possível salvar o lançamento.',
+        'error',
+      );
       throw error;
     }
   };
@@ -58,7 +63,7 @@ export default function FinanceRoute({
     setModal(row.kind);
   };
   const remove = async (row: MoneyRow) => {
-    if (!confirm(`Excluir definitivamente o lançamento ${row.description}?`)) return;
+    if (!(await confirm(`Excluir definitivamente o lançamento ${row.description}?`))) return;
     try {
       const resource = row.kind === 'payment' ? 'payments' : 'expenses';
       const response = await fetch(`/api/${resource}?id=${encodeURIComponent(row.id)}`, {
@@ -68,7 +73,10 @@ export default function FinanceRoute({
       if (!response.ok) throw new Error(result.error || 'Não foi possível excluir o lançamento.');
       setRows((current) => current.filter((item) => item.id !== row.id));
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível excluir o lançamento.');
+      notify(
+        error instanceof Error ? error.message : 'Não foi possível excluir o lançamento.',
+        'error',
+      );
     }
   };
   const payments = rows.filter((row) => row.kind === 'payment');

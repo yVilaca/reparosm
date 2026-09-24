@@ -1294,6 +1294,103 @@
     width: 170px;
   }
 }
+
+.toast-region {
+  position: fixed;
+  z-index: 100;
+  top: 20px;
+  right: 20px;
+  display: grid;
+  width: min(380px, calc(100vw - 40px));
+  gap: 8px;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 14px;
+  color: #202432;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--purple);
+  border-radius: 12px;
+  box-shadow: 0 12px 30px #251d4626;
+  font-size: 14px;
+}
+
+.toast-success {
+  border-left-color: #2e9e7a;
+}
+
+.toast-error {
+  border-left-color: #c55454;
+}
+
+.toast button {
+  flex: 0 0 auto;
+  padding: 0 3px;
+  color: #817e91;
+  background: transparent;
+  border: 0;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.feedback-dialog-backdrop {
+  position: fixed;
+  z-index: 110;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: #17152a80;
+}
+
+.feedback-dialog {
+  width: min(420px, 100%);
+  padding: 24px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 24px 70px #17152a40;
+}
+
+.feedback-dialog h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.feedback-dialog p {
+  margin: 10px 0 20px;
+  color: #5f5b6b;
+  font-size: 15px;
+}
+
+.feedback-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.feedback-dialog-actions button {
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.feedback-dialog-actions .danger {
+  color: #fff;
+  background: #c55454;
+  border-color: #c55454;
+}
 .monthly-goal {
   background: linear-gradient(110deg, #2b234d, #5a40a0);
   color: #fff;

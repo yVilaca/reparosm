@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { useFeedback } from '@/components/feedback';
 import type { Part } from '@/lib/types';
 
 export type PartRow = Part & { id: string };
@@ -51,6 +52,7 @@ export default function PartModal({
   close: () => void;
   save: SavePart;
 }) {
+  const { notify } = useFeedback();
   const [form, setForm] = useState(() => formFrom(item));
   const [published, setPublished] = useState(item?.published ?? true);
   const [saving, setSaving] = useState(false);
@@ -61,7 +63,7 @@ export default function PartModal({
     if (saving) return;
     const category = form.category === 'Outra' ? form.customCategory.trim() : form.category;
     if (!category) {
-      alert('Informe uma categoria.');
+      notify('Informe uma categoria.', 'error');
       return;
     }
     setSaving(true);

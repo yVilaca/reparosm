@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useFeedback } from '@/components/feedback';
 import OrdersTable from '@/components/orders-table';
 import {
   OrderCreateModal,
@@ -12,6 +13,7 @@ import {
 import type { Order } from '@/lib/types';
 
 export default function OrdersRoute({ initialOrders }: { initialOrders: OrderRow[] }) {
+  const { notify } = useFeedback();
   const [orders, setOrders] = useState(initialOrders),
     [modal, setModal] = useState<'create' | 'edit' | null>(null),
     [editing, setEditing] = useState<OrderRow | null>(null);
@@ -35,7 +37,7 @@ export default function OrdersRoute({ initialOrders }: { initialOrders: OrderRow
       setEditing(null);
       setModal(null);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível salvar a ordem.');
+      notify(error instanceof Error ? error.message : 'Não foi possível salvar a ordem.', 'error');
       throw error;
     }
   };

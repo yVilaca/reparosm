@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useFeedback } from '@/components/feedback';
 import { hasValidWhatsapp, whatsappUrl } from '@/lib/format';
 import type { Automation, Client, Message, Order, Shop } from '@/lib/types';
 
@@ -55,6 +56,7 @@ export default function AfterSalesRoute({
   orders: (Order & { id: string })[];
   shop?: Shop;
 }) {
+  const { notify } = useFeedback();
   const [automations, setAutomations] = useState(initialAutomations);
   const [messages, setMessages] = useState(initialMessages);
   const [target, setTarget] = useState('');
@@ -88,7 +90,7 @@ export default function AfterSalesRoute({
         ]);
       }
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível salvar.');
+      notify(error instanceof Error ? error.message : 'Não foi possível salvar.', 'error');
       throw error;
     }
   };
@@ -130,11 +132,11 @@ export default function AfterSalesRoute({
   };
   const send = () => {
     if (!selected) {
-      alert('Escolha um cliente ou uma ordem.');
+      notify('Escolha um cliente ou uma ordem.', 'error');
       return;
     }
     if (!hasValidWhatsapp(selected.phone || '')) {
-      alert('O contato escolhido não possui um WhatsApp válido.');
+      notify('O contato escolhido não possui um WhatsApp válido.', 'error');
       return;
     }
     window.open(whatsappUrl(selected.phone || '', text), '_blank', 'noopener,noreferrer');

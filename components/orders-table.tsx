@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
+import { useFeedback } from '@/components/feedback';
 import { formatMoney, hasValidWhatsapp, whatsappUrl } from '@/lib/format';
 import type { Order } from '@/lib/types';
 
@@ -19,12 +20,13 @@ export default function OrdersTable({
   onEdit?: (order: OrderRow) => void;
   onRemoved?: (id: string) => void;
 }) {
+  const { notify, confirm } = useFeedback();
   const router = useRouter();
   const [busy, setBusy] = useState('');
   const send = (order: OrderRow) => {
     const phone = order.phone || '';
     if (!hasValidWhatsapp(phone)) {
-      alert('Cadastre um WhatsApp válido nesta ordem.');
+      notify('Cadastre um WhatsApp válido nesta ordem.', 'error');
       return;
     }
     const message = `Olá, ${order.customer}! Atualização da ${order.code}: seu ${order.device} está na etapa “${order.stage || 'Recebido'}”.`;
@@ -45,7 +47,7 @@ export default function OrdersTable({
     });
   };
   const remove = async (order: OrderRow) => {
-    if (!confirm(`Excluir definitivamente a ordem ${order.code}?`)) return;
+    if (!(await confirm(`Excluir definitivamente a ordem ${order.code}?`))) return;
     setBusy(order.id);
     try {
       const response = await fetch(`/api/orders?id=${encodeURIComponent(order.id)}`, {
@@ -55,7 +57,7 @@ export default function OrdersTable({
       onRemoved?.(order.id);
       router.refresh();
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível excluir a ordem.');
+      notify(error instanceof Error ? error.message : 'Não foi possível excluir a ordem.', 'error');
     } finally {
       setBusy('');
     }

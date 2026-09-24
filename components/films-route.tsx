@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useFeedback } from '@/components/feedback';
 import type { Film } from '@/lib/types';
 
 type FilmRow = Film & { id: string };
 
 export default function FilmsRoute({ initialFilms }: { initialFilms: FilmRow[] }) {
+  const { notify } = useFeedback();
   const [films, setFilms] = useState(initialFilms);
   const [search, setSearch] = useState('');
   const [brand, setBrand] = useState('Todas');
@@ -44,7 +46,10 @@ export default function FilmsRoute({ initialFilms }: { initialFilms: FilmRow[] }
       setFilms((current) => [{ id: result.record!.id, ...result.record!.data }, ...current]);
       setModal(false);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível salvar a compatibilidade.');
+      notify(
+        error instanceof Error ? error.message : 'Não foi possível salvar a compatibilidade.',
+        'error',
+      );
     }
   };
   return (

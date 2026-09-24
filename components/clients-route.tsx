@@ -3,12 +3,14 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import ClientModal, { type ClientRow, type SaveClient } from '@/components/client-modal';
+import { useFeedback } from '@/components/feedback';
 import { hasValidWhatsapp, whatsappUrl } from '@/lib/format';
 import type { Client } from '@/lib/types';
 
 const statuses = ['Novo', 'Em atendimento', 'Aguardando', 'Concluído', 'Inativo'] as const;
 
 export default function ClientsRoute({ initialClients }: { initialClients: ClientRow[] }) {
+  const { notify, confirm } = useFeedback();
   const [clients, setClients] = useState(initialClients);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState<'create' | 'edit' | null>(null);
@@ -33,7 +35,10 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
       setEditing(null);
       setModal(null);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível salvar o cliente.');
+      notify(
+        error instanceof Error ? error.message : 'Não foi possível salvar o cliente.',
+        'error',
+      );
       throw error;
     }
   };
@@ -46,7 +51,7 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
     setModal('edit');
   };
   const remove = async (client: ClientRow) => {
-    if (!confirm(`Excluir definitivamente o cliente ${client.name}?`)) return;
+    if (!(await confirm(`Excluir definitivamente o cliente ${client.name}?`))) return;
     try {
       const response = await fetch(`/api/clients?id=${encodeURIComponent(client.id)}`, {
         method: 'DELETE',
@@ -55,7 +60,10 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
       if (!response.ok) throw new Error(result.error || 'Não foi possível excluir o cliente.');
       setClients((current) => current.filter((item) => item.id !== client.id));
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível excluir o cliente.');
+      notify(
+        error instanceof Error ? error.message : 'Não foi possível excluir o cliente.',
+        'error',
+      );
     }
   };
   const change = (client: ClientRow, status: Client['status']) => {
@@ -64,7 +72,7 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
   const chat = (client: ClientRow) => {
     const message = `Olá, ${client.name}! Aqui é da ReparoSM. Como podemos ajudar?`;
     if (!hasValidWhatsapp(client.phone)) {
-      alert('Cadastre um WhatsApp válido para este cliente.');
+      notify('Cadastre um WhatsApp válido para este cliente.', 'error');
       return;
     }
     window.open(whatsappUrl(client.phone, message), '_blank', 'noopener,noreferrer');

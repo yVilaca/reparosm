@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import PartModal, { type PartRow, type SavePart } from '@/components/part-modal';
+import { useFeedback } from '@/components/feedback';
 import { formatMoney } from '@/lib/format';
 import type { Part } from '@/lib/types';
 
@@ -17,6 +18,7 @@ export default function StockRoute({
   initialParts: PartRow[];
   initialView: StockView;
 }) {
+  const { notify, confirm } = useFeedback();
   const [parts, setParts] = useState(initialParts);
   const [modal, setModal] = useState<'create' | 'edit' | null>(null);
   const [editing, setEditing] = useState<PartRow | null>(null);
@@ -40,7 +42,10 @@ export default function StockRoute({
       setEditing(null);
       setModal(null);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível salvar o produto.');
+      notify(
+        error instanceof Error ? error.message : 'Não foi possível salvar o produto.',
+        'error',
+      );
       throw error;
     }
   };
@@ -53,7 +58,7 @@ export default function StockRoute({
     setModal('edit');
   };
   const remove = async (part: PartRow) => {
-    if (!confirm(`Excluir definitivamente o produto ${part.name}?`)) return;
+    if (!(await confirm(`Excluir definitivamente o produto ${part.name}?`))) return;
     try {
       const response = await fetch(`/api/parts?id=${encodeURIComponent(part.id)}`, {
         method: 'DELETE',
@@ -62,7 +67,10 @@ export default function StockRoute({
       if (!response.ok) throw new Error(result.error || 'Não foi possível excluir o produto.');
       setParts((current) => current.filter((item) => item.id !== part.id));
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível excluir o produto.');
+      notify(
+        error instanceof Error ? error.message : 'Não foi possível excluir o produto.',
+        'error',
+      );
     }
   };
   const togglePublished = (part: PartRow, published: boolean) => {
@@ -72,9 +80,9 @@ export default function StockRoute({
   const copyStore = async () => {
     try {
       await navigator.clipboard.writeText(`${window.location.origin}${storeUrl}`);
-      alert('Link da vitrine copiado!');
+      notify('Link da vitrine copiado.', 'success');
     } catch {
-      alert('Não foi possível copiar o link da vitrine.');
+      notify('Não foi possível copiar o link da vitrine.', 'error');
     }
   };
   const openStore = () => window.open(storeUrl, '_blank', 'noopener,noreferrer');
