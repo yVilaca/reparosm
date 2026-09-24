@@ -82,6 +82,12 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             <span>⇩</span>
             Dados &amp; exportação
           </Link>
+          {account.role === 'admin' && (
+            <Link className="sidebar-link" href="/contas">
+              <span>♙</span>
+              Contas de lojistas
+            </Link>
+          )}
         </nav>
         <div className="sidebar-foot">
           <div className="profile">
