@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server.js';
-import { currentAccount } from '@/lib/auth';
+
+const hasSessionCookie = (request: Request) =>
+  request.headers
+    .get('cookie')
+    ?.split(';')
+    .some((cookie) => cookie.trim().startsWith('reparosm_session='));
 
 export async function proxy(request: Request) {
-  if (await currentAccount(request)) return NextResponse.next();
+  // The panel layout performs the authoritative database-backed session check.
+  if (hasSessionCookie(request)) return NextResponse.next();
   return NextResponse.redirect(new URL('/login', request.url));
 }
 
