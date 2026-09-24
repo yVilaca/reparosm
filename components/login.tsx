@@ -54,9 +54,10 @@ export default function Login({ onLogin }: { onLogin: (account: PublicAccount) =
               : 'Cada loja possui uma conta e dados separados.'}
           </p>
         </div>
-        <label>
+        <label htmlFor="login-username">
           Usuário
           <input
+            id="login-username"
             name="username"
             required
             minLength={3}
@@ -64,6 +65,8 @@ export default function Login({ onLogin }: { onLogin: (account: PublicAccount) =
             autoComplete="username"
             placeholder="Digite seu usuário"
             autoFocus
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? 'login-error' : undefined}
           />
         </label>
         {!forgot && (
@@ -76,9 +79,12 @@ export default function Login({ onLogin }: { onLogin: (account: PublicAccount) =
               required
               autoComplete="current-password"
               placeholder="Digite sua senha"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? 'login-error' : undefined}
             />
             <button
               type="button"
+              className="password-toggle"
               aria-controls="login-password"
               aria-pressed={showPassword}
               onClick={() => setShowPassword((v) => !v)}
@@ -88,16 +94,16 @@ export default function Login({ onLogin }: { onLogin: (account: PublicAccount) =
           </div>
         )}
         {error && (
-          <p className="login-error" role="alert">
+          <p id="login-error" className="login-error" role="alert">
             {error}
           </p>
         )}
         {notice && (
-          <p className="account-notice" role="status">
+          <p id="login-notice" className="account-notice" role="status">
             {notice}
           </p>
         )}
-        <button className="primary login-submit" disabled={loading}>
+        <button type="submit" className="primary login-submit" disabled={loading}>
           {loading ? 'Aguarde...' : forgot ? 'Solicitar ao administrador' : 'Entrar no sistema'}
         </button>
         <button
