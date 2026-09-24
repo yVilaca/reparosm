@@ -4144,3 +4144,58 @@ body {
     grid-column: 1 / -1;
   }
 }
+
+.modal-backdrop {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.modal {
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+.modal-title > button {
+  min-width: 44px;
+  min-height: 44px;
+  color: #5f5b6b;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.modal input,
+.modal select,
+.modal textarea {
+  min-height: 44px;
+}
+.modal textarea {
+  min-height: 80px;
+}
+.modal-actions button {
+  min-height: 44px;
+  cursor: pointer;
+}
+@media (max-width: 600px) {
+  .modal-backdrop {
+    align-items: end;
+    padding: 12px;
+  }
+
+  .modal {
+    max-height: calc(100vh - 24px);
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .modal .form-row,
+  .modal .form-row.three {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-actions {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+  }
+
+  .modal-actions button {
+    min-width: 0;
+    padding: 10px 8px;
+    font-size: 12px;
+  }
+}
