@@ -3056,13 +3056,30 @@ body {
   cursor: pointer;
   text-align: left;
 }
+.sidebar-link {
+  font: inherit;
+  color: #6f6c7e;
+  display: flex;
+  gap: 13px;
+  align-items: center;
+  border-radius: 12px;
+  padding: 13px 14px;
+  text-decoration: none;
+}
 .sidebar button span {
   width: 20px;
   text-align: center;
   font-size: 19px;
 }
+.sidebar-link span {
+  width: 20px;
+  text-align: center;
+  font-size: 19px;
+}
 .sidebar nav button:hover,
-.sidebar nav button.active {
+.sidebar nav button.active,
+.sidebar nav a:hover,
+.sidebar nav a.active {
   background: #f0edff;
   color: var(--purple-dark);
   font-weight: 700;
@@ -3126,6 +3143,7 @@ body {
   gap: 10px;
 }
 .top-actions button,
+.top-actions a,
 .panel-head button {
   border: 1px solid var(--line);
   background: white;
@@ -3142,6 +3160,10 @@ body {
   color: #fff;
   border-color: var(--purple);
   box-shadow: 0 8px 18px #6c4cf12e;
+}
+.top-action-link {
+  text-decoration: none;
+  color: inherit;
 }
 .metrics {
   display: grid;
@@ -3472,7 +3494,8 @@ body {
     grid-template-columns: 80px 1fr;
   }
   .brand div,
-  .sidebar button:not(.active) {
+  .sidebar button:not(.active),
+  .sidebar-link:not(.active) {
     font-size: 0;
   }
   .brand {
@@ -3481,10 +3504,12 @@ body {
   .brand-mark {
     flex: none;
   }
-  .sidebar button {
+  .sidebar button,
+  .sidebar-link {
     justify-content: center;
   }
-  .sidebar button span {
+  .sidebar button span,
+  .sidebar-link span {
     font-size: 19px;
   }
   .profile div {
@@ -3518,16 +3543,19 @@ body {
     flex-direction: row;
     justify-content: space-around;
   }
-  .sidebar nav button {
+  .sidebar nav button,
+  .sidebar nav a {
     padding: 8px;
     flex-direction: column;
     gap: 2px;
     font-size: 0;
   }
-  .sidebar nav button span {
+  .sidebar nav button span,
+  .sidebar nav a span {
     font-size: 17px;
   }
-  .sidebar nav button:nth-child(n + 6) {
+  .sidebar nav button:nth-child(n + 6),
+  .sidebar nav a:nth-child(n + 6) {
     display: none;
   }
   .workspace {

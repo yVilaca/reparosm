@@ -3,6 +3,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { closeDatabase, query, transaction } from '../lib/db.ts';
+import { env } from '../lib/env.ts';
 
 const directory = new URL('../netlify/database/migrations/', import.meta.url);
 
@@ -28,7 +29,7 @@ export async function migrate() {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  if (!process.env.DATABASE_URL) {
+  if (!env.databaseUrl) {
     console.error('Defina DATABASE_URL apontando para o Postgres local.');
     process.exit(1);
   }

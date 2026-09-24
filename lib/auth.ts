@@ -1,4 +1,5 @@
 import { query } from '@/lib/db';
+import { env, requiredEnv } from '@/lib/env';
 import { findAccountByUsername } from '@/lib/repos/accounts';
 import {
   accountForSession,
@@ -20,8 +21,7 @@ async function setupAdmin() {
     `SELECT access_policy FROM accounts WHERE id = 'account-admin'`,
   );
   if (admin?.access_policy === 'admin-managed-v2') return;
-  const hash = process.env.ADMIN_PASSWORD_HASH;
-  if (!hash?.startsWith('pbkdf2$')) throw new Error('Acesso administrativo não configurado.');
+  const hash = requiredEnv('ADMIN_PASSWORD_HASH', env.adminPasswordHash, /^pbkdf2\$/);
   // One-time migration requested by the owner: the administrator password comes from the
   // server environment; every other account and record is preserved.
   await query(

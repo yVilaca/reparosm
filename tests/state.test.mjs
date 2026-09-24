@@ -119,6 +119,92 @@ test('a second order with the same phone reuses the client', { skip }, async () 
   assert.equal(body.client.id, clients[0].id);
 });
 
+test('updates and deletes an order through its scoped API', { skip }, async () => {
+  const created = await save(A, 'order', order({ code: 'OS-UPDATE' }));
+  const id = created.body.record.id;
+  const updated = await save(
+    A,
+    'order',
+    order({ code: 'OS-UPDATED', customer: 'Cliente atualizado' }),
+    id,
+  );
+
+  assert.equal(updated.status, 201);
+  assert.equal(updated.body.record.id, id);
+  assert.equal(updated.body.record.data.code, 'OS-UPDATED');
+  assert.equal((await remove(A, id)).status, 200);
+  assert.equal((await getOne(A, id)).status, 403);
+});
+
+test('updates and deletes a client through its scoped API', { skip }, async () => {
+  const created = await save(A, 'client', {
+    name: 'Cliente inicial',
+    phone: '11988887777',
+    email: 'inicial@example.com',
+    status: 'Novo',
+    vip: false,
+  });
+  const id = created.body.record.id;
+  const updated = await save(
+    A,
+    'client',
+    {
+      name: 'Cliente atualizado',
+      phone: '11988887777',
+      email: 'atualizado@example.com',
+      status: 'Em atendimento',
+      vip: true,
+      notes: 'Cliente prioritário',
+    },
+    id,
+  );
+
+  assert.equal(updated.status, 201);
+  assert.equal(updated.body.record.id, id);
+  assert.equal(updated.body.record.data.name, 'Cliente atualizado');
+  assert.equal(updated.body.record.data.status, 'Em atendimento');
+  assert.equal(updated.body.record.data.vip, true);
+  assert.equal((await remove(B, id)).status, 403);
+  assert.equal((await remove(A, id)).status, 200);
+  assert.equal((await getOne(A, id)).status, 403);
+});
+
+test('updates and deletes a quote through its scoped API', { skip }, async () => {
+  const created = await save(A, 'quote', {
+    code: 'ORC-UPDATE',
+    customer: 'Cliente do orçamento',
+    phone: '11988887777',
+    device: 'Galaxy S22',
+    service: 'Troca de tela',
+    labor: 100,
+    parts: 200,
+    status: 'Aguardando',
+  });
+  const id = created.body.record.id;
+  const updated = await save(
+    A,
+    'quote',
+    {
+      code: 'ORC-UPDATED',
+      customer: 'Cliente atualizado',
+      phone: '11988887777',
+      device: 'Galaxy S22 Ultra',
+      service: 'Troca de tela original',
+      labor: 150,
+      parts: 250,
+      status: 'Aguardando',
+    },
+    id,
+  );
+
+  assert.equal(updated.status, 201);
+  assert.equal(updated.body.record.id, id);
+  assert.equal(updated.body.record.data.code, 'ORC-UPDATED');
+  assert.equal(updated.body.record.data.total, 400);
+  assert.equal((await remove(A, id)).status, 200);
+  assert.equal((await getOne(A, id)).status, 403);
+});
+
 test('accounts never see or change each other’s data', { skip }, async () => {
   const [mine] = await list(A, 'order');
   assert.deepEqual(await list(B, 'order'), []);
@@ -233,6 +319,57 @@ test('payments and expenses share a table but stay separate types', { skip }, as
   assert.equal((await remove(B, payment.body.record.id)).status, 403);
 });
 
+test('updates and deletes payments and expenses through their scoped APIs', { skip }, async () => {
+  const payment = await save(A, 'payment', {
+    description: 'Recebimento inicial',
+    reference: 'OS-200',
+    method: 'Pix',
+    date: '2026-09-24',
+    value: 100,
+  });
+  const expense = await save(A, 'expense', {
+    description: 'Despesa inicial',
+    reference: 'NF-200',
+    method: 'Boleto',
+    date: '2026-09-24',
+    value: 40,
+  });
+  const updatedPayment = await save(
+    A,
+    'payment',
+    {
+      description: 'Recebimento atualizado',
+      reference: 'OS-201',
+      method: 'Pix',
+      date: '2026-09-24',
+      value: 125,
+    },
+    payment.body.record.id,
+  );
+  const updatedExpense = await save(
+    A,
+    'expense',
+    {
+      description: 'Despesa atualizada',
+      reference: 'NF-201',
+      method: 'Boleto',
+      date: '2026-09-24',
+      value: 55,
+    },
+    expense.body.record.id,
+  );
+
+  assert.equal(updatedPayment.status, 201);
+  assert.equal(updatedPayment.body.record.data.value, 125);
+  assert.equal(updatedExpense.status, 201);
+  assert.equal(updatedExpense.body.record.data.value, 55);
+  assert.equal((await remove(B, payment.body.record.id)).status, 403);
+  assert.equal((await remove(A, payment.body.record.id)).status, 200);
+  assert.equal((await remove(A, expense.body.record.id)).status, 200);
+  assert.equal((await getOne(A, payment.body.record.id)).status, 403);
+  assert.equal((await getOne(A, expense.body.record.id)).status, 403);
+});
+
 test(
   'parts: stock must be a whole number and the vitrine shows only published stock',
   { skip },
@@ -251,6 +388,39 @@ test(
     );
   },
 );
+
+test('updates and deletes a part through its scoped API', { skip }, async () => {
+  const created = await save(A, 'part', {
+    name: 'Carregador USB-C',
+    category: 'Carregadores',
+    stock: 4,
+    cost: 25,
+    price: 60,
+    published: true,
+  });
+  const id = created.body.record.id;
+  const updated = await save(
+    A,
+    'part',
+    {
+      name: 'Carregador USB-C atualizado',
+      category: 'Carregadores',
+      stock: 8,
+      cost: 30,
+      price: 75,
+      published: false,
+    },
+    id,
+  );
+
+  assert.equal(updated.status, 201);
+  assert.equal(updated.body.record.id, id);
+  assert.equal(updated.body.record.data.name, 'Carregador USB-C atualizado');
+  assert.equal(updated.body.record.data.stock, 8);
+  assert.equal((await remove(B, id)).status, 403);
+  assert.equal((await remove(A, id)).status, 200);
+  assert.equal((await getOne(A, id)).status, 403);
+});
 
 test('messages keep an order link only for the same account', { skip }, async () => {
   const [mine] = await list(A, 'order');

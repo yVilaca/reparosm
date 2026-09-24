@@ -1,4 +1,5 @@
 import { query } from '@/lib/db';
+import { env, requiredEnv } from '@/lib/env';
 import { messages } from '@/lib/repos';
 import { hasValidWhatsapp, whatsappPhone } from '@/lib/format';
 import type { DataObject, Order } from '@/lib/types';
@@ -28,9 +29,7 @@ const base64ToBytes = (value: string) => {
 const isObject = (value: unknown): value is DataObject =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 const secretKey = async () => {
-  const raw = process.env.WHATSAPP_CONFIG_KEY || '';
-  if (!/^[a-f0-9]{64}$/i.test(raw))
-    throw new Error('A chave segura do WhatsApp ainda não foi configurada.');
+  const raw = requiredEnv('WHATSAPP_CONFIG_KEY', env.whatsappConfigKey, /^[a-f0-9]{64}$/i);
   return crypto.subtle.importKey(
     'raw',
     Uint8Array.from(raw.match(/.{2}/g)!.map((x) => parseInt(x, 16))),
@@ -74,20 +73,16 @@ export async function whatsappConfiguration(
     } catch {
       return null;
     }
-  if (
-    accountId !== 'account-admin' ||
-    !process.env.WHATSAPP_ACCESS_TOKEN ||
-    !process.env.WHATSAPP_PHONE_NUMBER_ID
-  )
+  if (accountId !== 'account-admin' || !env.whatsappAccessToken || !env.whatsappPhoneNumberId)
     return null;
   return {
-    token: process.env.WHATSAPP_ACCESS_TOKEN,
-    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
-    wabaId: process.env.WHATSAPP_WABA_ID,
-    orderTemplate: process.env.WHATSAPP_ORDER_TEMPLATE || '',
-    statusTemplate: process.env.WHATSAPP_STATUS_TEMPLATE || '',
-    language: process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'pt_BR',
-    version: process.env.WHATSAPP_GRAPH_VERSION || 'v25.0',
+    token: env.whatsappAccessToken,
+    phoneNumberId: env.whatsappPhoneNumberId,
+    wabaId: env.whatsappWabaId,
+    orderTemplate: env.whatsappOrderTemplate,
+    statusTemplate: env.whatsappStatusTemplate,
+    language: env.whatsappTemplateLanguage,
+    version: env.whatsappGraphVersion,
   };
 }
 export async function saveWhatsappConfiguration(accountId: string, config: WhatsAppConfiguration) {

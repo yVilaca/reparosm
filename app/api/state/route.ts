@@ -1,12 +1,11 @@
-import { transaction } from '@/lib/db';
 import { currentAccount, sameOrigin } from '@/lib/auth';
 import { getAccount } from '@/lib/repos/accounts';
-import { clients, orders, parts, repoFor, tableRepos, shops } from '@/lib/repos';
+import { parts, repoFor, tableRepos, shops } from '@/lib/repos';
 import { publicRecord, businessTypes } from '@/lib/public-data';
 import { filmCatalog } from '@/lib/film-catalog';
 import type { BusinessRecordType, DataObject, Order } from '@/lib/types';
 import { validateRecord } from '@/lib/validation';
-import { notifyOrder } from '@/lib/whatsapp';
+import { saveOrder } from '@/lib/orders';
 
 const isObject = (value: unknown): value is DataObject =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -84,41 +83,12 @@ export async function POST(request: Request) {
   if (!id.startsWith(`${type}-`))
     return Response.json({ error: 'Identificador inválido para este cadastro' }, { status: 400 });
 
-  if (type === 'order') return saveOrder(account.id, id, validation.data as Order);
+  if (type === 'order') {
+    const result = await saveOrder(account.id, id, validation.data as Order);
+    return result ? Response.json(result, { status: 201 }) : denied();
+  }
   const record = await repoFor(type)?.save(account.id, id, validation.data);
   return record ? Response.json({ record }, { status: 201 }) : denied();
-}
-
-/** Saves the order and its client together, then notifies the customer on a new stage. */
-async function saveOrder(accountId: string, id: string, order: Order) {
-  const result = await transaction(async (run) => {
-    const previous = await orders.get(accountId, id, run);
-    const record = await orders.save(accountId, id, order, run);
-    if (!record) return null;
-    const clientId = await clients.upsertFromOrder(accountId, order, run);
-    await orders.linkClient(id, clientId, run);
-    return { previous, record, client: await clients.get(accountId, clientId, run) };
-  });
-  if (!result) return denied();
-
-  let notification: unknown = null;
-  if (!result.previous || result.previous.data.stage !== order.stage) {
-    try {
-      notification = await notifyOrder(
-        accountId,
-        id,
-        order,
-        result.previous ? 'status' : 'created',
-      );
-    } catch {
-      notification = {
-        status: 'failed',
-        reason: 'OS salva, mas não foi possível registrar a notificação.',
-      };
-    }
-  }
-  const record = (await orders.get(accountId, id)) ?? result.record;
-  return Response.json({ record, client: result.client, notification }, { status: 201 });
 }
 
 export async function DELETE(request: Request) {
