@@ -27,7 +27,6 @@ type FilmItem = Item<'film'>;
 type ClientItem = Item<'client'>;
 type PaymentItem = Item<'payment'>;
 type ExpenseItem = Item<'expense'>;
-type AutomationItem = Item<'automation'>;
 type MessageItem = Item<'message'>;
 type TutorialItem = Item<'tutorial'>;
 type ShopItem = Item<'shop'>;
@@ -146,7 +145,6 @@ export default function Home() {
     shops = by('shop'),
     payments = by('payment'),
     expenses = by('expense'),
-    automations = by('automation'),
     messages = by('message'),
     tutorials = by('tutorial');
   const visibleMenu = account?.role === 'admin' ? [...menu, 'Contas de lojistas'] : menu;
@@ -183,7 +181,8 @@ export default function Home() {
             x === 'Peças & Vitrine' ||
             x === 'Estoque' ||
             x === 'Pagamentos' ||
-            x === 'Clientes' ? (
+            x === 'Clientes' ||
+            x === 'Pós-venda' ? (
               <Link
                 className="sidebar-link"
                 href={
@@ -195,7 +194,9 @@ export default function Home() {
                         ? '/pagamentos'
                         : x === 'Clientes'
                           ? '/clientes'
-                          : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
+                          : x === 'Pós-venda'
+                            ? '/pos-venda'
+                            : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
                 }
                 key={x}
               >
@@ -275,16 +276,6 @@ export default function Home() {
         )}
         {active === 'Mesa' && <Mesa orders={orders} save={save} open={() => setModal('order')} />}
         {active === 'Películas' && <FilmsSorted items={films} open={() => setModal('film')} />}
-        {active === 'Pós-venda' && (
-          <AfterSales
-            items={automations}
-            messages={messages}
-            clients={clients}
-            orders={orders}
-            shop={shops[0]}
-            save={save}
-          />
-        )}
         {active === 'Garantias' && <Warranties orders={orders} />}
         {active === 'Assistente IA' && (
           <BusinessAssistant orders={orders} parts={parts} payments={payments} />
@@ -1746,222 +1737,6 @@ function MyShopV2({ item, save }: { item?: ShopItem; save: SaveAction }) {
         </div>
       </form>
     </div>
-  );
-}
-function AfterSales({
-  items,
-  messages,
-  clients,
-  orders,
-  shop,
-  save,
-}: {
-  items: AutomationItem[];
-  messages: MessageItem[];
-  clients: ClientItem[];
-  orders: OrderItem[];
-  shop?: ShopItem;
-  save: SaveAction;
-}) {
-  const templates = [
-    [
-      'Atualização do reparo',
-      'Ao mudar a etapa',
-      'Olá, {cliente}! Seu {aparelho} está na etapa: {status}.',
-    ],
-    [
-      'Aparelho pronto',
-      'Ao concluir o reparo',
-      'Olá, {cliente}! Seu {aparelho} está pronto para retirada.',
-    ],
-    [
-      'Avaliação no Google',
-      '7 dias após a entrega',
-      `Olá, {cliente}! Como ficou seu aparelho? Sua avaliação ajuda muito nossa assistência.${shop?.google ? ` ${shop.google}` : ''}`,
-    ],
-    [
-      'Acompanhamento',
-      '24 horas após a entrega',
-      'Olá, {cliente}! Passando para confirmar se está tudo funcionando perfeitamente.',
-    ],
-    [
-      'Lembrete de garantia',
-      '15 dias antes do fim',
-      'Olá, {cliente}! Sua garantia está perto do vencimento. Se notar algo, fale conosco.',
-    ],
-  ];
-  const [target, setTarget] = useState(''),
-    [template, setTemplate] = useState(templates[0][0]),
-    [custom, setCustom] = useState('');
-  const contacts = [
-    ...clients.map((c) => ({
-      id: `c-${c.id}`,
-      name: c.name,
-      phone: c.phone,
-      device: 'seu aparelho',
-      status: c.status || 'Em atendimento',
-    })),
-    ...orders
-      .filter((o) => o.phone)
-      .map((o) => ({
-        id: `o-${o.id}`,
-        name: o.customer,
-        phone: o.phone,
-        device: o.device,
-        status: o.stage || 'Recebido',
-      })),
-  ];
-  const selected = contacts.find((c) => c.id === target);
-  const current = templates.find((t) => t[0] === template) || templates[0];
-  const text = (custom || current[2])
-    .replaceAll('{cliente}', selected?.name || 'cliente')
-    .replaceAll('{aparelho}', selected?.device || 'seu aparelho')
-    .replaceAll('{status}', selected?.status || 'em atendimento');
-  const existing = (name: string) => items.find((i) => i.name === name);
-  const toggle = (t: string[]) => {
-    const old = existing(t[0]);
-    void save(
-      'automation',
-      { name: t[0], schedule: t[1], message: t[2], enabled: !old?.enabled },
-      old?.id,
-    );
-  };
-  const send = () => {
-    if (!selected) return alert('Escolha um cliente ou uma ordem.');
-    if (openWhatsApp(selected.phone || '', text))
-      void save('message', {
-        customer: selected.name,
-        phone: selected.phone,
-        kind: template,
-        message: text,
-        status: 'Aberto no WhatsApp',
-        sentAt: new Date().toISOString(),
-      });
-    else alert('O contato escolhido não possui um WhatsApp válido.');
-  };
-  return (
-    <>
-      <article className="after-hero">
-        <div>
-          <span>✉</span>
-          <div>
-            <h2>Central do WhatsApp</h2>
-            <p>Prepare, envie e acompanhe mensagens para seus clientes.</p>
-          </div>
-        </div>
-        <div>
-          <b>{messages.length}</b>
-          <small>contatos registrados</small>
-        </div>
-      </article>
-      <section className="whatsapp-compose panel">
-        <div className="wa-title">
-          <span>WA</span>
-          <div>
-            <h3>Nova mensagem</h3>
-            <p>A mensagem abre pronta no WhatsApp para você confirmar o envio.</p>
-          </div>
-        </div>
-        <div className="form-row">
-          <label>
-            Cliente ou ordem
-            <select value={target} onChange={(e) => setTarget(e.target.value)}>
-              <option value="">Selecione...</option>
-              {contacts.map((c) => (
-                <option value={c.id} key={c.id}>
-                  {c.name} · {c.device}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Modelo de mensagem
-            <select
-              value={template}
-              onChange={(e) => {
-                setTemplate(e.target.value);
-                setCustom('');
-              }}
-            >
-              {templates.map((t) => (
-                <option key={t[0]}>{t[0]}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <label>
-          Mensagem
-          <textarea value={custom || text} onChange={(e) => setCustom(e.target.value)} />
-        </label>
-        <div className="wa-preview">
-          <div>
-            <b>{selected?.name || 'Escolha um contato'}</b>
-            <small>{selected?.phone || 'O número aparecerá aqui'}</small>
-          </div>
-          <button className="whatsapp-btn" onClick={send}>
-            Abrir no WhatsApp →
-          </button>
-        </div>
-      </section>
-      <h2 className="section-title">Automações preparadas</h2>
-      <div className="automation-grid">
-        {templates.map((t) => (
-          <article className="panel" key={t[0]}>
-            <header>
-              <i>✉</i>
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  checked={!!existing(t[0])?.enabled}
-                  onChange={() => toggle(t)}
-                />
-                <span />
-              </label>
-            </header>
-            <small>{t[1]}</small>
-            <h3>{t[0]}</h3>
-            <p>{t[2]}</p>
-            <footer>
-              <span>{existing(t[0])?.enabled ? 'Ativa para a API' : 'Ativar lembrete'}</span>
-            </footer>
-          </article>
-        ))}
-      </div>
-      {messages.length > 0 && (
-        <article className="panel page-panel wa-history">
-          <h2>Histórico de mensagens</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Tipo</th>
-                <th>Data</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {messages
-                .slice()
-                .reverse()
-                .slice(0, 10)
-                .map((m) => (
-                  <tr key={m.id}>
-                    <td>
-                      <b>{m.customer}</b>
-                      <small>{m.phone}</small>
-                    </td>
-                    <td>{m.kind}</td>
-                    <td>{new Date(m.sentAt || '').toLocaleString('pt-BR')}</td>
-                    <td>
-                      <Badge>{m.status}</Badge>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </article>
-      )}
-    </>
   );
 }
 function Warranties({ orders }: { orders: OrderItem[] }) {
