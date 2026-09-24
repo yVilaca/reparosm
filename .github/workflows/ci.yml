@@ -27,6 +27,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm exec graft build
+      - run: pnpm exec graft check
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
