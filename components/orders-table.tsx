@@ -11,11 +11,13 @@ type OrderRow = Order & { id: string };
 
 export default function OrdersTable({
   orders,
+  emptyMessage,
   onCreate,
   onEdit,
   onRemoved,
 }: {
   orders: OrderRow[];
+  emptyMessage?: string;
   onCreate?: () => void;
   onEdit?: (order: OrderRow) => void;
   onRemoved?: (id: string) => void;
@@ -66,8 +68,12 @@ export default function OrdersTable({
     return (
       <article className="empty-state">
         <div>✦</div>
-        <h2>Nenhuma ordem cadastrada</h2>
-        <p>Cadastre uma ordem completa com aparelho, senha, custo e previsão.</p>
+        <h2>{emptyMessage || 'Nenhuma ordem cadastrada'}</h2>
+        <p>
+          {emptyMessage
+            ? 'Tente remover os filtros ou buscar outro cliente.'
+            : 'Cadastre uma ordem completa com aparelho, senha, custo e previsão.'}
+        </p>
         {onCreate ? (
           <button className="primary" type="button" onClick={onCreate}>
             Nova ordem
@@ -81,6 +87,33 @@ export default function OrdersTable({
     );
   return (
     <article className="panel page-panel order-management">
+      <div className="orders-mobile-list">
+        {orders.map((order) => (
+          <article className="order-mobile-card" key={order.id}>
+            <div className="order-mobile-heading">
+              <b>{order.code}</b>
+              <span
+                className={`tag ${
+                  order.stage === 'Retirada'
+                    ? 'ready'
+                    : order.stage === 'Aguardando aprovação'
+                      ? 'waiting'
+                      : 'progress'
+                }`}
+              >
+                {order.stage || 'Recebido'}
+              </span>
+            </div>
+            <strong>{order.customer || 'Cliente não informado'}</strong>
+            <span>{order.device || 'Aparelho não informado'}</span>
+            <div className="order-mobile-meta">
+              <span>{order.priority || 'Normal'}</span>
+              <b>{formatMoney(Number(order.total || 0))}</b>
+            </div>
+            <div className="row-actions">{actions(order)}</div>
+          </article>
+        ))}
+      </div>
       <div className="table-scroll">
         <table>
           <thead>
@@ -103,29 +136,22 @@ export default function OrdersTable({
                 <td>{order.customer || '—'}</td>
                 <td>{order.device || '—'}</td>
                 <td>
-                  <span className="tag progress">{order.stage || 'Recebido'}</span>
+                  <span
+                    className={`tag ${
+                      order.stage === 'Retirada'
+                        ? 'ready'
+                        : order.stage === 'Aguardando aprovação'
+                          ? 'waiting'
+                          : 'progress'
+                    }`}
+                  >
+                    {order.stage || 'Recebido'}
+                  </span>
                 </td>
                 <td>{formatMoney(Number(order.total || 0))}</td>
                 <td>{formatMoney(Number(order.cost || 0))}</td>
                 <td>
-                  <div className="row-actions">
-                    <button type="button" onClick={() => send(order)}>
-                      WhatsApp
-                    </button>
-                    {onEdit && (
-                      <button type="button" onClick={() => onEdit(order)}>
-                        Editar
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="danger"
-                      disabled={busy === order.id}
-                      onClick={() => void remove(order)}
-                    >
-                      {busy === order.id ? 'Excluindo…' : 'Excluir'}
-                    </button>
-                  </div>
+                  <div className="row-actions">{actions(order)}</div>
                 </td>
               </tr>
             ))}
@@ -134,4 +160,27 @@ export default function OrdersTable({
       </div>
     </article>
   );
+
+  function actions(order: OrderRow) {
+    return (
+      <>
+        <button type="button" onClick={() => send(order)}>
+          WhatsApp
+        </button>
+        {onEdit && (
+          <button type="button" onClick={() => onEdit(order)}>
+            Editar
+          </button>
+        )}
+        <button
+          type="button"
+          className="danger"
+          disabled={busy === order.id}
+          onClick={() => void remove(order)}
+        >
+          {busy === order.id ? 'Excluindo…' : 'Excluir'}
+        </button>
+      </>
+    );
+  }
 }

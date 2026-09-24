@@ -16,7 +16,22 @@ export default function OrdersRoute({ initialOrders }: { initialOrders: OrderRow
   const { notify } = useFeedback();
   const [orders, setOrders] = useState(initialOrders),
     [modal, setModal] = useState<'create' | 'edit' | null>(null),
-    [editing, setEditing] = useState<OrderRow | null>(null);
+    [editing, setEditing] = useState<OrderRow | null>(null),
+    [query, setQuery] = useState(''),
+    [stage, setStage] = useState('Todas'),
+    [priority, setPriority] = useState('Todas');
+  const visible = orders.filter((order) => {
+    const search = query.trim().toLowerCase();
+    const matchesQuery =
+      !search ||
+      `${order.code} ${order.customer} ${order.device} ${order.phone}`
+        .toLowerCase()
+        .includes(search);
+    const matchesStage = stage === 'Todas' || (order.stage || 'Recebido') === stage;
+    const matchesPriority = priority === 'Todas' || (order.priority || 'Normal') === priority;
+    return matchesQuery && matchesStage && matchesPriority;
+  });
+  const filtered = Boolean(query || stage !== 'Todas' || priority !== 'Todas');
   const save: SaveOrder = async (data: Order, id?: string) => {
     try {
       const response = await fetch('/api/orders', {
@@ -66,8 +81,65 @@ export default function OrdersRoute({ initialOrders }: { initialOrders: OrderRow
           </button>
         </div>
       </header>
+      <section className="panel order-filters" aria-label="Filtros de ordens">
+        <div className="order-filter-head">
+          <div>
+            <strong>{visible.length}</strong> de {orders.length} ordens visíveis
+          </div>
+          {filtered && (
+            <button
+              className="filter-clear"
+              type="button"
+              onClick={() => {
+                setQuery('');
+                setStage('Todas');
+                setPriority('Todas');
+              }}
+            >
+              Limpar filtros
+            </button>
+          )}
+        </div>
+        <div className="order-filter-controls">
+          <label>
+            Buscar
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="OS, cliente ou aparelho"
+            />
+          </label>
+          <label>
+            Etapa
+            <select value={stage} onChange={(event) => setStage(event.target.value)}>
+              {[
+                'Todas',
+                'Recebido',
+                'Diagnóstico',
+                'Aguardando aprovação',
+                'Em reparo',
+                'Teste final',
+                'Retirada',
+              ].map((item) => (
+                <option key={item}>{item}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Prioridade
+            <select value={priority} onChange={(event) => setPriority(event.target.value)}>
+              {['Todas', 'Normal', 'Urgente', 'Garantia'].map((item) => (
+                <option key={item}>{item}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </section>
       <OrdersTable
-        orders={orders}
+        orders={visible}
+        emptyMessage={
+          orders.length && filtered ? 'Nenhuma ordem corresponde aos filtros.' : undefined
+        }
         onCreate={create}
         onEdit={edit}
         onRemoved={(id) => setOrders((current) => current.filter((order) => order.id !== id))}
