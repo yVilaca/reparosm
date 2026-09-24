@@ -136,6 +136,39 @@ test('updates and deletes an order through its scoped API', { skip }, async () =
   assert.equal((await getOne(A, id)).status, 403);
 });
 
+test('updates and deletes a client through its scoped API', { skip }, async () => {
+  const created = await save(A, 'client', {
+    name: 'Cliente inicial',
+    phone: '11988887777',
+    email: 'inicial@example.com',
+    status: 'Novo',
+    vip: false,
+  });
+  const id = created.body.record.id;
+  const updated = await save(
+    A,
+    'client',
+    {
+      name: 'Cliente atualizado',
+      phone: '11988887777',
+      email: 'atualizado@example.com',
+      status: 'Em atendimento',
+      vip: true,
+      notes: 'Cliente prioritário',
+    },
+    id,
+  );
+
+  assert.equal(updated.status, 201);
+  assert.equal(updated.body.record.id, id);
+  assert.equal(updated.body.record.data.name, 'Cliente atualizado');
+  assert.equal(updated.body.record.data.status, 'Em atendimento');
+  assert.equal(updated.body.record.data.vip, true);
+  assert.equal((await remove(B, id)).status, 403);
+  assert.equal((await remove(A, id)).status, 200);
+  assert.equal((await getOne(A, id)).status, 403);
+});
+
 test('updates and deletes a quote through its scoped API', { skip }, async () => {
   const created = await save(A, 'quote', {
     code: 'ORC-UPDATE',

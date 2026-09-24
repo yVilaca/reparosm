@@ -105,7 +105,7 @@ export default function Home() {
   const [account, setAccount] = useState<PublicAccount | null>(null),
     [authLoading, setAuthLoading] = useState(true);
   const [records, setRecords] = useState<RecordItem[]>([]);
-  const [modal, setModal] = useState<'order' | 'film' | 'client' | 'tutorial' | null>(null);
+  const [modal, setModal] = useState<'order' | 'film' | 'tutorial' | null>(null);
   const [toast, setToast] = useState('');
   const load = () =>
     api()
@@ -182,7 +182,8 @@ export default function Home() {
             x === 'Orçamentos' ||
             x === 'Peças & Vitrine' ||
             x === 'Estoque' ||
-            x === 'Pagamentos' ? (
+            x === 'Pagamentos' ||
+            x === 'Clientes' ? (
               <Link
                 className="sidebar-link"
                 href={
@@ -192,7 +193,9 @@ export default function Home() {
                       ? '/orcamentos'
                       : x === 'Pagamentos'
                         ? '/pagamentos'
-                        : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
+                        : x === 'Clientes'
+                          ? '/clientes'
+                          : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
                 }
                 key={x}
               >
@@ -257,11 +260,6 @@ export default function Home() {
                 + Compatibilidade
               </button>
             )}
-            {active === 'Clientes' && (
-              <button className="primary" onClick={() => setModal('client')}>
-                + Novo cliente
-              </button>
-            )}
           </div>
         </header>
         {active === 'Dashboard' && (
@@ -277,9 +275,6 @@ export default function Home() {
         )}
         {active === 'Mesa' && <Mesa orders={orders} save={save} open={() => setModal('order')} />}
         {active === 'Películas' && <FilmsSorted items={films} open={() => setModal('film')} />}
-        {active === 'Clientes' && (
-          <Clients items={clients} save={save} open={() => setModal('client')} />
-        )}
         {active === 'Pós-venda' && (
           <AfterSales
             items={automations}
@@ -308,7 +303,6 @@ export default function Home() {
       </section>
       {modal === 'order' && <OrderCreateModal close={() => setModal(null)} save={saveOrder} />}
       {modal === 'film' && <FilmModal close={() => setModal(null)} save={save} />}
-      {modal === 'client' && <ClientModal close={() => setModal(null)} save={save} />}
       {modal === 'tutorial' && <TutorialModal close={() => setModal(null)} save={save} />}
       {toast && <div className="toast">✓ {toast}</div>}
     </main>
@@ -1573,206 +1567,6 @@ function FilmModal({ close, save }: { close: () => void; save: SaveAction }) {
             Cancelar
           </button>
           <button className="primary">Salvar compatibilidade</button>
-        </div>
-      </form>
-    </div>
-  );
-}
-function Clients({
-  items,
-  save,
-  open,
-}: {
-  items: ClientItem[];
-  save: SaveAction;
-  open: () => void;
-}) {
-  const [search, setSearch] = useState('');
-  const visible = items.filter((c) =>
-    `${c.name} ${c.phone}`.toLowerCase().includes(search.toLowerCase()),
-  );
-  const change = (c: ClientItem, status: string) => void save('client', { ...c, status }, c.id);
-  const chat = (c: ClientItem) => {
-    const message = `Olá, ${c.name}! Aqui é da ReparoSM. Como podemos ajudar?`;
-    if (openWhatsApp(c.phone, message))
-      void save('message', {
-        customer: c.name,
-        phone: c.phone,
-        kind: 'Contato direto',
-        message,
-        status: 'Aberto no WhatsApp',
-        sentAt: new Date().toISOString(),
-      });
-    else alert('Cadastre um WhatsApp válido para este cliente.');
-  };
-  return (
-    <>
-      <div className="metrics">
-        <Metric t="Clientes" v={String(items.length)} d="Cadastrados diretamente" />
-        <Metric
-          t="Em atendimento"
-          v={String(items.filter((c) => c.status === 'Em atendimento').length)}
-          d="Com acompanhamento"
-        />
-        <Metric
-          t="Concluídos"
-          v={String(items.filter((c) => c.status === 'Concluído').length)}
-          d="Atendimentos finalizados"
-        />
-        <Metric t="VIP" v={String(items.filter((c) => c.vip).length)} d="Clientes prioritários" />
-      </div>
-      {items.length ? (
-        <article className="panel page-panel clients-page">
-          <div className="toolbar">
-            <label>
-              ⌕
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar cliente por nome ou telefone..."
-              />
-            </label>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Contato</th>
-                <th>Documento</th>
-                <th>Status</th>
-                <th>Observações</th>
-                <th>Mensagem</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((c) => (
-                <tr key={c.id}>
-                  <td>
-                    <b>{c.name}</b>
-                    {c.vip && <small className="vip"> VIP</small>}
-                  </td>
-                  <td>
-                    {c.phone}
-                    <small>{c.email}</small>
-                  </td>
-                  <td>{c.document || '—'}</td>
-                  <td>
-                    <select
-                      className="status-select"
-                      value={c.status || 'Novo'}
-                      onChange={(e) => change(c, e.target.value)}
-                    >
-                      <option>Novo</option>
-                      <option>Em atendimento</option>
-                      <option>Aguardando</option>
-                      <option>Concluído</option>
-                      <option>Inativo</option>
-                    </select>
-                  </td>
-                  <td>{c.notes || '—'}</td>
-                  <td>
-                    <button className="whatsapp-btn small" onClick={() => chat(c)}>
-                      Conversar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </article>
-      ) : (
-        <Empty
-          title="Nenhum cliente cadastrado"
-          text="Você pode cadastrar clientes mesmo sem criar uma ordem de serviço."
-          action="Cadastrar cliente"
-          onAction={open}
-        />
-      )}
-    </>
-  );
-}
-function ClientModal({ close, save }: { close: () => void; save: SaveAction }) {
-  return (
-    <div className="modal-backdrop">
-      <form
-        className="modal"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          void save('client', {
-            name: f.get('name'),
-            phone: f.get('phone'),
-            email: f.get('email'),
-            document: f.get('document'),
-            address: f.get('address'),
-            birth: f.get('birth'),
-            status: f.get('status'),
-            vip: f.get('vip') === 'on',
-            notes: f.get('notes'),
-            createdAt: new Date().toISOString(),
-          });
-        }}
-      >
-        <div className="modal-title">
-          <div>
-            <span>◌</span>
-            <div>
-              <h2>Novo cliente</h2>
-              <p>Cadastro independente de ordem de serviço</p>
-            </div>
-          </div>
-          <button type="button" onClick={close}>
-            ×
-          </button>
-        </div>
-        <label>
-          Nome completo *<input name="name" required />
-        </label>
-        <div className="form-row">
-          <label>
-            WhatsApp *<input name="phone" required />
-          </label>
-          <label>
-            E-mail
-            <input name="email" type="email" />
-          </label>
-        </div>
-        <div className="form-row">
-          <label>
-            CPF / CNPJ
-            <input name="document" />
-          </label>
-          <label>
-            Data de nascimento
-            <input name="birth" type="date" />
-          </label>
-        </div>
-        <label>
-          Endereço
-          <input name="address" />
-        </label>
-        <label>
-          Status inicial
-          <select name="status">
-            <option>Novo</option>
-            <option>Em atendimento</option>
-            <option>Aguardando</option>
-            <option>Concluído</option>
-            <option>Inativo</option>
-          </select>
-        </label>
-        <label className="check">
-          <input name="vip" type="checkbox" /> Marcar como cliente VIP
-        </label>
-        <label>
-          Observações
-          <textarea name="notes" />
-        </label>
-        <div className="modal-actions">
-          <button type="button" onClick={close}>
-            Cancelar
-          </button>
-          <button className="primary">Cadastrar cliente</button>
         </div>
       </form>
     </div>
