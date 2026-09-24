@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useState, type ChangeEvent } from 'react';
 import Link from 'next/link';
 import Login from '@/components/login';
-import { OrderCreateModal } from '@/components/order-modals';
 import { formatMoney as money, hasValidWhatsapp, whatsappUrl } from '@/lib/format';
 import type {
   BusinessRecordType,
@@ -54,14 +53,6 @@ const menu = [
   'Dados & exportação',
 ];
 const icons = ['▦', '☷', '▤', '⚒', '◇', '▣', '▯', '↗', '◌', '✉', '◉', '✦', '⚙', '?', '⇩'];
-const stages = [
-  'Recebido',
-  'Diagnóstico',
-  'Aguardando aprovação',
-  'Em reparo',
-  'Teste final',
-  'Retirada',
-];
 
 async function api(type?: BusinessRecordType, data?: unknown, id?: string) {
   if (!type) {
@@ -89,7 +80,6 @@ export default function Home() {
   const [account, setAccount] = useState<PublicAccount | null>(null),
     [authLoading, setAuthLoading] = useState(true);
   const [records, setRecords] = useState<RecordItem[]>([]);
-  const [modal, setModal] = useState<'order' | null>(null);
   const [toast, setToast] = useState('');
   const load = () =>
     api()
@@ -109,7 +99,6 @@ export default function Home() {
     try {
       const result = await api(type, data, id);
       await load();
-      setModal(null);
       setToast(result?.notification?.reason || 'Salvo com sucesso');
       setTimeout(() => setToast(''), 6000);
     } catch (error) {
@@ -117,7 +106,6 @@ export default function Home() {
       throw error;
     }
   };
-  const saveOrder = (data: Order, id?: string) => save('order', data, id);
   const by = <T extends BusinessRecordType>(type: T): Item<T>[] =>
     records
       .filter((record) => record.type === type)
@@ -160,6 +148,7 @@ export default function Home() {
           {visibleMenu.map((x, i) =>
             x === 'Ordens de serviço' ||
             x === 'Orçamentos' ||
+            x === 'Mesa' ||
             x === 'Peças & Vitrine' ||
             x === 'Estoque' ||
             x === 'Películas' ||
@@ -178,25 +167,27 @@ export default function Home() {
                     ? '/ordens'
                     : x === 'Orçamentos'
                       ? '/orcamentos'
-                      : x === 'Pagamentos'
-                        ? '/pagamentos'
-                        : x === 'Películas'
-                          ? '/peliculas'
-                          : x === 'Clientes'
-                            ? '/clientes'
-                            : x === 'Pós-venda'
-                              ? '/pos-venda'
-                              : x === 'Garantias'
-                                ? '/garantias'
-                                : x === 'Assistente IA'
-                                  ? '/assistente'
-                                  : x === 'Minha assistência'
-                                    ? '/minha-assistencia'
-                                    : x === 'Tutoriais & suporte'
-                                      ? '/suporte'
-                                      : x === 'Dados & exportação'
-                                        ? '/dados'
-                                        : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
+                      : x === 'Mesa'
+                        ? '/mesa'
+                        : x === 'Pagamentos'
+                          ? '/pagamentos'
+                          : x === 'Películas'
+                            ? '/peliculas'
+                            : x === 'Clientes'
+                              ? '/clientes'
+                              : x === 'Pós-venda'
+                                ? '/pos-venda'
+                                : x === 'Garantias'
+                                  ? '/garantias'
+                                  : x === 'Assistente IA'
+                                    ? '/assistente'
+                                    : x === 'Minha assistência'
+                                      ? '/minha-assistencia'
+                                      : x === 'Tutoriais & suporte'
+                                        ? '/suporte'
+                                        : x === 'Dados & exportação'
+                                          ? '/dados'
+                                          : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
                 }
                 key={x}
               >
@@ -250,13 +241,7 @@ export default function Home() {
                 : 'Dados salvos e integrados em tempo real.'}
             </small>
           </div>
-          <div className="top-actions">
-            {active === 'Mesa' && (
-              <button className="primary" onClick={() => setModal('order')}>
-                + Nova ordem
-              </button>
-            )}
-          </div>
+          <div className="top-actions" />
         </header>
         {active === 'Dashboard' && (
           <Dashboard
@@ -269,10 +254,8 @@ export default function Home() {
             messages={messages}
           />
         )}
-        {active === 'Mesa' && <Mesa orders={orders} save={save} open={() => setModal('order')} />}
         {active === 'Contas de lojistas' && account.role === 'admin' && <AccountManager />}
       </section>
-      {modal === 'order' && <OrderCreateModal close={() => setModal(null)} save={saveOrder} />}
       {toast && <div className="toast">✓ {toast}</div>}
     </main>
   );
@@ -464,69 +447,6 @@ function Metric({ t, v, d }: { t: string; v: string; d: string }) {
   );
 }
 
-function Mesa({ orders, save, open }: { orders: OrderItem[]; save: SaveAction; open: () => void }) {
-  const move = (o: OrderItem, dir: number) => {
-    const i = Math.max(0, Math.min(stages.length - 1, stages.indexOf(o.stage || 'Recebido') + dir));
-    void save('order', { ...o, stage: stages[i] }, o.id);
-  };
-  return (
-    <>
-      {!orders.length ? (
-        <Empty
-          title="A Mesa está vazia"
-          text="Crie uma ordem para ela aparecer automaticamente no fluxo."
-          action="Criar primeira ordem"
-          onAction={open}
-        />
-      ) : (
-        <div className="kanban kanban-enhanced">
-          {stages.map((stage) => (
-            <section key={stage}>
-              <header>
-                <span>
-                  <i className="flow-dot" />
-                  {stage}
-                </span>
-                <b>{orders.filter((o) => (o.stage || 'Recebido') === stage).length}</b>
-              </header>
-              {orders
-                .filter((o) => (o.stage || 'Recebido') === stage)
-                .map((o) => (
-                  <article key={`${o.id}-${stage}`}>
-                    <div>
-                      <b>{o.code}</b>
-                      <small>{o.priority}</small>
-                    </div>
-                    <h4>{o.device}</h4>
-                    <p>{o.customer}</p>
-                    <footer>
-                      <button
-                        disabled={stage === stages[0]}
-                        aria-label={`Voltar etapa de ${o.code}`}
-                        title="Voltar etapa"
-                        onClick={() => move(o, -1)}
-                      >
-                        ←
-                      </button>
-                      <span>{money(Number(o.total || 0))}</span>
-                      <button
-                        disabled={stage === stages.at(-1)}
-                        aria-label={`Avançar etapa de ${o.code}`}
-                        title="Avançar etapa"
-                        onClick={() => move(o, 1)}
-                      >
-                        →
-                      </button>
-                    </footer>
-                  </article>
-                ))}
-            </section>
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
 function Quotes({ items, save, open }: { items: QuoteItem[]; save: SaveAction; open: () => void }) {
   const [preview, setPreview] = useState<QuoteItem | null>(null);
   const status = (q: QuoteItem, s: string) => save('quote', { ...q, status: s }, q.id);

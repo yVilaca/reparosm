@@ -22,6 +22,10 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             <span>▦</span>
             Dashboard
           </Link>
+          <Link className="sidebar-link" href="/mesa">
+            <span>☷</span>
+            Mesa
+          </Link>
           <Link className="sidebar-link active" href="/ordens">
             <span>⚒</span>
             Ordens de serviço
