@@ -22,14 +22,14 @@ por entidade, com `account_id` em todo dado de negócio.
 
 ## Fora do escopo
 
-- Dividir `app/page.tsx` e trocar `/api/state` por rotas por recurso (plano próprio).
+- Dividir `app/page.tsx` e trocar a API genérica por rotas por recurso (plano próprio).
 - Baixa de estoque por OS (`order_items`) e criptografia da senha do aparelho: Fase 5, opcional.
 
 ## Princípios de execução
 
-1. **Contrato da API preservado até a Fase 4.** `/api/state` continua devolvendo
-   `{ records: [{ id, type, data }] }`. Cada repositório converte linha ⇄ esse formato,
-   então `app/page.tsx` não muda nas Fases 1–3.
+1. **Contrato da API preservado até a Fase 4.** A API genérica legada devolvia
+   `{ records: [{ id, type, data }] }`. Cada repositório converteu linha ⇄ esse formato
+   durante a migração; depois, os consumidores internos foram migrados para rotas por recurso.
 2. **Cada migração cria as tabelas e já copia os dados de `records`** no mesmo SQL
    (`INSERT … SELECT` com `data::jsonb`). Deploy = estrutura + dados, sem script manual.
 3. **`records` só é removida na Fase 4.** Até lá, reverter o código é possível; gravações
@@ -172,8 +172,8 @@ CREATE INDEX ON quotes (account_id, updated_at DESC);
 Código:
 
 - [ ] `lib/repos/{shops,clients,quotes,orders}.ts` com conversão linha ⇄ `{id,type,data}`.
-- [ ] `app/api/state/route.ts`: GET/POST/DELETE despacham por `type` para o repositório;
-      tipos ainda não migrados continuam em `records`.
+- [x] As rotas por recurso despacham GET/POST/DELETE para os repositórios;
+      os tipos migrados deixaram de depender da API genérica.
 - [ ] Salvar OS + criar/atualizar cliente numa transação; `findMatchingClient` vira
       `SELECT … WHERE account_id = $1 AND (phone = $2 OR lower(name) = $3)`.
 - [ ] `app/api/public/quote/route.ts`: aprovação (OS + cliente + orçamento) numa transação,
@@ -194,8 +194,8 @@ Migração `0004_rest.sql`:
   continua em `lib/film-catalog.ts`), `automations`, `tutorials`.
 - Backfill de todos a partir de `records`.
 
-Código: repositórios restantes, `/api/state` sem nenhum tipo em `records`, `notifyOrder`
-gravando em `messages`, relatório (`/relatorio`) somando no SQL se for simples.
+Código: repositórios restantes sem tipos de negócio em `records`, `notifyOrder` gravando
+em `messages`, relatório (`/relatorio`) somando no SQL se for simples.
 
 ## Fase 4 — Remoção de `records` (1 PR)
 
