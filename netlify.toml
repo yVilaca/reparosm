@@ -5,6 +5,12 @@
 [build.environment]
   NODE_VERSION = "22"
 
+[context.deploy-preview]
+  command = "pnpm build"
+
+[context.deploy-preview.environment]
+  NODE_VERSION = "22"
+
 [[headers]]
   for = "/api/*"
   [headers.values]

@@ -1,6 +1,10 @@
 import type { Metadata } from 'next';
 import { env } from '@/lib/env';
+import './accounts.css';
 import './globals.css';
+import './mesa.css';
+import './recovery.css';
+import './whatsapp.css';
 
 export const metadata: Metadata = {
   metadataBase: new URL(env.siteUrl),

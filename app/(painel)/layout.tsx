@@ -1,10 +1,6 @@
 import Link from 'next/link';
 import LogoutButton from '@/components/logout-button';
 import { requireServerAccount } from '@/lib/server-auth';
-import '../accounts.css';
-import '../mesa.css';
-import '../recovery.css';
-import '../whatsapp.css';
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const account = await requireServerAccount();
