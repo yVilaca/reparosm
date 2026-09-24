@@ -182,7 +182,8 @@ export default function Home() {
             x === 'Estoque' ||
             x === 'Pagamentos' ||
             x === 'Clientes' ||
-            x === 'Pós-venda' ? (
+            x === 'Pós-venda' ||
+            x === 'Garantias' ? (
               <Link
                 className="sidebar-link"
                 href={
@@ -196,7 +197,9 @@ export default function Home() {
                           ? '/clientes'
                           : x === 'Pós-venda'
                             ? '/pos-venda'
-                            : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
+                            : x === 'Garantias'
+                              ? '/garantias'
+                              : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
                 }
                 key={x}
               >
@@ -276,7 +279,6 @@ export default function Home() {
         )}
         {active === 'Mesa' && <Mesa orders={orders} save={save} open={() => setModal('order')} />}
         {active === 'Películas' && <FilmsSorted items={films} open={() => setModal('film')} />}
-        {active === 'Garantias' && <Warranties orders={orders} />}
         {active === 'Assistente IA' && (
           <BusinessAssistant orders={orders} parts={parts} payments={payments} />
         )}
@@ -1737,66 +1739,6 @@ function MyShopV2({ item, save }: { item?: ShopItem; save: SaveAction }) {
         </div>
       </form>
     </div>
-  );
-}
-function Warranties({ orders }: { orders: OrderItem[] }) {
-  const covered = orders
-    .filter((o) => o.stage === 'Retirada' || o.status === 'Concluído')
-    .map((o) => ({ ...o, days: Number(o.warrantyDays || 90) }));
-  return (
-    <>
-      <div className="metrics">
-        <Metric t="Garantias ativas" v={String(covered.length)} d="Ordens entregues" />
-        <Metric
-          t="Vencem em breve"
-          v={String(covered.filter((o) => o.days <= 15).length)}
-          d="Até 15 dias"
-        />
-        <Metric
-          t="Retornos"
-          v={String(orders.filter((o) => o.priority === 'Garantia').length)}
-          d="Em atendimento"
-        />
-        <Metric t="Prazo padrão" v="90 dias" d="Configurável na assistência" />
-      </div>
-      {covered.length ? (
-        <article className="panel page-panel">
-          <table>
-            <thead>
-              <tr>
-                <th>OS</th>
-                <th>Cliente</th>
-                <th>Aparelho</th>
-                <th>Serviço</th>
-                <th>Prazo</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {covered.map((o) => (
-                <tr key={o.id}>
-                  <td>
-                    <b>{o.code}</b>
-                  </td>
-                  <td>{o.customer}</td>
-                  <td>{o.device}</td>
-                  <td>{o.problem}</td>
-                  <td>{o.days} dias</td>
-                  <td>
-                    <Badge>Ativa</Badge>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </article>
-      ) : (
-        <Empty
-          title="Nenhuma garantia ativa"
-          text="Ao entregar uma ordem, a garantia aparecerá automaticamente aqui."
-        />
-      )}
-    </>
   );
 }
 function BusinessAssistant({
