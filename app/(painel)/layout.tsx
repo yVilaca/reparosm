@@ -58,6 +58,10 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             <span>✦</span>
             Assistente IA
           </Link>
+          <Link className="sidebar-link" href="/minha-assistencia">
+            <span>⚙</span>
+            Minha assistência
+          </Link>
         </nav>
         <div className="sidebar-foot">
           <div className="profile">

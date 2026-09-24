@@ -38,17 +38,6 @@ type PasswordRequestItem = {
   status: 'pending' | 'resolved';
   createdAt: string;
 };
-type WhatsAppStatus = {
-  configured: boolean;
-  phoneNumberId?: string;
-  displayPhone?: string;
-  verifiedName?: string;
-  orderTemplate?: string;
-  statusTemplate?: string;
-  language?: string;
-  version?: string;
-  qualityRating?: string;
-};
 type FieldChange = ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>;
 const menu = [
   'Dashboard',
@@ -141,7 +130,6 @@ export default function Home() {
     parts = by('part'),
     clients = by('client'),
     films = by('film'),
-    shops = by('shop'),
     payments = by('payment'),
     expenses = by('expense'),
     messages = by('message'),
@@ -183,7 +171,8 @@ export default function Home() {
             x === 'Clientes' ||
             x === 'Pós-venda' ||
             x === 'Garantias' ||
-            x === 'Assistente IA' ? (
+            x === 'Assistente IA' ||
+            x === 'Minha assistência' ? (
               <Link
                 className="sidebar-link"
                 href={
@@ -201,7 +190,9 @@ export default function Home() {
                               ? '/garantias'
                               : x === 'Assistente IA'
                                 ? '/assistente'
-                                : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
+                                : x === 'Minha assistência'
+                                  ? '/minha-assistencia'
+                                  : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
                 }
                 key={x}
               >
@@ -281,12 +272,6 @@ export default function Home() {
         )}
         {active === 'Mesa' && <Mesa orders={orders} save={save} open={() => setModal('order')} />}
         {active === 'Películas' && <FilmsSorted items={films} open={() => setModal('film')} />}
-        {active === 'Minha assistência' && (
-          <>
-            <MyShopV2 item={shops[0]} save={save} />
-            <WhatsAppConnection />
-          </>
-        )}
         {active === 'Tutoriais & suporte' && (
           <Support items={tutorials} open={() => setModal('tutorial')} />
         )}
@@ -1564,182 +1549,6 @@ function FilmModal({ close, save }: { close: () => void; save: SaveAction }) {
     </div>
   );
 }
-function MyShopV2({ item, save }: { item?: ShopItem; save: SaveAction }) {
-  const [tab, setTab] = useState('Perfil');
-  const tabs = ['Perfil', 'Horários', 'Equipe', 'Fiscal', 'Documentos'];
-  return (
-    <div className="shop-v2">
-      <div className="shop-cover">
-        <div className="shop-avatar">RS</div>
-        <div>
-          <span>MINHA ASSISTÊNCIA</span>
-          <h2>{item?.name || 'Configure sua empresa'}</h2>
-          <p>{item?.phone || 'Adicione os dados que aparecerão nos documentos e links.'}</p>
-        </div>
-        <Badge>{item?.name ? 'Perfil completo' : 'Configuração pendente'}</Badge>
-      </div>
-      <div className="shop-tabs">
-        {tabs.map((t) => (
-          <button className={tab === t ? 'active' : ''} onClick={() => setTab(t)} key={t}>
-            {t}
-          </button>
-        ))}
-      </div>
-      <form
-        className="panel shop-edit"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          void save('shop', { ...item, ...Object.fromEntries(f) }, item?.id || 'shop-main');
-        }}
-      >
-        {tab === 'Perfil' && (
-          <>
-            <div className="form-heading">
-              <h3>Identidade e contato</h3>
-              <p>Dados exibidos na vitrine, ordens, orçamentos e comprovantes.</p>
-            </div>
-            <label>
-              Nome comercial *<input name="name" required defaultValue={item?.name || ''} />
-            </label>
-            <div className="form-row">
-              <label>
-                Razão social
-                <input name="legalName" defaultValue={item?.legalName || ''} />
-              </label>
-              <label>
-                CPF / CNPJ
-                <input name="document" defaultValue={item?.document || ''} />
-              </label>
-            </div>
-            <div className="form-row">
-              <label>
-                WhatsApp *<input name="phone" required defaultValue={item?.phone || ''} />
-              </label>
-              <label>
-                E-mail
-                <input name="email" type="email" defaultValue={item?.email || ''} />
-              </label>
-            </div>
-            <label>
-              Endereço completo
-              <input name="address" defaultValue={item?.address || ''} />
-            </label>
-            <div className="form-row">
-              <label>
-                Instagram
-                <input name="instagram" defaultValue={item?.instagram || ''} />
-              </label>
-              <label>
-                Site
-                <input name="website" defaultValue={item?.website || ''} />
-              </label>
-            </div>
-          </>
-        )}
-        {tab === 'Horários' && (
-          <>
-            <div className="form-heading">
-              <h3>Atendimento e prazos</h3>
-              <p>Defina quando sua loja funciona e os padrões de entrega.</p>
-            </div>
-            <label>
-              Horário de funcionamento
-              <input
-                name="hours"
-                defaultValue={item?.hours || ''}
-                placeholder="Seg a Sáb · 08h às 18h"
-              />
-            </label>
-            <div className="form-row">
-              <label>
-                Prazo padrão de diagnóstico
-                <input name="diagnosisTime" defaultValue={item?.diagnosisTime || '24 horas'} />
-              </label>
-              <label>
-                Garantia padrão
-                <select name="warranty" defaultValue={item?.warranty || '90 dias'}>
-                  <option>30 dias</option>
-                  <option>90 dias</option>
-                  <option>180 dias</option>
-                </select>
-              </label>
-            </div>
-          </>
-        )}
-        {tab === 'Equipe' && (
-          <>
-            <div className="form-heading">
-              <h3>Equipe técnica</h3>
-              <p>Configure responsáveis e contatos internos.</p>
-            </div>
-            <label>
-              Técnico principal
-              <input name="technician" defaultValue={item?.technician || ''} />
-            </label>
-            <label>
-              Responsável financeiro
-              <input name="financial" defaultValue={item?.financial || ''} />
-            </label>
-            <label>
-              Contato interno
-              <input name="internalPhone" defaultValue={item?.internalPhone || ''} />
-            </label>
-          </>
-        )}
-        {tab === 'Fiscal' && (
-          <>
-            <div className="form-heading">
-              <h3>Dados fiscais</h3>
-              <p>Informações para notas e comprovantes.</p>
-            </div>
-            <div className="form-row">
-              <label>
-                Inscrição estadual
-                <input name="stateRegistration" defaultValue={item?.stateRegistration || ''} />
-              </label>
-              <label>
-                Inscrição municipal
-                <input name="cityRegistration" defaultValue={item?.cityRegistration || ''} />
-              </label>
-            </div>
-            <label>
-              Regime tributário
-              <select name="taxRegime" defaultValue={item?.taxRegime || 'MEI'}>
-                <option>MEI</option>
-                <option>Simples Nacional</option>
-                <option>Lucro Presumido</option>
-              </select>
-            </label>
-          </>
-        )}
-        {tab === 'Documentos' && (
-          <>
-            <div className="form-heading">
-              <h3>Textos dos documentos</h3>
-              <p>Personalize garantia, rodapé e avaliações.</p>
-            </div>
-            <label>
-              Termos de garantia
-              <textarea name="terms" defaultValue={item?.terms || ''} />
-            </label>
-            <label>
-              Rodapé dos comprovantes
-              <textarea name="footer" defaultValue={item?.footer || ''} />
-            </label>
-            <label>
-              Link para avaliação no Google
-              <input name="google" defaultValue={item?.google || ''} />
-            </label>
-          </>
-        )}
-        <div className="modal-actions">
-          <button className="primary">Salvar alterações</button>
-        </div>
-      </form>
-    </div>
-  );
-}
 function Support({ items, open }: { items: TutorialItem[]; open: () => void }) {
   const guides = [
     ['Começando', 'Cadastre sua assistência e o primeiro cliente.'],
@@ -1880,190 +1689,6 @@ function TutorialModal({ close, save }: { close: () => void; save: SaveAction })
         </div>
       </form>
     </div>
-  );
-}
-function WhatsAppConnection() {
-  const [status, setStatus] = useState<WhatsAppStatus | null>(null),
-    [editing, setEditing] = useState(false),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(''),
-    [notice, setNotice] = useState(''),
-    [testPhone, setTestPhone] = useState('');
-  const refresh = () =>
-    fetch('/api/whatsapp')
-      .then((r) => r.json())
-      .then(setStatus)
-      .catch(() => setStatus({ configured: false }));
-  useEffect(() => {
-    void refresh();
-  }, []);
-  const saveConfig = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setBusy(true);
-    setError('');
-    setNotice('');
-    const f = new FormData(e.currentTarget),
-      r = await fetch('/api/whatsapp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'save',
-          token: f.get('token'),
-          phoneNumberId: f.get('phoneNumberId'),
-          wabaId: f.get('wabaId'),
-          orderTemplate: f.get('orderTemplate'),
-          statusTemplate: f.get('statusTemplate'),
-          language: f.get('language'),
-          version: 'v25.0',
-        }),
-      }),
-      x = await r.json();
-    setBusy(false);
-    if (!r.ok) return setError(x.error || 'Não foi possível conectar.');
-    setStatus(x);
-    setEditing(false);
-    setNotice('Número validado e conectado com segurança.');
-  };
-  const test = async () => {
-    setBusy(true);
-    setError('');
-    setNotice('');
-    const r = await fetch('/api/whatsapp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'test', to: testPhone }),
-      }),
-      x = await r.json();
-    setBusy(false);
-    if (!r.ok) return setError(x.error || 'Falha no teste.');
-    setNotice('Mensagem aceita pela Meta. Confira o WhatsApp do destinatário.');
-  };
-  const disconnect = async () => {
-    if (!confirm('Desconectar o WhatsApp desta loja?')) return;
-    await fetch('/api/whatsapp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'disconnect' }),
-    });
-    setStatus({ configured: false });
-    setNotice('WhatsApp desconectado.');
-  };
-  return (
-    <article className="panel whatsapp-status whatsapp-connect">
-      <div className={status?.configured ? 'wa-connected' : 'wa-offline'}>WA</div>
-      <div>
-        <span>WHATSAPP BUSINESS · CONEXÃO POR LOJA</span>
-        <h3>
-          {!status
-            ? 'Verificando configuração...'
-            : status.configured
-              ? `${status.verifiedName || 'Número comercial'} conectado`
-              : 'Conecte o número desta assistência'}
-        </h3>
-        <p>
-          {status?.configured
-            ? `${status.displayPhone || status.phoneNumberId} · mensagens automáticas liberadas para OS autorizadas.`
-            : 'Use o token permanente e os identificadores exibidos no painel da Meta. Cada lojista conecta apenas o próprio número.'}
-        </p>
-        {notice && <p className="wa-success">✓ {notice}</p>}
-        {error && <p className="login-error">{error}</p>}
-        {status?.configured && !editing ? (
-          <>
-            <small>
-              Nova OS: {status.orderTemplate} · Atualização: {status.statusTemplate} · Idioma:{' '}
-              {status.language}
-            </small>
-            <div className="wa-test">
-              <input
-                value={testPhone}
-                onChange={(e) => setTestPhone(e.target.value)}
-                placeholder="WhatsApp para teste com DDD"
-              />
-              <button type="button" disabled={busy || !testPhone} onClick={() => void test()}>
-                {busy ? 'Enviando...' : 'Enviar teste'}
-              </button>
-            </div>
-            <div className="wa-actions">
-              <button type="button" onClick={() => setEditing(true)}>
-                Atualizar configuração
-              </button>
-              <button type="button" className="danger" onClick={() => void disconnect()}>
-                Desconectar
-              </button>
-            </div>
-          </>
-        ) : (
-          <form className="wa-config" onSubmit={saveConfig}>
-            <label>
-              Token permanente da Meta
-              <input
-                name="token"
-                type="password"
-                required={!status?.configured}
-                autoComplete="off"
-                placeholder={
-                  status?.configured ? 'Deixe vazio para manter o atual' : 'Cole o token permanente'
-                }
-              />
-            </label>
-            <div className="form-row">
-              <label>
-                ID do número de telefone
-                <input
-                  name="phoneNumberId"
-                  required
-                  defaultValue={status?.configured ? '' : undefined}
-                  placeholder={status?.phoneNumberId || 'Ex.: 1355087011013166'}
-                />
-              </label>
-              <label>
-                ID da conta WhatsApp Business
-                <input name="wabaId" placeholder="WABA ID" />
-              </label>
-            </div>
-            <div className="form-row">
-              <label>
-                Modelo para nova OS
-                <input
-                  name="orderTemplate"
-                  required
-                  defaultValue={status?.orderTemplate || 'reparosm_nova_os'}
-                />
-              </label>
-              <label>
-                Modelo para atualização
-                <input
-                  name="statusTemplate"
-                  required
-                  defaultValue={status?.statusTemplate || 'reparosm_status_os'}
-                />
-              </label>
-            </div>
-            <label>
-              Idioma do modelo
-              <select name="language" defaultValue={status?.language || 'pt_BR'}>
-                <option value="pt_BR">Português (Brasil)</option>
-                <option value="en_US">Inglês (EUA)</option>
-              </select>
-            </label>
-            <small>
-              Os dois modelos precisam estar aprovados na Meta e possuir quatro variáveis: cliente,
-              código da OS, aparelho e etapa.
-            </small>
-            <div className="wa-actions">
-              {status?.configured && (
-                <button type="button" onClick={() => setEditing(false)}>
-                  Cancelar
-                </button>
-              )}
-              <button className="primary" disabled={busy}>
-                {busy ? 'Validando com a Meta...' : 'Validar e conectar'}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </article>
   );
 }
 function DataTools({ records, save }: { records: RecordItem[]; save: SaveAction }) {
