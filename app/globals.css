@@ -4145,6 +4145,97 @@ body {
   }
 }
 
+.clients-mobile-list,
+.quotes-mobile-list,
+.finance-mobile-list {
+  display: none;
+}
+.list-filter-empty {
+  display: grid;
+  gap: 5px;
+  padding: 28px 16px;
+  color: #5f5b6b;
+  text-align: center;
+}
+.list-filter-empty span,
+.list-card-muted {
+  color: #817e91;
+  font-size: 12px;
+}
+.client-mobile-card,
+.quote-mobile-card,
+.finance-mobile-card {
+  display: grid;
+  gap: 9px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fff;
+}
+.list-card-heading,
+.list-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.list-card-heading > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.list-card-heading > div > b,
+.list-card-heading > b,
+.list-card-heading > strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.list-card-meta {
+  padding-top: 7px;
+  border-top: 1px solid var(--line);
+  color: #5f5b6b;
+  font-size: 12px;
+}
+.quote-mobile-card p {
+  margin: 0;
+  color: #5f5b6b;
+  font-size: 13px;
+  line-height: 1.45;
+}
+@media (max-width: 760px) {
+  .clients-page .table-scroll,
+  .quote-management .table-scroll,
+  .finance-list .table-scroll {
+    display: none;
+  }
+
+  .clients-mobile-list,
+  .quotes-mobile-list,
+  .finance-mobile-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .client-mobile-card .status-select {
+    min-height: 40px;
+    max-width: 150px;
+  }
+
+  .client-mobile-card .row-actions,
+  .quote-mobile-card .row-actions,
+  .finance-mobile-card .row-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .client-mobile-card .row-actions button:first-child,
+  .quote-mobile-card .row-actions button:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
 .modal-backdrop {
   overflow-y: auto;
   overscroll-behavior: contain;

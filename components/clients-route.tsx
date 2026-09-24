@@ -141,44 +141,34 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
               />
             </label>
           </div>
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Cliente</th>
-                  <th>Contato</th>
-                  <th>Documento</th>
-                  <th>Status</th>
-                  <th>Observações</th>
-                  <th>Mensagem</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
+          {visible.length ? (
+            <>
+              <div className="clients-mobile-list">
                 {visible.map((client) => (
-                  <tr key={client.id}>
-                    <td>
-                      <b>{client.name}</b>
-                      {client.vip && <small className="vip"> VIP</small>}
-                    </td>
-                    <td>
-                      {client.phone}
-                      <small>{client.email}</small>
-                    </td>
-                    <td>{client.document || '—'}</td>
-                    <td>
+                  <article className="client-mobile-card" key={client.id}>
+                    <div className="list-card-heading">
+                      <div>
+                        <b>{client.name}</b>
+                        {client.vip && <small className="vip">VIP</small>}
+                      </div>
                       <select
                         className="status-select"
                         value={client.status || 'Novo'}
                         onChange={(event) => change(client, event.target.value as Client['status'])}
+                        aria-label={`Status de ${client.name}`}
                       >
                         {statuses.map((status) => (
                           <option key={status}>{status}</option>
                         ))}
                       </select>
-                    </td>
-                    <td>{client.notes || '—'}</td>
-                    <td>
+                    </div>
+                    <span>{client.phone}</span>
+                    {client.email && <small className="list-card-muted">{client.email}</small>}
+                    <div className="list-card-meta">
+                      <span>{client.document || 'Sem documento'}</span>
+                      <span>{client.notes || 'Sem observações'}</span>
+                    </div>
+                    <div className="row-actions">
                       <button
                         className="whatsapp-btn small"
                         type="button"
@@ -186,22 +176,86 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
                       >
                         Conversar
                       </button>
-                    </td>
-                    <td>
-                      <div className="row-actions">
-                        <button type="button" onClick={() => edit(client)}>
-                          Editar
-                        </button>
-                        <button type="button" onClick={() => remove(client)}>
-                          Excluir
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                      <button type="button" onClick={() => edit(client)}>
+                        Editar
+                      </button>
+                      <button type="button" onClick={() => remove(client)}>
+                        Excluir
+                      </button>
+                    </div>
+                  </article>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </div>
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Cliente</th>
+                      <th>Contato</th>
+                      <th>Documento</th>
+                      <th>Status</th>
+                      <th>Observações</th>
+                      <th>Mensagem</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visible.map((client) => (
+                      <tr key={client.id}>
+                        <td>
+                          <b>{client.name}</b>
+                          {client.vip && <small className="vip"> VIP</small>}
+                        </td>
+                        <td>
+                          {client.phone}
+                          <small>{client.email}</small>
+                        </td>
+                        <td>{client.document || '—'}</td>
+                        <td>
+                          <select
+                            className="status-select"
+                            value={client.status || 'Novo'}
+                            onChange={(event) =>
+                              change(client, event.target.value as Client['status'])
+                            }
+                          >
+                            {statuses.map((status) => (
+                              <option key={status}>{status}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>{client.notes || '—'}</td>
+                        <td>
+                          <button
+                            className="whatsapp-btn small"
+                            type="button"
+                            onClick={() => chat(client)}
+                          >
+                            Conversar
+                          </button>
+                        </td>
+                        <td>
+                          <div className="row-actions">
+                            <button type="button" onClick={() => edit(client)}>
+                              Editar
+                            </button>
+                            <button type="button" onClick={() => remove(client)}>
+                              Excluir
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <div className="list-filter-empty">
+              <b>Nenhum cliente encontrado</b>
+              <span>Tente buscar por outro nome ou telefone.</span>
+            </div>
+          )}
         </article>
       ) : (
         <article className="empty-state">

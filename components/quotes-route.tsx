@@ -80,6 +80,28 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
     }
     window.open(whatsappUrl(quote.phone, message), '_blank', 'noopener,noreferrer');
   };
+  const actions = (quote: QuoteRow) => (
+    <div className="row-actions">
+      <button
+        type="button"
+        onClick={() => window.open(link(quote), '_blank', 'noopener,noreferrer')}
+      >
+        Abrir
+      </button>
+      <button type="button" onClick={() => edit(quote)}>
+        Editar
+      </button>
+      <button type="button" onClick={() => copy(quote)}>
+        Copiar link
+      </button>
+      <button className="whatsapp-btn small" type="button" onClick={() => send(quote)}>
+        WhatsApp
+      </button>
+      <button type="button" onClick={() => remove(quote)}>
+        Excluir
+      </button>
+    </div>
+  );
 
   return (
     <>
@@ -100,6 +122,28 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
       </header>
       {quotes.length ? (
         <article className="panel page-panel quote-management">
+          <div className="quotes-mobile-list">
+            {quotes.map((quote) => (
+              <article className="quote-mobile-card" key={quote.id}>
+                <div className="list-card-heading">
+                  <b>{quote.code || 'Orçamento sem código'}</b>
+                  <span
+                    className={`tag ${quote.status === 'Aprovado' ? 'ready' : quote.status === 'Recusado' ? 'red' : 'progress'}`}
+                  >
+                    {quote.status || 'Aguardando'}
+                  </span>
+                </div>
+                <strong>{quote.customer}</strong>
+                <span>{quote.device}</span>
+                <p>{quote.problem || quote.service || 'Sem descrição do serviço'}</p>
+                <div className="list-card-meta">
+                  <span>Total</span>
+                  <b>{formatMoney(quote.total)}</b>
+                </div>
+                {actions(quote)}
+              </article>
+            ))}
+          </div>
           <div className="table-scroll">
             <table>
               <thead>
@@ -130,32 +174,7 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
                         {quote.status || 'Aguardando'}
                       </span>
                     </td>
-                    <td>
-                      <div className="row-actions">
-                        <button
-                          type="button"
-                          onClick={() => window.open(link(quote), '_blank', 'noopener,noreferrer')}
-                        >
-                          Abrir
-                        </button>
-                        <button type="button" onClick={() => edit(quote)}>
-                          Editar
-                        </button>
-                        <button type="button" onClick={() => copy(quote)}>
-                          Copiar link
-                        </button>
-                        <button
-                          className="whatsapp-btn small"
-                          type="button"
-                          onClick={() => send(quote)}
-                        >
-                          WhatsApp
-                        </button>
-                        <button type="button" onClick={() => remove(quote)}>
-                          Excluir
-                        </button>
-                      </div>
-                    </td>
+                    <td>{actions(quote)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -84,6 +84,16 @@ export default function FinanceRoute({
   const income = payments.reduce((sum, row) => sum + Number(row.value || 0), 0);
   const out = expenses.reduce((sum, row) => sum + Number(row.value || 0), 0);
   const sorted = [...rows].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  const actions = (row: MoneyRow) => (
+    <div className="row-actions">
+      <button type="button" onClick={() => edit(row)}>
+        Editar
+      </button>
+      <button type="button" onClick={() => remove(row)}>
+        Excluir
+      </button>
+    </div>
+  );
   return (
     <>
       <header className="topbar">
@@ -116,6 +126,28 @@ export default function FinanceRoute({
       </div>
       {sorted.length ? (
         <article className="panel page-panel finance-list">
+          <div className="finance-mobile-list">
+            {sorted.map((row) => (
+              <article className="finance-mobile-card" key={row.id}>
+                <div className="list-card-heading">
+                  <span className={`tag ${row.kind === 'payment' ? 'ready' : 'red'}`}>
+                    {row.kind === 'payment' ? 'Receita' : 'Despesa'}
+                  </span>
+                  <strong className={row.kind === 'expense' ? 'negative-money' : 'positive-money'}>
+                    {row.kind === 'expense' ? '- ' : '+ '}
+                    {formatMoney(row.value)}
+                  </strong>
+                </div>
+                <b>{row.description}</b>
+                {row.reference && <small className="list-card-muted">{row.reference}</small>}
+                <div className="list-card-meta">
+                  <span>{row.method}</span>
+                  <span>{row.date}</span>
+                </div>
+                {actions(row)}
+              </article>
+            ))}
+          </div>
           <div className="table-scroll">
             <table>
               <thead>
@@ -146,16 +178,7 @@ export default function FinanceRoute({
                       {row.kind === 'expense' ? '- ' : '+ '}
                       {formatMoney(row.value)}
                     </td>
-                    <td>
-                      <div className="row-actions">
-                        <button type="button" onClick={() => edit(row)}>
-                          Editar
-                        </button>
-                        <button type="button" onClick={() => remove(row)}>
-                          Excluir
-                        </button>
-                      </div>
-                    </td>
+                    <td>{actions(row)}</td>
                   </tr>
                 ))}
               </tbody>
