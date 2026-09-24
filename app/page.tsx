@@ -22,7 +22,6 @@ type Item<T extends BusinessRecordType> = RecordData[T] & { id: string };
 type OrderItem = Item<'order'>;
 type QuoteItem = Item<'quote'>;
 type PartItem = Item<'part'>;
-type FilmItem = Item<'film'>;
 type ClientItem = Item<'client'>;
 type PaymentItem = Item<'payment'>;
 type ExpenseItem = Item<'expense'>;
@@ -90,7 +89,7 @@ export default function Home() {
   const [account, setAccount] = useState<PublicAccount | null>(null),
     [authLoading, setAuthLoading] = useState(true);
   const [records, setRecords] = useState<RecordItem[]>([]);
-  const [modal, setModal] = useState<'order' | 'film' | null>(null);
+  const [modal, setModal] = useState<'order' | null>(null);
   const [toast, setToast] = useState('');
   const load = () =>
     api()
@@ -127,7 +126,6 @@ export default function Home() {
     quotes = by('quote'),
     parts = by('part'),
     clients = by('client'),
-    films = by('film'),
     payments = by('payment'),
     expenses = by('expense'),
     messages = by('message');
@@ -164,6 +162,7 @@ export default function Home() {
             x === 'Orçamentos' ||
             x === 'Peças & Vitrine' ||
             x === 'Estoque' ||
+            x === 'Películas' ||
             x === 'Pagamentos' ||
             x === 'Clientes' ||
             x === 'Pós-venda' ||
@@ -181,21 +180,23 @@ export default function Home() {
                       ? '/orcamentos'
                       : x === 'Pagamentos'
                         ? '/pagamentos'
-                        : x === 'Clientes'
-                          ? '/clientes'
-                          : x === 'Pós-venda'
-                            ? '/pos-venda'
-                            : x === 'Garantias'
-                              ? '/garantias'
-                              : x === 'Assistente IA'
-                                ? '/assistente'
-                                : x === 'Minha assistência'
-                                  ? '/minha-assistencia'
-                                  : x === 'Tutoriais & suporte'
-                                    ? '/suporte'
-                                    : x === 'Dados & exportação'
-                                      ? '/dados'
-                                      : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
+                        : x === 'Películas'
+                          ? '/peliculas'
+                          : x === 'Clientes'
+                            ? '/clientes'
+                            : x === 'Pós-venda'
+                              ? '/pos-venda'
+                              : x === 'Garantias'
+                                ? '/garantias'
+                                : x === 'Assistente IA'
+                                  ? '/assistente'
+                                  : x === 'Minha assistência'
+                                    ? '/minha-assistencia'
+                                    : x === 'Tutoriais & suporte'
+                                      ? '/suporte'
+                                      : x === 'Dados & exportação'
+                                        ? '/dados'
+                                        : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
                 }
                 key={x}
               >
@@ -255,11 +256,6 @@ export default function Home() {
                 + Nova ordem
               </button>
             )}
-            {active === 'Películas' && (
-              <button className="primary" onClick={() => setModal('film')}>
-                + Compatibilidade
-              </button>
-            )}
           </div>
         </header>
         {active === 'Dashboard' && (
@@ -274,11 +270,9 @@ export default function Home() {
           />
         )}
         {active === 'Mesa' && <Mesa orders={orders} save={save} open={() => setModal('order')} />}
-        {active === 'Películas' && <FilmsSorted items={films} open={() => setModal('film')} />}
         {active === 'Contas de lojistas' && account.role === 'admin' && <AccountManager />}
       </section>
       {modal === 'order' && <OrderCreateModal close={() => setModal(null)} save={saveOrder} />}
-      {modal === 'film' && <FilmModal close={() => setModal(null)} save={save} />}
       {toast && <div className="toast">✓ {toast}</div>}
     </main>
   );
@@ -884,77 +878,6 @@ function OrderModal({ close, save }: { close: () => void; save: SaveAction }) {
   );
 }
 
-function FilmsSorted({ items, open }: { items: FilmItem[]; open: () => void }) {
-  const [search, setSearch] = useState(''),
-    [brand, setBrand] = useState('Todas');
-  const collator = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' }),
-    brands = [
-      'Todas',
-      ...Array.from(new Set(items.map((f) => f.brand).filter(Boolean))).sort(collator.compare),
-    ];
-  const found = items
-    .filter(
-      (f) =>
-        (brand === 'Todas' || f.brand === brand) &&
-        `${f.brand} ${f.model} ${f.compatible}`.toLowerCase().includes(search.toLowerCase()),
-    )
-    .sort((a, b) => collator.compare(a.brand, b.brand) || collator.compare(a.model, b.model));
-  return (
-    <>
-      <article className="film-search">
-        <div>
-          <span>GUIA DE COMPATIBILIDADE</span>
-          <h2>Qual película serve neste aparelho?</h2>
-          <p>Catálogo organizado por marca e modelo em ordem numérica.</p>
-        </div>
-        <label>
-          ⌕
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Ex.: A03, iPhone 13, Moto G54..."
-          />
-        </label>
-      </article>
-      <div className="film-brand-tabs">
-        {brands.map((b) => (
-          <button className={brand === b ? 'active' : ''} onClick={() => setBrand(b)} key={b}>
-            {b}
-          </button>
-        ))}
-      </div>
-      {found.length ? (
-        <div className="film-grid">
-          {found.map((f) => (
-            <article className="panel" key={f.id}>
-              <span>{f.brand}</span>
-              <h3>{f.model}</h3>
-              <p>Também compatível com:</p>
-              <strong>{f.compatible}</strong>
-              <footer>
-                <small>{f.size || 'Película frontal'}</small>
-                <Badge>Compatível</Badge>
-              </footer>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <Empty
-          title={
-            items.length ? 'Nenhum resultado encontrado' : 'Nenhuma compatibilidade cadastrada'
-          }
-          text={
-            items.length
-              ? 'Tente outro modelo ou marca.'
-              : 'Cadastre equivalências entre modelos de celulares.'
-          }
-          action="Cadastrar compatibilidade"
-          onAction={open}
-        />
-      )}
-    </>
-  );
-}
 function PasswordRequests() {
   const [accounts, setAccounts] = useState<PublicAccount[]>([]),
     [requests, setRequests] = useState<PasswordRequestItem[]>([]),
@@ -1352,60 +1275,6 @@ function AccountModal({ close, saved }: { close: () => void; saved: () => void }
   );
 }
 
-function Films({ items, open }: { items: FilmItem[]; open: () => void }) {
-  const [search, setSearch] = useState('');
-  const found = items.filter((f) =>
-    `${f.model} ${f.compatible}`.toLowerCase().includes(search.toLowerCase()),
-  );
-  return (
-    <>
-      <article className="film-search">
-        <div>
-          <span>GUIA DE COMPATIBILIDADE</span>
-          <h2>Qual película serve neste aparelho?</h2>
-          <p>Pesquise um modelo para encontrar todas as equivalências cadastradas.</p>
-        </div>
-        <label>
-          ⌕
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Ex.: iPhone 13, Galaxy A54..."
-          />
-        </label>
-      </article>
-      {found.length ? (
-        <div className="film-grid">
-          {found.map((f) => (
-            <article className="panel" key={f.id}>
-              <span>{f.brand}</span>
-              <h3>{f.model}</h3>
-              <p>Também compatível com:</p>
-              <strong>{f.compatible}</strong>
-              <footer>
-                <small>{f.size || 'Tamanho não informado'}</small>
-                <Badge>Compatível</Badge>
-              </footer>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <Empty
-          title={
-            items.length ? 'Nenhum resultado encontrado' : 'Nenhuma compatibilidade cadastrada'
-          }
-          text={
-            items.length
-              ? 'Tente buscar outro modelo.'
-              : 'Cadastre equivalências entre modelos de celulares.'
-          }
-          action="Cadastrar compatibilidade"
-          onAction={open}
-        />
-      )}
-    </>
-  );
-}
 function MyShop({ item, save }: { item?: ShopItem; save: SaveAction }) {
   return (
     <div className="shop-settings">
@@ -1493,55 +1362,6 @@ function MyShop({ item, save }: { item?: ShopItem; save: SaveAction }) {
         </label>
         <div className="modal-actions">
           <button className="primary">Salvar assistência</button>
-        </div>
-      </form>
-    </div>
-  );
-}
-function FilmModal({ close, save }: { close: () => void; save: SaveAction }) {
-  return (
-    <div className="modal-backdrop">
-      <form
-        className="modal"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          void save('film', Object.fromEntries(f));
-        }}
-      >
-        <div className="modal-title">
-          <div>
-            <span>▯</span>
-            <div>
-              <h2>Películas compatíveis</h2>
-              <p>Cadastre equivalências entre aparelhos</p>
-            </div>
-          </div>
-          <button type="button" onClick={close}>
-            ×
-          </button>
-        </div>
-        <label>
-          Marca
-          <input name="brand" required placeholder="Ex.: Apple" />
-        </label>
-        <label>
-          Modelo principal
-          <input name="model" required placeholder="Ex.: iPhone 13" />
-        </label>
-        <label>
-          Modelos compatíveis
-          <textarea name="compatible" required placeholder="Ex.: iPhone 13 Pro, iPhone 14" />
-        </label>
-        <label>
-          Tamanho / observação
-          <input name="size" placeholder="Ex.: 6,1 polegadas" />
-        </label>
-        <div className="modal-actions">
-          <button type="button" onClick={close}>
-            Cancelar
-          </button>
-          <button className="primary">Salvar compatibilidade</button>
         </div>
       </form>
     </div>
