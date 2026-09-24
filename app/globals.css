@@ -3610,3 +3610,124 @@ body {
     height: 210px;
   }
 }
+
+/* Panel shell: one navigation model, with a complete mobile escape hatch. */
+body {
+  line-height: 1.45;
+  overflow-x: hidden;
+}
+
+:where(a, button, input, select, textarea):focus-visible {
+  outline: 3px solid #aa9dff;
+  outline-offset: 2px;
+}
+
+.sidebar-navigation {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.sidebar-desktop-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sidebar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar-group-label {
+  padding: 0 14px 3px;
+  color: #9692a2;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sidebar-link {
+  min-height: 44px;
+}
+
+.sidebar-mobile-nav,
+.sidebar-more-menu {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .sidebar {
+    height: 76px;
+    padding: 7px 10px;
+  }
+
+  .sidebar-navigation {
+    overflow: visible;
+  }
+
+  .sidebar-desktop-nav {
+    display: none;
+  }
+
+  .sidebar-mobile-nav {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+  }
+
+  .sidebar-mobile-nav .sidebar-link {
+    min-height: 60px;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 4px;
+    font-size: 11px !important;
+    text-align: center;
+  }
+
+  .sidebar-mobile-nav .sidebar-link span {
+    width: auto;
+    font-size: 18px;
+  }
+
+  .sidebar-more-menu {
+    position: fixed;
+    z-index: 20;
+    right: 12px;
+    bottom: 88px;
+    left: 12px;
+    display: flex;
+    max-height: calc(100vh - 108px);
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+    padding: 16px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 18px 45px #251d4626;
+  }
+
+  .sidebar-more-menu .sidebar-link {
+    min-height: 44px;
+  }
+
+  .workspace {
+    padding-bottom: 108px;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .top-actions {
+    flex-wrap: wrap;
+  }
+
+  .top-actions .primary {
+    font-size: 14px;
+  }
+}
