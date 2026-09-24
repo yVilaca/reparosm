@@ -1,5 +1,9 @@
 # ReparoSM Foundation Implementation Plan
 
+> **Documento histórico:** este plano foi executado antes da migração para rotas por
+> recurso. As referências à API genérica descrevem o estado daquela etapa e não são
+> contratos ativos do aplicativo.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Format the codebase once and establish shared types, validation, and business helpers without changing the existing route or database architecture.

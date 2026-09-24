@@ -46,3 +46,12 @@ export function requiredEnv(name: string, value: string | undefined, pattern?: R
     throw new Error(`A variável ${name} não está configurada ou tem formato inválido.`);
   return value;
 }
+
+export function validateEnv() {
+  requiredEnv('DATABASE_URL', env.databaseUrl, /^postgres(?:ql)?:\/\//i);
+  requiredEnv('URL', env.siteUrl);
+  requiredEnv('ADMIN_PASSWORD_HASH', env.adminPasswordHash, /^pbkdf2\$/);
+  if (env.whatsappConfigKey)
+    requiredEnv('WHATSAPP_CONFIG_KEY', env.whatsappConfigKey, /^[a-f0-9]{64}$/i);
+  return env;
+}

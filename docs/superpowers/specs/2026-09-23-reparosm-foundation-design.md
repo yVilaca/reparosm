@@ -1,5 +1,9 @@
 # ReparoSM: base tipada e lógica compartilhada
 
+> **Documento histórico:** este desenho descreve a etapa de compatibilidade anterior à
+> migração para rotas por recurso. A API genérica citada abaixo foi aposentada depois
+> que os consumidores internos foram migrados.
+
 ## Objetivo
 
 Reduzir o risco da evolução do ReparoSM preparando a base para a futura separação do App Router: formatar o código de forma reproduzível, compartilhar os contratos dos registros entre servidor e interface, validar escritas na API genérica existente e centralizar as regras duplicadas de formatação, telefone e sincronização de clientes.
