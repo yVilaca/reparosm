@@ -8,7 +8,17 @@ import type { Order } from '@/lib/types';
 
 type OrderRow = Order & { id: string };
 
-export default function OrdersTable({ orders }: { orders: OrderRow[] }) {
+export default function OrdersTable({
+  orders,
+  onCreate,
+  onEdit,
+  onRemoved,
+}: {
+  orders: OrderRow[];
+  onCreate?: () => void;
+  onEdit?: (order: OrderRow) => void;
+  onRemoved?: (id: string) => void;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState('');
   const send = (order: OrderRow) => {
@@ -43,6 +53,7 @@ export default function OrdersTable({ orders }: { orders: OrderRow[] }) {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Não foi possível excluir a ordem.');
+      onRemoved?.(order.id);
       router.refresh();
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Não foi possível excluir a ordem.');
@@ -56,9 +67,15 @@ export default function OrdersTable({ orders }: { orders: OrderRow[] }) {
         <div>✦</div>
         <h2>Nenhuma ordem cadastrada</h2>
         <p>Cadastre uma ordem completa com aparelho, senha, custo e previsão.</p>
-        <Link className="primary" href="/">
-          Abrir painel completo
-        </Link>
+        {onCreate ? (
+          <button className="primary" type="button" onClick={onCreate}>
+            Nova ordem
+          </button>
+        ) : (
+          <Link className="primary" href="/">
+            Abrir painel completo
+          </Link>
+        )}
       </article>
     );
   return (
@@ -94,6 +111,11 @@ export default function OrdersTable({ orders }: { orders: OrderRow[] }) {
                     <button type="button" onClick={() => send(order)}>
                       WhatsApp
                     </button>
+                    {onEdit && (
+                      <button type="button" onClick={() => onEdit(order)}>
+                        Editar
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="danger"

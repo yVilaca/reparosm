@@ -119,6 +119,23 @@ test('a second order with the same phone reuses the client', { skip }, async () 
   assert.equal(body.client.id, clients[0].id);
 });
 
+test('updates and deletes an order through its scoped API', { skip }, async () => {
+  const created = await save(A, 'order', order({ code: 'OS-UPDATE' }));
+  const id = created.body.record.id;
+  const updated = await save(
+    A,
+    'order',
+    order({ code: 'OS-UPDATED', customer: 'Cliente atualizado' }),
+    id,
+  );
+
+  assert.equal(updated.status, 201);
+  assert.equal(updated.body.record.id, id);
+  assert.equal(updated.body.record.data.code, 'OS-UPDATED');
+  assert.equal((await remove(A, id)).status, 200);
+  assert.equal((await getOne(A, id)).status, 403);
+});
+
 test('accounts never see or change each other’s data', { skip }, async () => {
   const [mine] = await list(A, 'order');
   assert.deepEqual(await list(B, 'order'), []);

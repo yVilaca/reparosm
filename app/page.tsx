@@ -3,10 +3,12 @@
 import { FormEvent, useEffect, useState, type ChangeEvent } from 'react';
 import Link from 'next/link';
 import Login from '@/components/login';
+import { OrderCreateModal } from '@/components/order-modals';
 import { formatMoney as money, hasValidWhatsapp, whatsappUrl } from '@/lib/format';
 import type {
   BusinessRecordType,
   DataObject,
+  Order,
   PublicAccount,
   RecordData,
   StoredRecord,
@@ -103,7 +105,6 @@ export default function Home() {
   const [account, setAccount] = useState<PublicAccount | null>(null),
     [authLoading, setAuthLoading] = useState(true);
   const [records, setRecords] = useState<RecordItem[]>([]);
-  const [editingOrder, setEditingOrder] = useState<OrderItem | null>(null);
   const [modal, setModal] = useState<
     'order' | 'quote' | 'part' | 'film' | 'client' | 'payment' | 'expense' | 'tutorial' | null
   >(null);
@@ -134,13 +135,7 @@ export default function Home() {
       throw error;
     }
   };
-  const removeOrder = async (order: OrderItem) => {
-    if (!confirm(`Excluir definitivamente a ordem ${order.code}?`)) return;
-    await fetch(`/api/state?id=${encodeURIComponent(order.id)}`, { method: 'DELETE' });
-    await load();
-    setToast('Ordem excluída');
-    setTimeout(() => setToast(''), 2200);
-  };
+  const saveOrder = (data: Order, id?: string) => save('order', data, id);
   const by = <T extends BusinessRecordType>(type: T): Item<T>[] =>
     records
       .filter((record) => record.type === type)
@@ -238,7 +233,7 @@ export default function Home() {
             </small>
           </div>
           <div className="top-actions">
-            {(active === 'Mesa' || active === 'Ordens de serviço') && (
+            {active === 'Mesa' && (
               <button className="primary" onClick={() => setModal('order')}>
                 + Nova ordem
               </button>
@@ -286,21 +281,6 @@ export default function Home() {
         )}
         {active === 'Mesa' && <Mesa orders={orders} save={save} open={() => setModal('order')} />}
         {active === 'Orçamentos' && <QuotesManage items={quotes} open={() => setModal('quote')} />}
-        {active === 'Ordens de serviço' && (
-          <OrdersManage
-            items={orders}
-            save={save}
-            open={() => {
-              setEditingOrder(null);
-              setModal('order');
-            }}
-            edit={(o) => {
-              setEditingOrder(o);
-              setModal('order');
-            }}
-            remove={removeOrder}
-          />
-        )}
         {active === 'Peças & Vitrine' && (
           <Parts accountId={account.id} items={parts} save={save} open={() => setModal('part')} />
         )}
@@ -336,19 +316,7 @@ export default function Home() {
         {active === 'Dados & exportação' && <DataTools records={records} save={save} />}
         {active === 'Contas de lojistas' && account.role === 'admin' && <AccountManager />}
       </section>
-      {modal === 'order' &&
-        (editingOrder ? (
-          <OrderEditModal
-            item={editingOrder}
-            close={() => {
-              setEditingOrder(null);
-              setModal(null);
-            }}
-            save={save}
-          />
-        ) : (
-          <OrderModalSafe close={() => setModal(null)} save={save} />
-        ))}
+      {modal === 'order' && <OrderCreateModal close={() => setModal(null)} save={saveOrder} />}
       {modal === 'quote' && <QuoteModalSafe close={() => setModal(null)} save={save} />}
       {modal === 'part' && <PartModal close={() => setModal(null)} save={save} />}
       {modal === 'film' && <FilmModal close={() => setModal(null)} save={save} />}
@@ -1116,231 +1084,6 @@ function QuoteModal({ close, save }: { close: () => void; save: SaveAction }) {
     </div>
   );
 }
-function OrdersManage({
-  items,
-  save,
-  open,
-  edit,
-  remove,
-}: {
-  items: OrderItem[];
-  save: SaveAction;
-  open: () => void;
-  edit: (o: OrderItem) => void;
-  remove: (o: OrderItem) => void;
-}) {
-  const send = (o: OrderItem) => {
-    const message = `Olá, ${o.customer}! Atualização da ${o.code}: seu ${o.device} está na etapa “${o.stage || 'Recebido'}”.`;
-    if (openWhatsApp(o.phone || '', message))
-      void save('message', {
-        customer: o.customer,
-        phone: o.phone,
-        kind: 'Atualização da OS',
-        message,
-        status: 'Aberto no WhatsApp',
-        sentAt: new Date().toISOString(),
-      });
-    else alert('Cadastre um WhatsApp válido nesta ordem.');
-  };
-  return items.length ? (
-    <article className="panel page-panel order-management">
-      <table>
-        <thead>
-          <tr>
-            <th>OS</th>
-            <th>Cliente</th>
-            <th>Aparelho</th>
-            <th>Etapa</th>
-            <th>Total</th>
-            <th>Custo</th>
-            <th>Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((o) => (
-            <tr key={o.id}>
-              <td>
-                <b>{o.code}</b>
-              </td>
-              <td>{o.customer || '—'}</td>
-              <td>{o.device || '—'}</td>
-              <td>
-                <Badge>{o.stage || 'Recebido'}</Badge>
-              </td>
-              <td>{money(Number(o.total || 0))}</td>
-              <td>{money(Number(o.cost || 0))}</td>
-              <td>
-                <div className="row-actions">
-                  <button onClick={() => send(o)}>WhatsApp</button>
-                  <button onClick={() => edit(o)}>Editar</button>
-                  <button className="danger" onClick={() => remove(o)}>
-                    Excluir
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </article>
-  ) : (
-    <Empty
-      title="Nenhuma ordem cadastrada"
-      text="Cadastre uma ordem completa com aparelho, senha, custo e previsão."
-      action="Nova ordem"
-      onAction={open}
-    />
-  );
-}
-function OrderEditModal({
-  item,
-  close,
-  save,
-}: {
-  item: OrderItem;
-  close: () => void;
-  save: SaveAction;
-}) {
-  const [form, setForm] = useState({ ...item }),
-    [saving, setSaving] = useState(false);
-  const field = (key: keyof OrderItem) => (e: FieldChange) =>
-    setForm((v) => ({
-      ...v,
-      [key]: e.target.type === 'number' ? Number(e.target.value) : e.target.value,
-    }));
-  const total = Number(form.labor || 0) + Number(form.parts || 0),
-    profit = total - Number(form.cost || 0);
-  const submit = async () => {
-    if (!String(form.customer || '').trim() || !String(form.device || '').trim())
-      return alert('Informe cliente e aparelho.');
-    setSaving(true);
-    await save('order', { ...form, total, profit, updatedAt: new Date().toISOString() }, item.id);
-  };
-  return (
-    <div className="modal-backdrop">
-      <form className="modal order-edit-modal" onSubmit={(e) => e.preventDefault()}>
-        <div className="modal-title">
-          <div>
-            <span>✎</span>
-            <div>
-              <h2>Editar ordem {item.code}</h2>
-              <p>Atualize os dados e salve as alterações</p>
-            </div>
-          </div>
-          <button type="button" onClick={close}>
-            ×
-          </button>
-        </div>
-        <div className="form-row">
-          <label>
-            Cliente *<input value={form.customer || ''} onChange={field('customer')} />
-          </label>
-          <label>
-            WhatsApp
-            <input value={form.phone || ''} onChange={field('phone')} />
-          </label>
-        </div>
-        <div className="form-row">
-          <label>
-            Aparelho *<input value={form.device || ''} onChange={field('device')} />
-          </label>
-          <label>
-            IMEI / série
-            <input value={form.imei || ''} onChange={field('imei')} />
-          </label>
-        </div>
-        <label>
-          Problema relatado
-          <textarea value={form.problem || ''} onChange={field('problem')} />
-        </label>
-        <div className="form-row">
-          <label>
-            Etapa
-            <select value={form.stage || 'Recebido'} onChange={field('stage')}>
-              {stages.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Status
-            <select value={form.status || 'Aberto'} onChange={field('status')}>
-              <option>Aberto</option>
-              <option>Pendente</option>
-              <option>Aguardando pagamento</option>
-              <option>Concluído</option>
-              <option>Cancelado</option>
-            </select>
-          </label>
-        </div>
-        <div className="form-row">
-          <label>
-            Prioridade
-            <select value={form.priority || 'Normal'} onChange={field('priority')}>
-              <option>Normal</option>
-              <option>Urgente</option>
-              <option>Garantia</option>
-            </select>
-          </label>
-          <label>
-            Técnico responsável
-            <input value={form.technician || ''} onChange={field('technician')} />
-          </label>
-        </div>
-        <div className="form-row three">
-          <label>
-            Mão de obra
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.labor || 0}
-              onChange={field('labor')}
-            />
-          </label>
-          <label>
-            Peças
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.parts || 0}
-              onChange={field('parts')}
-            />
-          </label>
-          <label>
-            Custo
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.cost || 0}
-              onChange={field('cost')}
-            />
-          </label>
-        </div>
-        <div className="estimate-grid">
-          <div>
-            <span>Total</span>
-            <strong>{money(total)}</strong>
-          </div>
-          <div>
-            <span>Lucro</span>
-            <strong className={profit < 0 ? 'negative' : ''}>{money(profit)}</strong>
-          </div>
-        </div>
-        <div className="modal-actions">
-          <button type="button" onClick={close}>
-            Cancelar
-          </button>
-          <button type="button" className="primary" disabled={saving} onClick={submit}>
-            {saving ? 'Salvando...' : 'Salvar alterações'}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
 function QuotesManage({ items, open }: { items: QuoteItem[]; open: () => void }) {
   const link = (q: QuoteItem) => `${window.location.origin}/o/${encodeURIComponent(q.id)}`;
   const copy = async (q: QuoteItem) => {
@@ -1981,221 +1724,6 @@ function AccountModal({ close, saved }: { close: () => void; saved: () => void }
   );
 }
 
-function OrderModalSafe({ close, save }: { close: () => void; save: SaveAction }) {
-  const [step, setStep] = useState(1),
-    [pattern, setPattern] = useState<number[]>([]),
-    [labor, setLabor] = useState(0),
-    [parts, setParts] = useState(0),
-    [cost, setCost] = useState(0),
-    [saving, setSaving] = useState(false),
-    [whatsappConsent, setWhatsappConsent] = useState(false),
-    [form, setForm] = useState({
-      customer: '',
-      phone: '',
-      device: '',
-      imei: '',
-      password: '',
-      problem: '',
-      priority: 'Normal',
-    });
-  const total = labor + parts,
-    field = (key: keyof typeof form) => (e: FieldChange) =>
-      setForm((v) => ({ ...v, [key]: e.target.value }));
-  const toggle = (n: number) =>
-    setPattern((p) => (p.includes(n) ? p.filter((x) => x !== n) : [...p, n]));
-  const next = () => {
-    const ok =
-      step === 1 ? form.customer.trim() : step === 2 ? form.device.trim() : form.problem.trim();
-    if (!ok) return alert('Preencha os campos obrigatórios antes de continuar.');
-    setStep((s) => Math.min(4, s + 1));
-  };
-  const create = async () => {
-    if (saving) return;
-    setSaving(true);
-    await save('order', {
-      code: `OS-${Date.now().toString().slice(-5)}`,
-      ...form,
-      whatsappConsent,
-      pattern,
-      labor,
-      parts,
-      cost,
-      total,
-      profit: total - cost,
-      stage: 'Recebido',
-      status: 'Aberto',
-      createdAt: new Date().toISOString(),
-    });
-  };
-  return (
-    <div className="modal-backdrop">
-      <form
-        className="modal order-modal"
-        onSubmit={(e) => e.preventDefault()}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA')
-            e.preventDefault();
-        }}
-      >
-        <div className="modal-title">
-          <div>
-            <span>⚒</span>
-            <div>
-              <h2>Nova ordem de serviço</h2>
-              <p>Etapa {step} de 4</p>
-            </div>
-          </div>
-          <button type="button" onClick={close}>
-            ×
-          </button>
-        </div>
-        <div className="form-steps">
-          {['Cliente', 'Aparelho', 'Diagnóstico', 'Valores'].map((x, i) => (
-            <div className={step === i + 1 ? 'active' : step > i + 1 ? 'done' : ''} key={x}>
-              <i>{step > i + 1 ? '✓' : i + 1}</i>
-              <span>{x}</span>
-            </div>
-          ))}
-        </div>
-        {step === 1 && (
-          <div className="form-section">
-            <label>
-              Cliente *<input value={form.customer} onChange={field('customer')} required />
-            </label>
-            <label>
-              WhatsApp
-              <input value={form.phone} onChange={field('phone')} placeholder="(DDD) número" />
-            </label>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={whatsappConsent}
-                onChange={(e) => setWhatsappConsent(e.target.checked)}
-              />{' '}
-              Cliente autorizou receber atualizações desta ordem pelo WhatsApp.
-            </label>
-          </div>
-        )}
-        {step === 2 && (
-          <div className="form-section">
-            <label>
-              Aparelho *
-              <input
-                value={form.device}
-                onChange={field('device')}
-                required
-                placeholder="Marca e modelo"
-              />
-            </label>
-            <label>
-              IMEI / série
-              <input value={form.imei} onChange={field('imei')} />
-            </label>
-            <label>
-              Senha numérica
-              <input value={form.password} onChange={field('password')} type="password" />
-            </label>
-            <label>Senha padrão desenhada</label>
-            <div className="pattern-lock">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
-                <button
-                  type="button"
-                  className={pattern.includes(n) ? 'selected' : ''}
-                  onClick={() => toggle(n)}
-                  key={n}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-            <small className="pattern-help">Sequência: {pattern.join(' → ') || 'nenhuma'}</small>
-          </div>
-        )}
-        {step === 3 && (
-          <div className="form-section">
-            <label>
-              Problema relatado *
-              <textarea value={form.problem} onChange={field('problem')} required />
-            </label>
-            <label>
-              Prioridade
-              <select value={form.priority} onChange={field('priority')}>
-                <option>Normal</option>
-                <option>Urgente</option>
-                <option>Garantia</option>
-              </select>
-            </label>
-          </div>
-        )}
-        {step === 4 && (
-          <div className="form-section">
-            <div className="form-row">
-              <label>
-                Mão de obra
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={labor}
-                  onChange={(e) => setLabor(Number(e.target.value))}
-                />
-              </label>
-              <label>
-                Valor das peças
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={parts}
-                  onChange={(e) => setParts(Number(e.target.value))}
-                />
-              </label>
-            </div>
-            <label>
-              Custo total da assistência
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={cost}
-                onChange={(e) => setCost(Number(e.target.value))}
-              />
-            </label>
-            <div className="estimate-grid">
-              <div>
-                <span>Total estimado</span>
-                <strong>{money(total)}</strong>
-              </div>
-              <div>
-                <span>Lucro estimado</span>
-                <strong className={total - cost < 0 ? 'negative' : ''}>
-                  {money(total - cost)}
-                </strong>
-              </div>
-            </div>
-            <small className="value-confirmation">
-              Revise os valores. A ordem só será criada ao clicar no botão abaixo.
-            </small>
-          </div>
-        )}
-        <div className="modal-actions">
-          <button type="button" onClick={() => (step === 1 ? close() : setStep((s) => s - 1))}>
-            {step === 1 ? 'Cancelar' : '← Voltar'}
-          </button>
-          {step < 4 ? (
-            <button type="button" className="primary" onClick={next}>
-              Continuar →
-            </button>
-          ) : (
-            <button type="button" className="primary" disabled={saving} onClick={create}>
-              {saving ? 'Criando...' : 'Criar ordem'}
-            </button>
-          )}
-        </div>
-      </form>
-    </div>
-  );
-}
 function PartModal({ close, save }: { close: () => void; save: SaveAction }) {
   const [category, setCategory] = useState('Telas'),
     [custom, setCustom] = useState('');
