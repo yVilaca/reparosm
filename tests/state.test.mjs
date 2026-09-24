@@ -286,6 +286,57 @@ test('payments and expenses share a table but stay separate types', { skip }, as
   assert.equal((await remove(B, payment.body.record.id)).status, 403);
 });
 
+test('updates and deletes payments and expenses through their scoped APIs', { skip }, async () => {
+  const payment = await save(A, 'payment', {
+    description: 'Recebimento inicial',
+    reference: 'OS-200',
+    method: 'Pix',
+    date: '2026-09-24',
+    value: 100,
+  });
+  const expense = await save(A, 'expense', {
+    description: 'Despesa inicial',
+    reference: 'NF-200',
+    method: 'Boleto',
+    date: '2026-09-24',
+    value: 40,
+  });
+  const updatedPayment = await save(
+    A,
+    'payment',
+    {
+      description: 'Recebimento atualizado',
+      reference: 'OS-201',
+      method: 'Pix',
+      date: '2026-09-24',
+      value: 125,
+    },
+    payment.body.record.id,
+  );
+  const updatedExpense = await save(
+    A,
+    'expense',
+    {
+      description: 'Despesa atualizada',
+      reference: 'NF-201',
+      method: 'Boleto',
+      date: '2026-09-24',
+      value: 55,
+    },
+    expense.body.record.id,
+  );
+
+  assert.equal(updatedPayment.status, 201);
+  assert.equal(updatedPayment.body.record.data.value, 125);
+  assert.equal(updatedExpense.status, 201);
+  assert.equal(updatedExpense.body.record.data.value, 55);
+  assert.equal((await remove(B, payment.body.record.id)).status, 403);
+  assert.equal((await remove(A, payment.body.record.id)).status, 200);
+  assert.equal((await remove(A, expense.body.record.id)).status, 200);
+  assert.equal((await getOne(A, payment.body.record.id)).status, 403);
+  assert.equal((await getOne(A, expense.body.record.id)).status, 403);
+});
+
 test(
   'parts: stock must be a whole number and the vitrine shows only published stock',
   { skip },

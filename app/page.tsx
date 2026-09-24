@@ -105,9 +105,7 @@ export default function Home() {
   const [account, setAccount] = useState<PublicAccount | null>(null),
     [authLoading, setAuthLoading] = useState(true);
   const [records, setRecords] = useState<RecordItem[]>([]);
-  const [modal, setModal] = useState<
-    'order' | 'film' | 'client' | 'payment' | 'expense' | 'tutorial' | null
-  >(null);
+  const [modal, setModal] = useState<'order' | 'film' | 'client' | 'tutorial' | null>(null);
   const [toast, setToast] = useState('');
   const load = () =>
     api()
@@ -183,7 +181,8 @@ export default function Home() {
             x === 'Ordens de serviço' ||
             x === 'Orçamentos' ||
             x === 'Peças & Vitrine' ||
-            x === 'Estoque' ? (
+            x === 'Estoque' ||
+            x === 'Pagamentos' ? (
               <Link
                 className="sidebar-link"
                 href={
@@ -191,7 +190,9 @@ export default function Home() {
                     ? '/ordens'
                     : x === 'Orçamentos'
                       ? '/orcamentos'
-                      : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
+                      : x === 'Pagamentos'
+                        ? '/pagamentos'
+                        : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
                 }
                 key={x}
               >
@@ -261,14 +262,6 @@ export default function Home() {
                 + Novo cliente
               </button>
             )}
-            {active === 'Pagamentos' && (
-              <>
-                <button onClick={() => setModal('expense')}>+ Despesa</button>
-                <button className="primary" onClick={() => setModal('payment')}>
-                  + Recebimento
-                </button>
-              </>
-            )}
           </div>
         </header>
         {active === 'Dashboard' && (
@@ -284,7 +277,6 @@ export default function Home() {
         )}
         {active === 'Mesa' && <Mesa orders={orders} save={save} open={() => setModal('order')} />}
         {active === 'Películas' && <FilmsSorted items={films} open={() => setModal('film')} />}
-        {active === 'Pagamentos' && <Finance payments={payments} expenses={expenses} />}
         {active === 'Clientes' && (
           <Clients items={clients} save={save} open={() => setModal('client')} />
         )}
@@ -317,12 +309,6 @@ export default function Home() {
       {modal === 'order' && <OrderCreateModal close={() => setModal(null)} save={saveOrder} />}
       {modal === 'film' && <FilmModal close={() => setModal(null)} save={save} />}
       {modal === 'client' && <ClientModal close={() => setModal(null)} save={save} />}
-      {modal === 'payment' && (
-        <MoneyModal kind="payment" close={() => setModal(null)} save={save} />
-      )}
-      {modal === 'expense' && (
-        <MoneyModal kind="expense" close={() => setModal(null)} save={save} />
-      )}
       {modal === 'tutorial' && <TutorialModal close={() => setModal(null)} save={save} />}
       {toast && <div className="toast">✓ {toast}</div>}
     </main>
@@ -1963,148 +1949,6 @@ function MyShopV2({ item, save }: { item?: ShopItem; save: SaveAction }) {
         )}
         <div className="modal-actions">
           <button className="primary">Salvar alterações</button>
-        </div>
-      </form>
-    </div>
-  );
-}
-function Finance({ payments, expenses }: { payments: PaymentItem[]; expenses: ExpenseItem[] }) {
-  const income = payments.reduce((s, p) => s + Number(p.value || 0), 0),
-    out = expenses.reduce((s, p) => s + Number(p.value || 0), 0);
-  const rows = [
-    ...payments.map((p) => ({ ...p, kind: 'Receita' })),
-    ...expenses.map((p) => ({ ...p, kind: 'Despesa' })),
-  ].sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  return (
-    <>
-      <div className="metrics">
-        <Metric t="Recebimentos" v={money(income)} d="Entradas registradas" />
-        <Metric t="Despesas" v={money(out)} d="Saídas registradas" />
-        <Metric t="Resultado" v={money(income - out)} d="Receita menos despesas" />
-        <Metric t="Lançamentos" v={String(rows.length)} d="No histórico financeiro" />
-      </div>
-      {rows.length ? (
-        <article className="panel page-panel finance-list">
-          <table>
-            <thead>
-              <tr>
-                <th>Tipo</th>
-                <th>Descrição</th>
-                <th>Forma</th>
-                <th>Data</th>
-                <th>Valor</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id}>
-                  <td>
-                    <Badge>{r.kind}</Badge>
-                  </td>
-                  <td>
-                    <b>{r.description}</b>
-                    <small>{r.reference || ''}</small>
-                  </td>
-                  <td>{r.method}</td>
-                  <td>{r.date}</td>
-                  <td className={r.kind === 'Despesa' ? 'negative-money' : 'positive-money'}>
-                    {r.kind === 'Despesa' ? '- ' : '+ '}
-                    {money(Number(r.value))}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </article>
-      ) : (
-        <Empty
-          title="Financeiro sem movimentações"
-          text="Registre um recebimento ou despesa para iniciar o controle do caixa."
-        />
-      )}
-    </>
-  );
-}
-function MoneyModal({
-  kind,
-  close,
-  save,
-}: {
-  kind: 'payment' | 'expense';
-  close: () => void;
-  save: SaveAction;
-}) {
-  const receive = kind === 'payment';
-  return (
-    <div className="modal-backdrop">
-      <form
-        className="modal"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          void save(kind, {
-            description: f.get('description'),
-            reference: f.get('reference'),
-            method: f.get('method'),
-            date: f.get('date'),
-            value: Number(f.get('value')),
-            createdAt: new Date().toISOString(),
-          });
-        }}
-      >
-        <div className="modal-title">
-          <div>
-            <span>{receive ? '↗' : '↘'}</span>
-            <div>
-              <h2>{receive ? 'Registrar recebimento' : 'Registrar despesa'}</h2>
-              <p>Lançamento no controle financeiro</p>
-            </div>
-          </div>
-          <button type="button" onClick={close}>
-            ×
-          </button>
-        </div>
-        <label>
-          Descrição *
-          <input
-            name="description"
-            required
-            placeholder={receive ? 'Ex.: Pagamento OS-1024' : 'Ex.: Compra de componentes'}
-          />
-        </label>
-        <label>
-          Referência
-          <input name="reference" placeholder="OS, cliente, fornecedor ou documento" />
-        </label>
-        <div className="form-row">
-          <label>
-            Forma
-            <select name="method">
-              <option>Pix</option>
-              <option>Dinheiro</option>
-              <option>Cartão de débito</option>
-              <option>Cartão de crédito</option>
-              <option>Boleto</option>
-            </select>
-          </label>
-          <label>
-            Data
-            <input
-              name="date"
-              type="date"
-              required
-              defaultValue={new Date().toISOString().slice(0, 10)}
-            />
-          </label>
-        </div>
-        <label>
-          Valor *<input name="value" type="number" min="0.01" step="0.01" required />
-        </label>
-        <div className="modal-actions">
-          <button type="button" onClick={close}>
-            Cancelar
-          </button>
-          <button className="primary">Salvar lançamento</button>
         </div>
       </form>
     </div>
