@@ -59,9 +59,12 @@ export default function PublicStoreRoute({
       <section>
         <div className="store-heading">
           <div>
-            <span>CATÁLOGO ONLINE</span>
+            <span>Catálogo online</span>
             <h1>Produtos disponíveis</h1>
-            <p>Escolha um produto e fale diretamente com a assistência pelo WhatsApp.</p>
+            <p>
+              {shop.description ||
+                'Escolha um produto e fale diretamente com a assistência pelo WhatsApp.'}
+            </p>
           </div>
           <div>
             <b>{items.length}</b>
@@ -86,14 +89,22 @@ export default function PublicStoreRoute({
           <div className="store-grid">
             {visible.map((part, index) => (
               <article key={`${part.name}-${index}`}>
-                <div>
-                  {part.category === 'Capinhas'
-                    ? '▣'
-                    : part.category === 'Carregadores'
-                      ? '⌁'
-                      : part.category === 'Acessórios'
-                        ? '◇'
-                        : '⚙'}
+                <div className="store-product-media">
+                  {part.image ? (
+                    // Arbitrary shop images are stored as data or user-provided URLs.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={part.image} alt="" loading="lazy" />
+                  ) : (
+                    <span aria-hidden="true">
+                      {part.category === 'Capinhas'
+                        ? '▣'
+                        : part.category === 'Carregadores'
+                          ? '⌁'
+                          : part.category === 'Acessórios'
+                            ? '◇'
+                            : '⚙'}
+                    </span>
+                  )}
                 </div>
                 <small>{part.category || 'Produto'}</small>
                 <h2>{part.name}</h2>
