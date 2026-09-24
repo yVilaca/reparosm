@@ -28,7 +28,6 @@ type ClientItem = Item<'client'>;
 type PaymentItem = Item<'payment'>;
 type ExpenseItem = Item<'expense'>;
 type MessageItem = Item<'message'>;
-type TutorialItem = Item<'tutorial'>;
 type ShopItem = Item<'shop'>;
 type SaveAction = (type: BusinessRecordType, data: unknown, id?: string) => Promise<void>;
 type PasswordRequestItem = {
@@ -92,7 +91,7 @@ export default function Home() {
   const [account, setAccount] = useState<PublicAccount | null>(null),
     [authLoading, setAuthLoading] = useState(true);
   const [records, setRecords] = useState<RecordItem[]>([]);
-  const [modal, setModal] = useState<'order' | 'film' | 'tutorial' | null>(null);
+  const [modal, setModal] = useState<'order' | 'film' | null>(null);
   const [toast, setToast] = useState('');
   const load = () =>
     api()
@@ -132,8 +131,7 @@ export default function Home() {
     films = by('film'),
     payments = by('payment'),
     expenses = by('expense'),
-    messages = by('message'),
-    tutorials = by('tutorial');
+    messages = by('message');
   const visibleMenu = account?.role === 'admin' ? [...menu, 'Contas de lojistas'] : menu;
   if (authLoading)
     return (
@@ -172,7 +170,8 @@ export default function Home() {
             x === 'Pós-venda' ||
             x === 'Garantias' ||
             x === 'Assistente IA' ||
-            x === 'Minha assistência' ? (
+            x === 'Minha assistência' ||
+            x === 'Tutoriais & suporte' ? (
               <Link
                 className="sidebar-link"
                 href={
@@ -192,7 +191,9 @@ export default function Home() {
                                 ? '/assistente'
                                 : x === 'Minha assistência'
                                   ? '/minha-assistencia'
-                                  : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
+                                  : x === 'Tutoriais & suporte'
+                                    ? '/suporte'
+                                    : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
                 }
                 key={x}
               >
@@ -272,15 +273,11 @@ export default function Home() {
         )}
         {active === 'Mesa' && <Mesa orders={orders} save={save} open={() => setModal('order')} />}
         {active === 'Películas' && <FilmsSorted items={films} open={() => setModal('film')} />}
-        {active === 'Tutoriais & suporte' && (
-          <Support items={tutorials} open={() => setModal('tutorial')} />
-        )}
         {active === 'Dados & exportação' && <DataTools records={records} save={save} />}
         {active === 'Contas de lojistas' && account.role === 'admin' && <AccountManager />}
       </section>
       {modal === 'order' && <OrderCreateModal close={() => setModal(null)} save={saveOrder} />}
       {modal === 'film' && <FilmModal close={() => setModal(null)} save={save} />}
-      {modal === 'tutorial' && <TutorialModal close={() => setModal(null)} save={save} />}
       {toast && <div className="toast">✓ {toast}</div>}
     </main>
   );
@@ -1544,148 +1541,6 @@ function FilmModal({ close, save }: { close: () => void; save: SaveAction }) {
             Cancelar
           </button>
           <button className="primary">Salvar compatibilidade</button>
-        </div>
-      </form>
-    </div>
-  );
-}
-function Support({ items, open }: { items: TutorialItem[]; open: () => void }) {
-  const guides = [
-    ['Começando', 'Cadastre sua assistência e o primeiro cliente.'],
-    ['Ordens de serviço', 'Crie uma OS, registre custos e acompanhe pela Mesa.'],
-    ['Estoque', 'Cadastre produtos, custos, preços e disponibilidade.'],
-    ['Financeiro', 'Registre entradas e despesas para acompanhar o resultado.'],
-    ['Orçamentos', 'Envie propostas e registre a decisão do cliente.'],
-    ['Garantias', 'Acompanhe aparelhos entregues e retornos.'],
-  ];
-  const youtube = (url: string) => {
-    const match = String(url).match(
-      /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&/]+)/,
-    );
-    return match?.[1];
-  };
-  return (
-    <>
-      <div className="support-hero">
-        <span>CENTRAL DE AJUDA</span>
-        <h2>Aprenda a usar o ReparoSM</h2>
-        <button className="support-add" onClick={open}>
-          + Adicionar vídeo
-        </button>
-      </div>
-      {items.length > 0 && (
-        <>
-          <h2 className="section-title">Vídeos da assistência</h2>
-          <div className="tutorial-grid">
-            {items.map((v) => (
-              <article className="panel" key={v.id}>
-                {youtube(v.url) ? (
-                  <iframe
-                    src={`https://www.youtube.com/embed/${youtube(v.url)}`}
-                    title={v.title}
-                    allowFullScreen
-                  />
-                ) : (
-                  <div className="video-link">▶</div>
-                )}
-                <small>{v.category || 'Tutorial'}</small>
-                <h3>{v.title}</h3>
-                <p>{v.description}</p>
-                <a href={v.url} target="_blank" rel="noreferrer">
-                  Assistir vídeo →
-                </a>
-              </article>
-            ))}
-          </div>
-        </>
-      )}
-      <h2 className="section-title">Guias rápidos</h2>
-      <div className="lesson-grid">
-        {guides.map((g, i) => (
-          <article className="panel" key={g[0]}>
-            <div>
-              <span>{i + 1}</span>▶
-            </div>
-            <small>GUIA RÁPIDO</small>
-            <h3>{g[0]}</h3>
-            <p>{g[1]}</p>
-          </article>
-        ))}
-      </div>
-      <div className="support-contact">
-        <div>
-          <strong>Como adicionar um vídeo?</strong>
-          <span>
-            Clique em “Adicionar vídeo”, cole o link do YouTube e preencha o título. Ele aparecerá
-            nesta página automaticamente.
-          </span>
-        </div>
-        <button onClick={open}>Adicionar vídeo</button>
-      </div>
-    </>
-  );
-}
-function TutorialModal({ close, save }: { close: () => void; save: SaveAction }) {
-  return (
-    <div className="modal-backdrop">
-      <form
-        className="modal"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          void save('tutorial', {
-            title: f.get('title'),
-            url: f.get('url'),
-            category: f.get('category'),
-            description: f.get('description'),
-            createdAt: new Date().toISOString(),
-          });
-        }}
-      >
-        <div className="modal-title">
-          <div>
-            <span>▶</span>
-            <div>
-              <h2>Adicionar vídeo</h2>
-              <p>Publique um tutorial na central de ajuda</p>
-            </div>
-          </div>
-          <button type="button" onClick={close}>
-            ×
-          </button>
-        </div>
-        <label>
-          Título do vídeo *
-          <input name="title" required placeholder="Ex.: Como criar uma ordem de serviço" />
-        </label>
-        <label>
-          Link do YouTube *
-          <input name="url" type="url" required placeholder="https://youtube.com/watch?v=..." />
-        </label>
-        <label>
-          Categoria
-          <select name="category">
-            <option>Começando</option>
-            <option>Ordens de serviço</option>
-            <option>Estoque</option>
-            <option>Financeiro</option>
-            <option>Orçamentos</option>
-            <option>Garantias</option>
-            <option>Outros</option>
-          </select>
-        </label>
-        <label>
-          Descrição
-          <textarea
-            name="description"
-            placeholder="Explique rapidamente o que o usuário aprenderá."
-          />
-        </label>
-        <div className="modal-actions">
-          <button type="button" onClick={close}>
-            Cancelar
-          </button>
-          <button className="primary">Adicionar vídeo</button>
         </div>
       </form>
     </div>

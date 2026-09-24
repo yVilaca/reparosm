@@ -62,6 +62,10 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             <span>⚙</span>
             Minha assistência
           </Link>
+          <Link className="sidebar-link" href="/suporte">
+            <span>?</span>
+            Tutoriais &amp; suporte
+          </Link>
         </nav>
         <div className="sidebar-foot">
           <div className="profile">
