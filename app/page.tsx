@@ -38,7 +38,6 @@ type PasswordRequestItem = {
   status: 'pending' | 'resolved';
   createdAt: string;
 };
-type ChatMessage = { role: 'ai' | 'me'; text: string };
 type WhatsAppStatus = {
   configured: boolean;
   phoneNumberId?: string;
@@ -183,7 +182,8 @@ export default function Home() {
             x === 'Pagamentos' ||
             x === 'Clientes' ||
             x === 'Pós-venda' ||
-            x === 'Garantias' ? (
+            x === 'Garantias' ||
+            x === 'Assistente IA' ? (
               <Link
                 className="sidebar-link"
                 href={
@@ -199,7 +199,9 @@ export default function Home() {
                             ? '/pos-venda'
                             : x === 'Garantias'
                               ? '/garantias'
-                              : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
+                              : x === 'Assistente IA'
+                                ? '/assistente'
+                                : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
                 }
                 key={x}
               >
@@ -279,9 +281,6 @@ export default function Home() {
         )}
         {active === 'Mesa' && <Mesa orders={orders} save={save} open={() => setModal('order')} />}
         {active === 'Películas' && <FilmsSorted items={films} open={() => setModal('film')} />}
-        {active === 'Assistente IA' && (
-          <BusinessAssistant orders={orders} parts={parts} payments={payments} />
-        )}
         {active === 'Minha assistência' && (
           <>
             <MyShopV2 item={shops[0]} save={save} />
@@ -1738,117 +1737,6 @@ function MyShopV2({ item, save }: { item?: ShopItem; save: SaveAction }) {
           <button className="primary">Salvar alterações</button>
         </div>
       </form>
-    </div>
-  );
-}
-function BusinessAssistant({
-  orders,
-  parts,
-  payments,
-}: {
-  orders: OrderItem[];
-  parts: PartItem[];
-  payments: PaymentItem[];
-}) {
-  const revenue = payments.reduce((s, p) => s + Number(p.value || 0), 0),
-    low = parts.filter((p) => Number(p.stock) < 5),
-    [input, setInput] = useState(''),
-    [chat, setChat] = useState<ChatMessage[]>([
-      {
-        role: 'ai',
-        text: 'Olá! Sou a Reparo IA. Pergunte sobre ordens, receita, estoque ou prioridades da sua assistência.',
-      },
-    ]);
-  const answer = (question: string) => {
-    const q = question.toLowerCase();
-    if (q.includes('receita') || q.includes('fatur'))
-      return `A receita registrada é ${money(revenue)}, com ${payments.length} recebimentos.`;
-    if (q.includes('estoque') || q.includes('produto') || q.includes('peça'))
-      return low.length
-        ? `${low.length} itens estão com estoque abaixo de 5 unidades: ${low
-            .slice(0, 5)
-            .map((p) => p.name)
-            .join(', ')}.`
-        : `Você possui ${parts.length} produtos cadastrados e nenhum está em nível crítico.`;
-    if (q.includes('ordem') || q.includes('serviço'))
-      return `Existem ${orders.length} ordens no total e ${orders.filter((o) => o.stage !== 'Retirada').length} ainda estão no fluxo de atendimento.`;
-    if (q.includes('prioridade') || q.includes('fazer') || q.includes('hoje'))
-      return low.length
-        ? 'Minha sugestão: confira o estoque baixo e depois priorize as ordens mais antigas em reparo.'
-        : 'Minha sugestão: priorize as ordens mais antigas e confirme os recebimentos pendentes.';
-    return `Analisei seus dados: ${orders.length} ordens, ${parts.length} produtos e ${money(revenue)} em recebimentos. Você pode perguntar “como está meu estoque?”, “qual minha receita?” ou “o que devo priorizar?”.`;
-  };
-  const send = () => {
-    const text = input.trim();
-    if (!text) return;
-    setChat((c) => [...c, { role: 'me', text }, { role: 'ai', text: answer(text) }]);
-    setInput('');
-  };
-  const insights = [
-    orders.length
-      ? `${orders.length} ordens cadastradas, sendo ${orders.filter((o) => o.stage !== 'Retirada').length} ainda em fluxo.`
-      : 'Crie ordens para receber análises de desempenho.',
-    low.length
-      ? `${low.length} itens estão com estoque abaixo de 5 unidades.`
-      : 'Nenhum item está em nível crítico.',
-    revenue
-      ? `A receita registrada é ${money(revenue)}.`
-      : 'Registre recebimentos para acompanhar receita e margem.',
-  ];
-  return (
-    <div className="assistant-layout">
-      <section className="insights">
-        <div className="ai-heading">
-          <div>✦</div>
-          <span>
-            Reparo IA<small>Assistente atual baseada nos seus dados</small>
-          </span>
-        </div>
-        <h2>Resumo do negócio</h2>
-        {insights.map((x, i) => (
-          <article className="insight" key={x}>
-            <i>{['⚒', '!', '↗'][i]}</i>
-            <div>
-              <strong>{['Serviços', 'Estoque', 'Financeiro'][i]}</strong>
-              <p>{x}</p>
-            </div>
-          </article>
-        ))}
-      </section>
-      <section className="chat panel">
-        <div className="chat-head">
-          <span>✦</span>
-          <div>
-            <strong>Converse com a Reparo IA</strong>
-            <small>Online · versão local em preparação</small>
-          </div>
-        </div>
-        <div className="messages">
-          {chat.map((m, i) => (
-            <div className={`message ${m.role}`} key={i}>
-              {m.text}
-            </div>
-          ))}
-        </div>
-        <div className="suggestions">
-          {['Como está meu estoque?', 'Qual minha receita?', 'O que devo priorizar?'].map((s) => (
-            <button onClick={() => setInput(s)} key={s}>
-              {s}
-            </button>
-          ))}
-        </div>
-        <div className="composer">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') send();
-            }}
-            placeholder="Pergunte sobre sua assistência..."
-          />
-          <button onClick={send}>➤</button>
-        </div>
-      </section>
     </div>
   );
 }
