@@ -26,6 +26,18 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             <span>⚒</span>
             Ordens de serviço
           </Link>
+          <Link className="sidebar-link" href="/orcamentos">
+            <span>▤</span>
+            Orçamentos
+          </Link>
+          <Link className="sidebar-link" href="/estoque?view=catalog">
+            <span>◇</span>
+            Peças &amp; Vitrine
+          </Link>
+          <Link className="sidebar-link" href="/estoque?view=inventory">
+            <span>▣</span>
+            Estoque
+          </Link>
         </nav>
         <div className="sidebar-foot">
           <div className="profile">

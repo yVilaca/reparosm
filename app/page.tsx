@@ -106,7 +106,7 @@ export default function Home() {
     [authLoading, setAuthLoading] = useState(true);
   const [records, setRecords] = useState<RecordItem[]>([]);
   const [modal, setModal] = useState<
-    'order' | 'quote' | 'part' | 'film' | 'client' | 'payment' | 'expense' | 'tutorial' | null
+    'order' | 'film' | 'client' | 'payment' | 'expense' | 'tutorial' | null
   >(null);
   const [toast, setToast] = useState('');
   const load = () =>
@@ -180,8 +180,21 @@ export default function Home() {
         </div>
         <nav>
           {visibleMenu.map((x, i) =>
-            x === 'Ordens de serviço' ? (
-              <Link className="sidebar-link" href="/ordens" key={x}>
+            x === 'Ordens de serviço' ||
+            x === 'Orçamentos' ||
+            x === 'Peças & Vitrine' ||
+            x === 'Estoque' ? (
+              <Link
+                className="sidebar-link"
+                href={
+                  x === 'Ordens de serviço'
+                    ? '/ordens'
+                    : x === 'Orçamentos'
+                      ? '/orcamentos'
+                      : `/estoque?view=${x === 'Estoque' ? 'inventory' : 'catalog'}`
+                }
+                key={x}
+              >
                 <span>{i < icons.length ? icons[i] : '♙'}</span>
                 {x}
               </Link>
@@ -238,16 +251,6 @@ export default function Home() {
                 + Nova ordem
               </button>
             )}
-            {active === 'Orçamentos' && (
-              <button className="primary" onClick={() => setModal('quote')}>
-                + Novo orçamento
-              </button>
-            )}
-            {(active === 'Peças & Vitrine' || active === 'Estoque') && (
-              <button className="primary" onClick={() => setModal('part')}>
-                + Adicionar peça
-              </button>
-            )}
             {active === 'Películas' && (
               <button className="primary" onClick={() => setModal('film')}>
                 + Compatibilidade
@@ -280,11 +283,6 @@ export default function Home() {
           />
         )}
         {active === 'Mesa' && <Mesa orders={orders} save={save} open={() => setModal('order')} />}
-        {active === 'Orçamentos' && <QuotesManage items={quotes} open={() => setModal('quote')} />}
-        {active === 'Peças & Vitrine' && (
-          <Parts accountId={account.id} items={parts} save={save} open={() => setModal('part')} />
-        )}
-        {active === 'Estoque' && <Inventory items={parts} open={() => setModal('part')} />}
         {active === 'Películas' && <FilmsSorted items={films} open={() => setModal('film')} />}
         {active === 'Pagamentos' && <Finance payments={payments} expenses={expenses} />}
         {active === 'Clientes' && (
@@ -317,8 +315,6 @@ export default function Home() {
         {active === 'Contas de lojistas' && account.role === 'admin' && <AccountManager />}
       </section>
       {modal === 'order' && <OrderCreateModal close={() => setModal(null)} save={saveOrder} />}
-      {modal === 'quote' && <QuoteModalSafe close={() => setModal(null)} save={save} />}
-      {modal === 'part' && <PartModal close={() => setModal(null)} save={save} />}
       {modal === 'film' && <FilmModal close={() => setModal(null)} save={save} />}
       {modal === 'client' && <ClientModal close={() => setModal(null)} save={save} />}
       {modal === 'payment' && (
@@ -725,90 +721,6 @@ function Orders({ items, save, open }: { items: OrderItem[]; save: SaveAction; o
   );
 }
 
-function Parts({
-  items,
-  save,
-  open,
-  accountId,
-}: {
-  items: PartItem[];
-  save: SaveAction;
-  open: () => void;
-  accountId: string;
-}) {
-  const published = items.filter((p) => p.published);
-  const openStore = () =>
-    window.open(
-      `${window.location.origin}/vitrine?loja=${encodeURIComponent(accountId)}`,
-      '_blank',
-      'noopener,noreferrer',
-    );
-  const copyStore = async () => {
-    await navigator.clipboard.writeText(
-      `${window.location.origin}/vitrine?loja=${encodeURIComponent(accountId)}`,
-    );
-    alert('Link da vitrine copiado!');
-  };
-  return (
-    <>
-      <article className="showcase-banner">
-        <div>
-          <span>VITRINE ONLINE</span>
-          <h2>Minha vitrine de produtos</h2>
-          <p>{published.length} produtos publicados</p>
-          <code>
-            {typeof window === 'undefined'
-              ? `/vitrine?loja=${encodeURIComponent(accountId)}`
-              : `${window.location.origin}/vitrine?loja=${encodeURIComponent(accountId)}`}
-          </code>
-        </div>
-        <div className="showcase-actions">
-          <button onClick={openStore}>Abrir vitrine ↗</button>
-          <button onClick={copyStore}>Copiar link</button>
-        </div>
-      </article>
-      {items.length ? (
-        <div className="catalog-grid">
-          {items.map((p) => (
-            <article key={p.id}>
-              <div className="part-art">
-                {p.category === 'Capinhas'
-                  ? '▣'
-                  : p.category === 'Carregadores'
-                    ? '⌁'
-                    : p.category === 'Acessórios'
-                      ? '◇'
-                      : '⚙'}
-              </div>
-              <span>{p.category}</span>
-              <h3>{p.name}</h3>
-              <p>{p.stock} unidades</p>
-              <strong>{money(Number(p.price))}</strong>
-              <footer>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={p.published}
-                    onChange={(e) => void save('part', { ...p, published: e.target.checked }, p.id)}
-                  />{' '}
-                  Publicar na vitrine
-                </label>
-              </footer>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <Empty
-          title="Nenhum produto cadastrado"
-          text="Adicione peças, carregadores, capinhas, acessórios ou qualquer produto da sua loja."
-          action="Adicionar produto"
-          onAction={open}
-        />
-      )}
-    </>
-  );
-}
-
 function OrderModal({ close, save }: { close: () => void; save: SaveAction }) {
   const [step, setStep] = useState(1),
     [pattern, setPattern] = useState<number[]>([]),
@@ -1017,245 +929,6 @@ function OrderModal({ close, save }: { close: () => void; save: SaveAction }) {
   );
 }
 
-function QuoteModal({ close, save }: { close: () => void; save: SaveAction }) {
-  const [labor, setLabor] = useState(0),
-    [parts, setParts] = useState(0);
-  return (
-    <div className="modal-backdrop">
-      <form
-        className="modal"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          void save('quote', {
-            code: `ORC-${Date.now().toString().slice(-4)}`,
-            customer: f.get('customer'),
-            device: f.get('device'),
-            service: f.get('service'),
-            labor,
-            parts,
-            total: labor + parts,
-            status: 'Aguardando',
-          });
-        }}
-      >
-        <div className="modal-title">
-          <div>
-            <span>▤</span>
-            <div>
-              <h2>Novo orçamento</h2>
-              <p>Somente para celulares</p>
-            </div>
-          </div>
-          <button type="button" onClick={close}>
-            ×
-          </button>
-        </div>
-        <label>
-          Cliente *<input name="customer" required />
-        </label>
-        <label>
-          Celular *<input name="device" required placeholder="Marca e modelo" />
-        </label>
-        <label>
-          Serviço proposto *<textarea name="service" required />
-        </label>
-        <div className="form-row">
-          <label>
-            Mão de obra
-            <input type="number" value={labor} onChange={(e) => setLabor(Number(e.target.value))} />
-          </label>
-          <label>
-            Peças
-            <input type="number" value={parts} onChange={(e) => setParts(Number(e.target.value))} />
-          </label>
-        </div>
-        <div className="order-total">
-          <span>Total do orçamento</span>
-          <strong>{money(labor + parts)}</strong>
-        </div>
-        <div className="modal-actions">
-          <button type="button" onClick={close}>
-            Cancelar
-          </button>
-          <button className="primary">Criar e gerar link</button>
-        </div>
-      </form>
-    </div>
-  );
-}
-function QuotesManage({ items, open }: { items: QuoteItem[]; open: () => void }) {
-  const link = (q: QuoteItem) => `${window.location.origin}/o/${encodeURIComponent(q.id)}`;
-  const copy = async (q: QuoteItem) => {
-    await navigator.clipboard.writeText(link(q));
-    alert('Link do orçamento copiado!');
-  };
-  const send = (q: QuoteItem) => {
-    const text = `Olá, ${q.customer}! Seu orçamento ${q.code} para ${q.device} está pronto. Visualize, aprove ou recuse aqui: ${link(q)}`;
-    if (!openWhatsApp(q.phone, text)) alert('Cadastre um WhatsApp válido no orçamento.');
-  };
-  return items.length ? (
-    <article className="panel page-panel quote-management">
-      <table>
-        <thead>
-          <tr>
-            <th>Código</th>
-            <th>Cliente</th>
-            <th>Celular</th>
-            <th>Problema</th>
-            <th>Total</th>
-            <th>Status</th>
-            <th>Compartilhar</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((q) => (
-            <tr key={q.id}>
-              <td>
-                <b>{q.code}</b>
-              </td>
-              <td>{q.customer}</td>
-              <td>{q.device}</td>
-              <td>{q.problem || q.service || '—'}</td>
-              <td>{money(Number(q.total || 0))}</td>
-              <td>
-                <Badge>{q.status || 'Aguardando'}</Badge>
-              </td>
-              <td>
-                <div className="row-actions">
-                  <button onClick={() => window.open(link(q), '_blank')}>Abrir</button>
-                  <button onClick={() => copy(q)}>Copiar link</button>
-                  <button className="whatsapp-btn small" onClick={() => send(q)}>
-                    WhatsApp
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </article>
-  ) : (
-    <Empty
-      title="Nenhum orçamento"
-      text="Crie um orçamento detalhado e compartilhe o link com o cliente."
-      action="Criar orçamento"
-      onAction={open}
-    />
-  );
-}
-function QuoteModalSafe({ close, save }: { close: () => void; save: SaveAction }) {
-  const [labor, setLabor] = useState(0),
-    [parts, setParts] = useState(0),
-    [saving, setSaving] = useState(false);
-  const submit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (saving) return;
-    setSaving(true);
-    const f = new FormData(e.currentTarget);
-    await save('quote', {
-      code: `ORC-${Date.now().toString().slice(-5)}`,
-      customer: f.get('customer'),
-      phone: f.get('phone'),
-      device: f.get('device'),
-      problem: f.get('problem'),
-      service: f.get('service'),
-      notes: f.get('notes'),
-      validUntil: f.get('validUntil'),
-      labor,
-      parts,
-      total: labor + parts,
-      status: 'Aguardando',
-      createdAt: new Date().toISOString(),
-    });
-  };
-  return (
-    <div className="modal-backdrop">
-      <form className="modal quote-modal" onSubmit={submit}>
-        <div className="modal-title">
-          <div>
-            <span>▤</span>
-            <div>
-              <h2>Novo orçamento</h2>
-              <p>Gere um link para aprovação do cliente</p>
-            </div>
-          </div>
-          <button type="button" onClick={close}>
-            ×
-          </button>
-        </div>
-        <div className="form-row">
-          <label>
-            Cliente *<input name="customer" required />
-          </label>
-          <label>
-            WhatsApp *<input name="phone" required placeholder="(DDD) número" />
-          </label>
-        </div>
-        <label>
-          Celular *<input name="device" required placeholder="Marca e modelo" />
-        </label>
-        <label>
-          Problema relatado *
-          <textarea name="problem" required placeholder="Ex.: Aparelho não liga e não carrega" />
-        </label>
-        <label>
-          Serviço proposto *
-          <textarea
-            name="service"
-            required
-            placeholder="Descreva o diagnóstico e o que será realizado"
-          />
-        </label>
-        <label>
-          Observações para o cliente
-          <textarea
-            name="notes"
-            placeholder="Condições, prazo, qualidade da peça, garantia ou recomendações"
-          />
-        </label>
-        <div className="form-row">
-          <label>
-            Mão de obra
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={labor}
-              onChange={(e) => setLabor(Number(e.target.value))}
-            />
-          </label>
-          <label>
-            Peças
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={parts}
-              onChange={(e) => setParts(Number(e.target.value))}
-            />
-          </label>
-        </div>
-        <label>
-          Válido até
-          <input name="validUntil" type="date" />
-        </label>
-        <div className="order-total">
-          <span>Total do orçamento</span>
-          <strong>{money(labor + parts)}</strong>
-        </div>
-        <div className="modal-actions">
-          <button type="button" onClick={close}>
-            Cancelar
-          </button>
-          <button className="primary" disabled={saving}>
-            {saving ? 'Criando...' : 'Criar e gerar link'}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
 function FilmsSorted({ items, open }: { items: FilmItem[]; open: () => void }) {
   const [search, setSearch] = useState(''),
     [brand, setBrand] = useState('Todas');
@@ -1724,167 +1397,6 @@ function AccountModal({ close, saved }: { close: () => void; saved: () => void }
   );
 }
 
-function PartModal({ close, save }: { close: () => void; save: SaveAction }) {
-  const [category, setCategory] = useState('Telas'),
-    [custom, setCustom] = useState('');
-  return (
-    <div className="modal-backdrop">
-      <form
-        className="modal"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          void save('part', {
-            name: f.get('name'),
-            category: category === 'Outra' ? custom.trim() : category,
-            stock: Number(f.get('stock')),
-            cost: Number(f.get('cost')),
-            price: Number(f.get('price')),
-            sku: f.get('sku'),
-            published: f.get('published') === 'on',
-          });
-        }}
-      >
-        <div className="modal-title">
-          <div>
-            <span>◇</span>
-            <div>
-              <h2>Adicionar produto</h2>
-              <p>Estoque geral e vitrine online</p>
-            </div>
-          </div>
-          <button type="button" onClick={close}>
-            ×
-          </button>
-        </div>
-        <label>
-          Nome do produto *<input name="name" required placeholder="Ex.: Carregador USB-C 20W" />
-        </label>
-        <div className="form-row">
-          <label>
-            Categoria
-            <select value={category} onChange={(e) => setCategory(e.target.value)}>
-              <option>Telas</option>
-              <option>Baterias</option>
-              <option>Conectores</option>
-              <option>Peças e componentes</option>
-              <option>Carregadores</option>
-              <option>Cabos</option>
-              <option>Capinhas</option>
-              <option>Películas</option>
-              <option>Fones de ouvido</option>
-              <option>Acessórios</option>
-              <option>Celulares</option>
-              <option>Smartwatches</option>
-              <option>Outra</option>
-            </select>
-          </label>
-          <label>
-            Código / SKU
-            <input name="sku" placeholder="Opcional" />
-          </label>
-        </div>
-        {category === 'Outra' && (
-          <label>
-            Nome da nova categoria *
-            <input
-              value={custom}
-              onChange={(e) => setCustom(e.target.value)}
-              required
-              placeholder="Digite sua categoria"
-            />
-          </label>
-        )}
-        <div className="form-row">
-          <label>
-            Quantidade em estoque
-            <input name="stock" type="number" min="0" required />
-          </label>
-          <label>
-            Custo unitário
-            <input name="cost" type="number" min="0" step="0.01" required />
-          </label>
-        </div>
-        <label>
-          Preço de venda
-          <input name="price" type="number" min="0" step="0.01" required />
-        </label>
-        <label className="check">
-          <input name="published" type="checkbox" defaultChecked /> Publicar na vitrine online
-        </label>
-        <div className="modal-actions">
-          <button type="button" onClick={close}>
-            Cancelar
-          </button>
-          <button className="primary">Salvar produto</button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-function Inventory({ items, open }: { items: PartItem[]; open: () => void }) {
-  const total = items.reduce((s, p) => s + Number(p.stock || 0) * Number(p.cost || 0), 0);
-  return (
-    <>
-      <div className="metrics">
-        <Metric
-          t="Itens em estoque"
-          v={String(items.reduce((s, p) => s + Number(p.stock || 0), 0))}
-          d="Unidades disponíveis"
-        />
-        <Metric t="Valor investido" v={money(total)} d="Baseado no custo" />
-        <Metric
-          t="Estoque baixo"
-          v={String(items.filter((p) => Number(p.stock) < 5).length)}
-          d="Produtos com menos de 5"
-        />
-        <Metric t="Produtos cadastrados" v={String(items.length)} d="Todos os tipos" />
-      </div>
-      {items.length ? (
-        <article className="panel page-panel inventory-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Peça</th>
-                <th>Categoria</th>
-                <th>Quantidade</th>
-                <th>Custo</th>
-                <th>Venda</th>
-                <th>Margem</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    <b>{p.name}</b>
-                  </td>
-                  <td>{p.category}</td>
-                  <td>{p.stock} un.</td>
-                  <td>{money(Number(p.cost))}</td>
-                  <td>{money(Number(p.price))}</td>
-                  <td>{money(Number(p.price) - Number(p.cost))}</td>
-                  <td>
-                    <Badge>{Number(p.stock) < 5 ? 'Estoque baixo' : 'Disponível'}</Badge>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </article>
-      ) : (
-        <Empty
-          title="Estoque vazio"
-          text="Cadastre sua primeira peça para controlar quantidade, custo, venda e margem."
-          action="Adicionar peça"
-          onAction={open}
-        />
-      )}
-    </>
-  );
-}
 function Films({ items, open }: { items: FilmItem[]; open: () => void }) {
   const [search, setSearch] = useState('');
   const found = items.filter((f) =>

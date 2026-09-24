@@ -136,6 +136,42 @@ test('updates and deletes an order through its scoped API', { skip }, async () =
   assert.equal((await getOne(A, id)).status, 403);
 });
 
+test('updates and deletes a quote through its scoped API', { skip }, async () => {
+  const created = await save(A, 'quote', {
+    code: 'ORC-UPDATE',
+    customer: 'Cliente do orçamento',
+    phone: '11988887777',
+    device: 'Galaxy S22',
+    service: 'Troca de tela',
+    labor: 100,
+    parts: 200,
+    status: 'Aguardando',
+  });
+  const id = created.body.record.id;
+  const updated = await save(
+    A,
+    'quote',
+    {
+      code: 'ORC-UPDATED',
+      customer: 'Cliente atualizado',
+      phone: '11988887777',
+      device: 'Galaxy S22 Ultra',
+      service: 'Troca de tela original',
+      labor: 150,
+      parts: 250,
+      status: 'Aguardando',
+    },
+    id,
+  );
+
+  assert.equal(updated.status, 201);
+  assert.equal(updated.body.record.id, id);
+  assert.equal(updated.body.record.data.code, 'ORC-UPDATED');
+  assert.equal(updated.body.record.data.total, 400);
+  assert.equal((await remove(A, id)).status, 200);
+  assert.equal((await getOne(A, id)).status, 403);
+});
+
 test('accounts never see or change each other’s data', { skip }, async () => {
   const [mine] = await list(A, 'order');
   assert.deepEqual(await list(B, 'order'), []);
@@ -268,6 +304,39 @@ test(
     );
   },
 );
+
+test('updates and deletes a part through its scoped API', { skip }, async () => {
+  const created = await save(A, 'part', {
+    name: 'Carregador USB-C',
+    category: 'Carregadores',
+    stock: 4,
+    cost: 25,
+    price: 60,
+    published: true,
+  });
+  const id = created.body.record.id;
+  const updated = await save(
+    A,
+    'part',
+    {
+      name: 'Carregador USB-C atualizado',
+      category: 'Carregadores',
+      stock: 8,
+      cost: 30,
+      price: 75,
+      published: false,
+    },
+    id,
+  );
+
+  assert.equal(updated.status, 201);
+  assert.equal(updated.body.record.id, id);
+  assert.equal(updated.body.record.data.name, 'Carregador USB-C atualizado');
+  assert.equal(updated.body.record.data.stock, 8);
+  assert.equal((await remove(B, id)).status, 403);
+  assert.equal((await remove(A, id)).status, 200);
+  assert.equal((await getOne(A, id)).status, 403);
+});
 
 test('messages keep an order link only for the same account', { skip }, async () => {
   const [mine] = await list(A, 'order');
