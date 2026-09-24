@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useFeedback } from '@/components/feedback';
 import { OrderCreateModal, type SaveOrder } from '@/components/order-modals';
 import { formatMoney } from '@/lib/format';
 import type { Order, OrderStage } from '@/lib/types';
@@ -17,6 +18,7 @@ const stages: OrderStage[] = [
 ];
 
 export default function MesaRoute({ initialOrders }: { initialOrders: OrderRow[] }) {
+  const { notify } = useFeedback();
   const [orders, setOrders] = useState(initialOrders);
   const [modal, setModal] = useState(false);
   const save: SaveOrder = async (data, id) => {
@@ -38,7 +40,10 @@ export default function MesaRoute({ initialOrders }: { initialOrders: OrderRow[]
       );
       setModal(false);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível atualizar a ordem.');
+      notify(
+        error instanceof Error ? error.message : 'Não foi possível atualizar a ordem.',
+        'error',
+      );
     }
   };
   const move = (order: OrderRow, direction: number) => {

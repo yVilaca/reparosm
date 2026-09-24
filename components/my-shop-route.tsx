@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useFeedback } from '@/components/feedback';
 import type { Shop } from '@/lib/types';
 
 type ShopRow = Shop & { id: string };
@@ -16,6 +17,7 @@ type WhatsAppStatus = {
 };
 
 export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) {
+  const { notify } = useFeedback();
   const [shop, setShop] = useState<ShopRow | undefined>(initialShop);
   const [tab, setTab] = useState('Perfil');
   const tabs = ['Perfil', 'Horários', 'Equipe', 'Fiscal', 'Documentos'];
@@ -34,7 +36,10 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
         throw new Error(result.error || 'Não foi possível salvar a assistência.');
       setShop({ id: result.record.id, ...result.record.data });
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível salvar a assistência.');
+      notify(
+        error instanceof Error ? error.message : 'Não foi possível salvar a assistência.',
+        'error',
+      );
       throw error;
     }
   };
@@ -234,6 +239,7 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
 }
 
 function WhatsAppConnection() {
+  const { confirm } = useFeedback();
   const [status, setStatus] = useState<WhatsAppStatus | null>(null);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -306,7 +312,7 @@ function WhatsAppConnection() {
     }
   };
   const disconnect = async () => {
-    if (!confirm('Desconectar o WhatsApp desta loja?')) return;
+    if (!(await confirm('Desconectar o WhatsApp desta loja?'))) return;
     try {
       const response = await fetch('/api/whatsapp', {
         method: 'POST',

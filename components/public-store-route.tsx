@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useFeedback } from '@/components/feedback';
 import { formatMoney, hasValidWhatsapp, whatsappUrl } from '@/lib/format';
 import type { Part, Shop } from '@/lib/types';
 
@@ -13,6 +14,7 @@ export default function PublicStoreRoute({
   shop: Shop;
   error?: string;
 }) {
+  const { notify } = useFeedback();
   const [category, setCategory] = useState('Todos');
   const categories = useMemo(
     () => [
@@ -26,7 +28,7 @@ export default function PublicStoreRoute({
   const visible = category === 'Todos' ? items : items.filter((part) => part.category === category);
   const ask = (part: Part) => {
     if (!hasValidWhatsapp(shop.phone))
-      return alert('A assistência ainda não cadastrou o WhatsApp.');
+      return notify('A assistência ainda não cadastrou o WhatsApp.', 'error');
     window.open(
       whatsappUrl(
         shop.phone,

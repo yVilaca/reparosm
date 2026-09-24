@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { useFeedback } from '@/components/feedback';
 import { formatMoney as money } from '@/lib/format';
 import type { Quote, QuoteStatus } from '@/lib/types';
 
@@ -18,6 +19,7 @@ type PublicQuote = {
 };
 type PublicQuoteRecord = { id: string; data: PublicQuote };
 export default function PublicQuote() {
+  const { notify } = useFeedback();
   const { id } = useParams<{ id: string }>(),
     [record, setRecord] = useState<PublicQuoteRecord | null>(null),
     [done, setDone] = useState<QuoteStatus | ''>(''),
@@ -57,7 +59,7 @@ export default function PublicQuote() {
     if (response.ok) {
       setDone(status);
       setRecord({ ...record, data: { ...q, status, orderId: result.orderId } });
-    } else alert(result.error || 'Não foi possível registrar a resposta.');
+    } else notify(result.error || 'Não foi possível registrar a resposta.', 'error');
     setDeciding(false);
   };
   const answered = done || q.status === 'Aprovado' || q.status === 'Recusado';

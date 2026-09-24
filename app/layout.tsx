@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { FeedbackProvider } from '@/components/feedback';
 import { env } from '@/lib/env';
 import './accounts.css';
 import './globals.css';
@@ -31,7 +32,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <FeedbackProvider>{children}</FeedbackProvider>
+      </body>
     </html>
   );
 }

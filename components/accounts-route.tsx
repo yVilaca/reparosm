@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
+import { useFeedback } from '@/components/feedback';
 import type { PasswordRequest, PublicAccount } from '@/lib/types';
 
 export default function AccountsRoute({
@@ -11,6 +12,7 @@ export default function AccountsRoute({
   initialAccounts: PublicAccount[];
   initialRequests: PasswordRequest[];
 }) {
+  const { notify, confirm } = useFeedback();
   const [accounts, setAccounts] = useState(initialAccounts);
   const [requests, setRequests] = useState(initialRequests);
   const [modal, setModal] = useState(false);
@@ -31,7 +33,10 @@ export default function AccountsRoute({
       setAccounts(result.accounts || []);
       setRequests(result.requests || []);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível carregar as contas.');
+      notify(
+        error instanceof Error ? error.message : 'Não foi possível carregar as contas.',
+        'error',
+      );
     } finally {
       setLoading(false);
     }
@@ -46,13 +51,17 @@ export default function AccountsRoute({
       const result = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(result.error || 'Não foi possível atualizar a conta.');
       setNotice(status === 'active' ? 'Conta ativada.' : 'Conta atualizada.');
+      notify(status === 'active' ? 'Conta ativada.' : 'Conta atualizada.', 'success');
       await load();
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível atualizar a conta.');
+      notify(
+        error instanceof Error ? error.message : 'Não foi possível atualizar a conta.',
+        'error',
+      );
     }
   };
   const remove = async (account: PublicAccount) => {
-    if (!confirm(`Excluir a conta de ${account.name} e todos os dados dessa loja?`)) return;
+    if (!(await confirm(`Excluir a conta de ${account.name} e todos os dados dessa loja?`))) return;
     try {
       const response = await fetch(`/api/accounts?id=${encodeURIComponent(account.id)}`, {
         method: 'DELETE',
@@ -61,7 +70,7 @@ export default function AccountsRoute({
       if (!response.ok) throw new Error(result.error || 'Não foi possível excluir.');
       await load();
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível excluir.');
+      notify(error instanceof Error ? error.message : 'Não foi possível excluir.', 'error');
     }
   };
   return (

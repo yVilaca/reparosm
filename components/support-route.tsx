@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useFeedback } from '@/components/feedback';
 import type { Tutorial } from '@/lib/types';
 
 type TutorialRow = Tutorial & { id: string };
@@ -16,6 +17,7 @@ const guides = [
 ] as const;
 
 export default function SupportRoute({ initialTutorials }: { initialTutorials: TutorialRow[] }) {
+  const { notify } = useFeedback();
   const [tutorials, setTutorials] = useState(initialTutorials);
   const [modal, setModal] = useState(false);
   const save = async (data: Tutorial) => {
@@ -34,7 +36,10 @@ export default function SupportRoute({ initialTutorials }: { initialTutorials: T
       setTutorials((current) => [{ id: result.record!.id, ...result.record!.data }, ...current]);
       setModal(false);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível adicionar o tutorial.');
+      notify(
+        error instanceof Error ? error.message : 'Não foi possível adicionar o tutorial.',
+        'error',
+      );
       throw error;
     }
   };

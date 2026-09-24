@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type ChangeEvent } from 'react';
+import { useFeedback } from '@/components/feedback';
 import { formatMoney as money } from '@/lib/format';
 import type { Order, OrderPriority } from '@/lib/types';
 
@@ -26,6 +27,7 @@ export function OrderEditModal({
   close: () => void;
   save: SaveOrder;
 }) {
+  const { notify } = useFeedback();
   const [form, setForm] = useState({ ...item }),
     [saving, setSaving] = useState(false);
   const field = (key: keyof OrderRow) => (e: FieldChange) =>
@@ -40,7 +42,7 @@ export function OrderEditModal({
     profit = total - Number(form.cost || 0);
   const submit = async () => {
     if (!String(form.customer || '').trim() || !String(form.device || '').trim()) {
-      alert('Informe cliente e aparelho.');
+      notify('Informe cliente e aparelho.', 'error');
       return;
     }
     setSaving(true);
@@ -177,6 +179,7 @@ export function OrderEditModal({
 }
 
 export function OrderCreateModal({ close, save }: { close: () => void; save: SaveOrder }) {
+  const { notify } = useFeedback();
   const [step, setStep] = useState(1),
     [pattern, setPattern] = useState<number[]>([]),
     [labor, setLabor] = useState(0),
@@ -204,7 +207,7 @@ export function OrderCreateModal({ close, save }: { close: () => void; save: Sav
     const valid =
       step === 1 ? form.customer.trim() : step === 2 ? form.device.trim() : form.problem.trim();
     if (!valid) {
-      alert('Preencha os campos obrigatórios antes de continuar.');
+      notify('Preencha os campos obrigatórios antes de continuar.', 'error');
       return;
     }
     setStep((value) => Math.min(4, value + 1));
