@@ -30,11 +30,10 @@ export default function FilmsRoute({ initialFilms }: { initialFilms: FilmRow[] }
     );
   const save = async (data: Film) => {
     try {
-      // ponytail: reuse the validated state endpoint until resource routes migrate one module at a time.
-      const response = await fetch('/api/state', {
+      const response = await fetch('/api/films', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'film', data }),
+        body: JSON.stringify({ data }),
       });
       const result = (await response.json()) as {
         error?: string;

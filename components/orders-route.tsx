@@ -17,11 +17,10 @@ export default function OrdersRoute({ initialOrders }: { initialOrders: OrderRow
     [editing, setEditing] = useState<OrderRow | null>(null);
   const save: SaveOrder = async (data: Order, id?: string) => {
     try {
-      // ponytail: reuse the validated state endpoint until resource routes migrate one module at a time.
-      const response = await fetch('/api/state', {
+      const response = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'order', data, id }),
+        body: JSON.stringify({ data, id }),
       });
       const result = (await response.json()) as {
         error?: string;

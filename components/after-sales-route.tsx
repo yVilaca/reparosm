@@ -62,11 +62,11 @@ export default function AfterSalesRoute({
   const [custom, setCustom] = useState('');
   const save: SaveAfterSales = async (type, data, id) => {
     try {
-      // ponytail: reuse the validated state endpoint until resource routes migrate one module at a time.
-      const response = await fetch('/api/state', {
+      const resource = type === 'automation' ? 'automations' : 'messages';
+      const response = await fetch(`/api/${resource}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, data, id }),
+        body: JSON.stringify({ data, id }),
       });
       const result = (await response.json()) as {
         error?: string;

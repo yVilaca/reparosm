@@ -29,11 +29,10 @@ export default function OrdersTable({
     }
     const message = `Olá, ${order.customer}! Atualização da ${order.code}: seu ${order.device} está na etapa “${order.stage || 'Recebido'}”.`;
     window.open(whatsappUrl(phone, message), '_blank', 'noopener,noreferrer');
-    void fetch('/api/state', {
+    void fetch('/api/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        type: 'message',
         data: {
           customer: order.customer,
           phone,
@@ -49,7 +48,7 @@ export default function OrdersTable({
     if (!confirm(`Excluir definitivamente a ordem ${order.code}?`)) return;
     setBusy(order.id);
     try {
-      const response = await fetch(`/api/state?id=${encodeURIComponent(order.id)}`, {
+      const response = await fetch(`/api/orders?id=${encodeURIComponent(order.id)}`, {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Não foi possível excluir a ordem.');

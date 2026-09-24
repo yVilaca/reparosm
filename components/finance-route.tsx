@@ -26,11 +26,11 @@ export default function FinanceRoute({
   const [editing, setEditing] = useState<MoneyRow | null>(null);
   const save: SaveMoney = async (kind: MoneyKind, data: MoneyData, id?: string) => {
     try {
-      // ponytail: reuse the validated state endpoint until resource routes migrate one module at a time.
-      const response = await fetch('/api/state', {
+      const resource = kind === 'payment' ? 'payments' : 'expenses';
+      const response = await fetch(`/api/${resource}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: kind, data, id }),
+        body: JSON.stringify({ data, id }),
       });
       const result = (await response.json()) as {
         error?: string;
@@ -60,7 +60,8 @@ export default function FinanceRoute({
   const remove = async (row: MoneyRow) => {
     if (!confirm(`Excluir definitivamente o lançamento ${row.description}?`)) return;
     try {
-      const response = await fetch(`/api/state?id=${encodeURIComponent(row.id)}`, {
+      const resource = row.kind === 'payment' ? 'payments' : 'expenses';
+      const response = await fetch(`/api/${resource}?id=${encodeURIComponent(row.id)}`, {
         method: 'DELETE',
       });
       const result = (await response.json()) as { error?: string };

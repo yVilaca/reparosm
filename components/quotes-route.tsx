@@ -12,11 +12,10 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
   const [editing, setEditing] = useState<QuoteRow | null>(null);
   const save: SaveQuote = async (data: Quote, id?: string) => {
     try {
-      // ponytail: reuse the validated state endpoint until resource routes migrate one module at a time.
-      const response = await fetch('/api/state', {
+      const response = await fetch('/api/quotes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'quote', data, id }),
+        body: JSON.stringify({ data, id }),
       });
       const result = (await response.json()) as {
         error?: string;
@@ -46,7 +45,7 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
   const remove = async (quote: QuoteRow) => {
     if (!confirm(`Excluir definitivamente o orçamento ${quote.code || quote.id}?`)) return;
     try {
-      const response = await fetch(`/api/state?id=${encodeURIComponent(quote.id)}`, {
+      const response = await fetch(`/api/quotes?id=${encodeURIComponent(quote.id)}`, {
         method: 'DELETE',
       });
       const result = (await response.json()) as { error?: string };

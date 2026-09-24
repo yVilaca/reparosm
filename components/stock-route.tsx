@@ -22,11 +22,10 @@ export default function StockRoute({
   const [editing, setEditing] = useState<PartRow | null>(null);
   const save: SavePart = async (data: Part, id?: string) => {
     try {
-      // ponytail: reuse the validated state endpoint until resource routes migrate one module at a time.
-      const response = await fetch('/api/state', {
+      const response = await fetch('/api/parts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'part', data, id }),
+        body: JSON.stringify({ data, id }),
       });
       const result = (await response.json()) as {
         error?: string;
@@ -56,7 +55,7 @@ export default function StockRoute({
   const remove = async (part: PartRow) => {
     if (!confirm(`Excluir definitivamente o produto ${part.name}?`)) return;
     try {
-      const response = await fetch(`/api/state?id=${encodeURIComponent(part.id)}`, {
+      const response = await fetch(`/api/parts?id=${encodeURIComponent(part.id)}`, {
         method: 'DELETE',
       });
       const result = (await response.json()) as { error?: string };

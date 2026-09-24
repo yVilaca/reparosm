@@ -20,10 +20,10 @@ export default function SupportRoute({ initialTutorials }: { initialTutorials: T
   const [modal, setModal] = useState(false);
   const save = async (data: Tutorial) => {
     try {
-      const response = await fetch('/api/state', {
+      const response = await fetch('/api/tutorials', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'tutorial', data }),
+        body: JSON.stringify({ data }),
       });
       const result = (await response.json()) as {
         error?: string;

@@ -14,6 +14,20 @@ const labels: Partial<Record<BusinessRecordType, string>> = {
   film: 'Películas',
 };
 
+const resources: Record<BusinessRecordType, string> = {
+  client: 'clients',
+  order: 'orders',
+  payment: 'payments',
+  expense: 'expenses',
+  part: 'parts',
+  quote: 'quotes',
+  film: 'films',
+  shop: 'shops',
+  automation: 'automations',
+  message: 'messages',
+  tutorial: 'tutorials',
+};
+
 const parseCsv = (line: string) =>
   line
     .split(/;(?=(?:[^"]*"[^"]*")*[^"]*$)/)
@@ -22,11 +36,10 @@ const parseCsv = (line: string) =>
 export default function DataToolsRoute({ records }: { records: StoredRecord[] }) {
   const [type, setType] = useState<BusinessRecordType>('client');
   const save = async (recordType: BusinessRecordType, data: DataObject) => {
-    // ponytail: reuse the validated state endpoint until resource routes migrate one module at a time.
-    const response = await fetch('/api/state', {
+    const response = await fetch(`/api/${resources[recordType]}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: recordType, data }),
+      body: JSON.stringify({ data }),
     });
     const result = (await response.json()) as { error?: string };
     if (!response.ok) throw new Error(result.error || 'Não foi possível importar o registro.');

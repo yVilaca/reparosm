@@ -15,11 +15,10 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
   const [editing, setEditing] = useState<ClientRow | null>(null);
   const save: SaveClient = async (data: Client, id?: string) => {
     try {
-      // ponytail: reuse the validated state endpoint until resource routes migrate one module at a time.
-      const response = await fetch('/api/state', {
+      const response = await fetch('/api/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'client', data, id }),
+        body: JSON.stringify({ data, id }),
       });
       const result = (await response.json()) as {
         error?: string;
@@ -49,7 +48,7 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
   const remove = async (client: ClientRow) => {
     if (!confirm(`Excluir definitivamente o cliente ${client.name}?`)) return;
     try {
-      const response = await fetch(`/api/state?id=${encodeURIComponent(client.id)}`, {
+      const response = await fetch(`/api/clients?id=${encodeURIComponent(client.id)}`, {
         method: 'DELETE',
       });
       const result = (await response.json()) as { error?: string };
@@ -69,11 +68,10 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
       return;
     }
     window.open(whatsappUrl(client.phone, message), '_blank', 'noopener,noreferrer');
-    void fetch('/api/state', {
+    void fetch('/api/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        type: 'message',
         data: {
           customer: client.name,
           phone: client.phone,

@@ -1,3 +1,7 @@
+import { transaction } from '@/lib/db';
+import * as clients from '@/lib/repos/clients';
+import * as orders from '@/lib/repos/orders';
+import { notifyOrder } from '@/lib/whatsapp';
 import type { Order, Quote } from '@/lib/types';
 
 export function orderFromQuote(quote: Quote, quoteId: string, answeredAt: string): Order {
@@ -26,4 +30,35 @@ export function orderFromQuote(quote: Quote, quoteId: string, answeredAt: string
     quoteCode: quote.code,
     createdAt: answeredAt,
   };
+}
+
+export async function saveOrder(accountId: string, id: string, order: Order) {
+  const result = await transaction(async (run) => {
+    const previous = await orders.get(accountId, id, run);
+    const record = await orders.save(accountId, id, order, run);
+    if (!record) return null;
+    const clientId = await clients.upsertFromOrder(accountId, order, run);
+    await orders.linkClient(id, clientId, run);
+    return { previous, record, client: await clients.get(accountId, clientId, run) };
+  });
+  if (!result) return null;
+
+  let notification: unknown = null;
+  if (!result.previous || result.previous.data.stage !== order.stage) {
+    try {
+      notification = await notifyOrder(
+        accountId,
+        id,
+        order,
+        result.previous ? 'status' : 'created',
+      );
+    } catch {
+      notification = {
+        status: 'failed',
+        reason: 'OS salva, mas não foi possível registrar a notificação.',
+      };
+    }
+  }
+  const record = (await orders.get(accountId, id)) ?? result.record;
+  return { record, client: result.client, notification };
 }

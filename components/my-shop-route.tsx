@@ -21,10 +21,10 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
   const tabs = ['Perfil', 'Horários', 'Equipe', 'Fiscal', 'Documentos'];
   const saveShop = async (data: Shop, id = 'shop-main') => {
     try {
-      const response = await fetch('/api/state', {
+      const response = await fetch('/api/shops', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'shop', data, id }),
+        body: JSON.stringify({ data, id }),
       });
       const result = (await response.json()) as {
         error?: string;

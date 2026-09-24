@@ -21,11 +21,10 @@ export default function MesaRoute({ initialOrders }: { initialOrders: OrderRow[]
   const [modal, setModal] = useState(false);
   const save: SaveOrder = async (data, id) => {
     try {
-      // ponytail: reuse the validated state endpoint until resource routes migrate one module at a time.
-      const response = await fetch('/api/state', {
+      const response = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'order', data, id }),
+        body: JSON.stringify({ data, id }),
       });
       const result = (await response.json()) as {
         error?: string;
