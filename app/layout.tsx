@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
+import { env } from '@/lib/env';
 import './globals.css';
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.URL || 'http://localhost:3000'),
+  metadataBase: new URL(env.siteUrl),
   title: 'ReparoSM | Repair System Master',
   description:
     'Controle produtos, serviços, estoque, clientes e resultados da sua assistência técnica em um só lugar.',

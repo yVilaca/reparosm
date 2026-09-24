@@ -1,4 +1,5 @@
 import { getDatabase, type DatabaseConnection } from '@netlify/database';
+import { env } from '@/lib/env';
 
 export type Row = Record<string, unknown>;
 export type Query = <R extends Row = Row>(text: string, params?: unknown[]) => Promise<R[]>;
@@ -8,9 +9,7 @@ export type Query = <R extends Row = Row>(text: string, params?: unknown[]) => P
 let connection: DatabaseConnection | undefined;
 const database = () => {
   if (connection) return connection;
-  connection = process.env.DATABASE_URL
-    ? getDatabase({ connectionString: process.env.DATABASE_URL })
-    : getDatabase();
+  connection = env.databaseUrl ? getDatabase({ connectionString: env.databaseUrl }) : getDatabase();
   // An idle pooled client can drop (e.g. a frozen function); don't let that crash the process.
   connection.pool.on('error', (error: Error) => console.error('Database pool error', error));
   return connection;
