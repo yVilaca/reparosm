@@ -11,5 +11,6 @@
 
 - Work is isolated in `D:\Projetos\reparosm\reparosm-tenant-rls-design` on `codex/tenant-rls-design`; unrelated changes in the primary checkout are preserved.
 - The local PostgreSQL login is privileged, so tests must explicitly `SET LOCAL ROLE reparosm_runtime` to prove actual RLS behavior.
+- Runtime-role bootstrap creates secure attributes once, rejects an unsafe pre-existing role, and avoids rewriting cluster-wide role metadata on every test database; parallel migrations exposed and verified this requirement.
 - Netlify preview's database principal and role-membership behavior have not yet been verified. Do not treat local test success as preview or production deployment approval.
 - Existing `orders.save()` now fails closed when reached without tenant context; Task 3 will provide the account context at its repository boundary.

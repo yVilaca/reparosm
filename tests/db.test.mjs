@@ -158,7 +158,7 @@ test('P0 business tables force RLS and the runtime role cannot bypass it', { ski
   assert.ok(secured.every((row) => row.relrowsecurity && row.relforcerowsecurity));
 
   const [role] = await db.query(
-    `SELECT rolsuper, rolbypassrls, rolcreaterole, rolcreatedb, rolcanlogin
+    `SELECT rolsuper, rolbypassrls, rolcreaterole, rolcreatedb, rolreplication, rolcanlogin, rolinherit
      FROM pg_roles WHERE rolname = 'reparosm_runtime'`,
   );
   assert.deepEqual(role, {
@@ -166,8 +166,19 @@ test('P0 business tables force RLS and the runtime role cannot bypass it', { ski
     rolbypassrls: false,
     rolcreaterole: false,
     rolcreatedb: false,
+    rolreplication: false,
     rolcanlogin: false,
+    rolinherit: false,
   });
+  const [membership] = await db.query(
+    `SELECT EXISTS (
+       SELECT 1 FROM pg_auth_members m
+       JOIN pg_roles granted ON granted.oid = m.roleid
+       JOIN pg_roles grantee ON grantee.oid = m.member
+       WHERE granted.rolname = 'reparosm_runtime' AND grantee.rolname = session_user
+     ) AS granted`,
+  );
+  assert.equal(membership.granted, true);
 
   const [identity] = await db.transaction((run) => run('SELECT current_user'));
   assert.equal(identity.current_user, 'reparosm_runtime');

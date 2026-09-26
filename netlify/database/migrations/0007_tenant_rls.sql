@@ -1,17 +1,39 @@
 -- The app connects with the migration/database owner credentials, but every
 -- application query must explicitly assume this restricted, non-login role.
 DO $$
+DECLARE
+  created boolean := false;
+  unsafe boolean;
 BEGIN
-  CREATE ROLE reparosm_runtime
-    NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
-EXCEPTION WHEN duplicate_object THEN
-  NULL;
+  BEGIN
+    CREATE ROLE reparosm_runtime
+      NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+    created := true;
+  EXCEPTION WHEN duplicate_object THEN
+    NULL;
+  END;
+
+  IF NOT created THEN
+    SELECT rolsuper OR rolbypassrls OR rolcreaterole OR rolcreatedb OR rolreplication
+           OR rolcanlogin OR rolinherit
+    INTO unsafe
+    FROM pg_roles WHERE rolname = 'reparosm_runtime';
+    IF unsafe THEN
+      RAISE EXCEPTION 'Existing reparosm_runtime role has unsafe attributes';
+    END IF;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_auth_members m
+    JOIN pg_roles granted ON granted.oid = m.roleid
+    JOIN pg_roles grantee ON grantee.oid = m.member
+    WHERE granted.rolname = 'reparosm_runtime' AND grantee.rolname = CURRENT_USER
+  ) THEN
+    GRANT reparosm_runtime TO CURRENT_USER;
+  END IF;
 END
 $$;
-
-ALTER ROLE reparosm_runtime
-  NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
-GRANT reparosm_runtime TO CURRENT_USER;
 GRANT USAGE ON SCHEMA public TO reparosm_runtime;
 
 DO $$
