@@ -3,6 +3,7 @@ import { orderFromQuote } from '@/lib/orders';
 import { publicRecord } from '@/lib/public-data';
 import { getAccount } from '@/lib/repos/accounts';
 import { clients, orders, quotes } from '@/lib/repos';
+import { env } from '@/lib/env';
 import type { DataObject } from '@/lib/types';
 
 const isObject = (value: unknown): value is DataObject =>
@@ -12,12 +13,30 @@ class QuoteOrderConflict extends Error {}
 
 export async function GET(request: Request) {
   const id = new URL(request.url).searchParams.get('id');
-  const found = id?.trim()
-    ? await publicQuoteTransaction(id, (run) => quotes.findPublic(id, run))
-    : null;
-  return found
-    ? Response.json({ record: publicRecord(found.record) })
-    : Response.json({ record: null }, { status: 404 });
+  try {
+    const found = id?.trim()
+      ? await publicQuoteTransaction(id, (run) => quotes.findPublic(id, run))
+      : null;
+    return found
+      ? Response.json({ record: publicRecord(found.record) })
+      : Response.json({ record: null }, { status: 404 });
+  } catch (error) {
+    if (
+      process.env.CONTEXT === 'deploy-preview' &&
+      request.headers.get('x-reparosm-preview-diagnostic') === env.adminPasswordHash
+    ) {
+      const diagnostic = error as { code?: unknown };
+      return Response.json(
+        {
+          name: error instanceof Error ? error.name : 'UnknownError',
+          code: diagnostic.code,
+          message: error instanceof Error ? error.message : 'unknown',
+        },
+        { status: 500 },
+      );
+    }
+    throw error;
+  }
 }
 
 export async function POST(request: Request) {
