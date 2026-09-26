@@ -7,13 +7,14 @@ let db;
 before(async () => {
   if (skip) return;
   db = await createTestDatabase();
-  await db.query('CREATE TABLE notes (id text PRIMARY KEY, body text NOT NULL)');
+  await db.migrationQuery('CREATE TABLE notes (id text PRIMARY KEY, body text NOT NULL)');
+  await db.migrationQuery('GRANT SELECT, INSERT, UPDATE, DELETE ON notes TO reparosm_runtime');
 });
 after(async () => db?.drop());
 
 test('migrations leave one table per entity and no records table', { skip }, async () => {
   const tables = (
-    await db.query(
+    await db.migrationQuery(
       `SELECT table_name FROM information_schema.tables
        WHERE table_schema = 'public' AND table_name <> 'notes' ORDER BY table_name`,
     )
@@ -66,48 +67,67 @@ test('transaction commits and returns the callback result', { skip }, async () =
   assert.equal((await db.query(`SELECT 1 FROM notes WHERE id = 'y'`)).length, 1);
 });
 
-test('RLS isolates tenant rows and rejects writes without the matching account context', { skip }, async () => {
-  await db.query(
-    `INSERT INTO accounts (id, username, name, role, status, password_hash)
+test('application queries run as the restricted database role', { skip }, async () => {
+  const [identity] = await db.query('SELECT current_user');
+  assert.equal(identity.current_user, 'reparosm_runtime');
+});
+
+test(
+  'tenant context is transaction-local and cannot leak into a later query',
+  { skip },
+  async () => {
+    const [scoped] = await db.tenantQuery(
+      'rls-a',
+      "SELECT current_setting('app.account_id', true) AS account_id, current_user",
+    );
+    assert.deepEqual(scoped, { account_id: 'rls-a', current_user: 'reparosm_runtime' });
+
+    const [afterCommit] = await db.query(
+      "SELECT COALESCE(NULLIF(current_setting('app.account_id', true), ''), 'none') AS account_id",
+    );
+    assert.equal(afterCommit.account_id, 'none');
+  },
+);
+
+test(
+  'RLS isolates tenant rows and rejects writes without the matching account context',
+  { skip },
+  async () => {
+    await db.migrationQuery(
+      `INSERT INTO accounts (id, username, name, role, status, password_hash)
      VALUES ('rls-a', 'rls-a', 'RLS A', 'merchant', 'active', 'test'),
             ('rls-b', 'rls-b', 'RLS B', 'merchant', 'active', 'test')`,
-  );
-  await db.query(
-    `INSERT INTO parts (id, account_id, name, stock, published)
+    );
+    await db.migrationQuery(
+      `INSERT INTO parts (id, account_id, name, stock, published)
      VALUES ('rls-part-a', 'rls-a', 'A', 2, true), ('rls-part-b', 'rls-b', 'B', 3, true)`,
-  );
+    );
 
-  const visible = await db.transaction(async (run) => {
-    await run('SET LOCAL ROLE reparosm_runtime');
-    await run("SELECT set_config('app.account_id', 'rls-a', true)");
-    return run('SELECT id FROM parts ORDER BY id');
-  });
-  assert.deepEqual(visible, [{ id: 'rls-part-a' }]);
+    const visible = await db.tenantTransaction('rls-a', (run) =>
+      run('SELECT id FROM parts ORDER BY id'),
+    );
+    assert.deepEqual(visible, [{ id: 'rls-part-a' }]);
 
-  const withoutContext = await db.transaction(async (run) => {
-    await run('SET LOCAL ROLE reparosm_runtime');
-    return run("SELECT id FROM parts WHERE id = 'rls-part-a'");
-  });
-  assert.deepEqual(withoutContext, []);
+    const withoutContext = await db.transaction((run) =>
+      run("SELECT id FROM parts WHERE id = 'rls-part-a'"),
+    );
+    assert.deepEqual(withoutContext, []);
 
-  const crossTenantUpdate = await db.transaction(async (run) => {
-    await run('SET LOCAL ROLE reparosm_runtime');
-    await run("SELECT set_config('app.account_id', 'rls-a', true)");
-    return run("UPDATE parts SET name = 'stolen' WHERE id = 'rls-part-b' RETURNING id");
-  });
-  assert.deepEqual(crossTenantUpdate, []);
+    const crossTenantUpdate = await db.tenantTransaction('rls-a', (run) =>
+      run("UPDATE parts SET name = 'stolen' WHERE id = 'rls-part-b' RETURNING id"),
+    );
+    assert.deepEqual(crossTenantUpdate, []);
 
-  await assert.rejects(
-    db.transaction(async (run) => {
-      await run('SET LOCAL ROLE reparosm_runtime');
-      await run("SELECT set_config('app.account_id', 'rls-a', true)");
-      await run(
-        `INSERT INTO parts (id, account_id, name) VALUES ('rls-cross-write', 'rls-b', 'invalid')`,
-      );
-    }),
-    { code: '42501' },
-  );
-});
+    await assert.rejects(
+      db.tenantTransaction('rls-a', (run) =>
+        run(
+          `INSERT INTO parts (id, account_id, name) VALUES ('rls-cross-write', 'rls-b', 'invalid')`,
+        ),
+      ),
+      { code: '42501' },
+    );
+  },
+);
 
 test('P0 business tables force RLS and the runtime role cannot bypass it', { skip }, async () => {
   const tables = [
@@ -149,42 +169,38 @@ test('P0 business tables force RLS and the runtime role cannot bypass it', { ski
     rolcanlogin: false,
   });
 
-  const [identity] = await db.transaction((run) =>
-    run('SET LOCAL ROLE reparosm_runtime').then(() => run('SELECT current_user')),
-  );
+  const [identity] = await db.transaction((run) => run('SELECT current_user'));
   assert.equal(identity.current_user, 'reparosm_runtime');
 });
 
-test('public-store and quote policies reveal only their explicit capability', { skip }, async () => {
-  await db.query(
-    `INSERT INTO shops (account_id, name) VALUES ('rls-a', 'Loja A'), ('rls-b', 'Loja B')`,
-  );
-  await db.query(
-    `INSERT INTO parts (id, account_id, name, stock, published)
+test(
+  'public-store and quote policies reveal only their explicit capability',
+  { skip },
+  async () => {
+    await db.migrationQuery(
+      `INSERT INTO shops (account_id, name) VALUES ('rls-a', 'Loja A'), ('rls-b', 'Loja B')`,
+    );
+    await db.migrationQuery(
+      `INSERT INTO parts (id, account_id, name, stock, published)
      VALUES ('rls-hidden', 'rls-a', 'Hidden', 1, false),
             ('rls-sold', 'rls-a', 'Sold', 0, true)`,
-  );
-  await db.query(
-    `INSERT INTO quotes (id, account_id, customer, device, service)
+    );
+    await db.migrationQuery(
+      `INSERT INTO quotes (id, account_id, customer, device, service)
      VALUES ('rls-quote-a', 'rls-a', 'A', 'Device A', 'Repair'),
             ('rls-quote-b', 'rls-b', 'B', 'Device B', 'Repair')`,
-  );
+    );
 
-  const storefront = await db.transaction(async (run) => {
-    await run('SET LOCAL ROLE reparosm_runtime');
-    await run("SELECT set_config('app.public_store_account_id', 'rls-a', true)");
-    return {
+    const storefront = await db.publicStoreTransaction('rls-a', async (run) => ({
       shops: await run('SELECT account_id FROM shops ORDER BY account_id'),
       parts: await run('SELECT id FROM parts ORDER BY id'),
-    };
-  });
-  assert.deepEqual(storefront.shops, [{ account_id: 'rls-a' }]);
-  assert.deepEqual(storefront.parts, [{ id: 'rls-part-a' }]);
+    }));
+    assert.deepEqual(storefront.shops, [{ account_id: 'rls-a' }]);
+    assert.deepEqual(storefront.parts, [{ id: 'rls-part-a' }]);
 
-  const quote = await db.transaction(async (run) => {
-    await run('SET LOCAL ROLE reparosm_runtime');
-    await run("SELECT set_config('app.public_quote_id', 'rls-quote-b', true)");
-    return run('SELECT id FROM quotes ORDER BY id');
-  });
-  assert.deepEqual(quote, [{ id: 'rls-quote-b' }]);
-});
+    const quote = await db.publicQuoteTransaction('rls-quote-b', (run) =>
+      run('SELECT id FROM quotes ORDER BY id'),
+    );
+    assert.deepEqual(quote, [{ id: 'rls-quote-b' }]);
+  },
+);

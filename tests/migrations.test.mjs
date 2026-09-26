@@ -169,7 +169,7 @@ before(async () => {
     ['mystery-1', 'mystery', { _accountId: 'account-loja' }],
   ];
   for (const [id, type, data] of legacy)
-    await db.query('INSERT INTO records (id, type, data) VALUES ($1, $2, $3)', [
+    await db.migrationQuery('INSERT INTO records (id, type, data) VALUES ($1, $2, $3)', [
       id,
       type,
       JSON.stringify(data),
@@ -179,7 +179,7 @@ before(async () => {
 after(async () => db?.drop());
 
 test('0002 copies accounts, coercing values that break the new constraints', { skip }, async () => {
-  const rows = await db.query(
+  const rows = await db.migrationQuery(
     `SELECT id, username, name, role, status, plan, due_date::text AS due_date, access_policy
      FROM accounts ORDER BY id`,
   );
@@ -218,18 +218,18 @@ test('0002 copies accounts, coercing values that break the new constraints', { s
 });
 
 test('0002 keeps requests and settings of existing accounts only', { skip }, async () => {
-  assert.deepEqual(await db.query('SELECT account_id, status FROM password_requests'), [
+  assert.deepEqual(await db.migrationQuery('SELECT account_id, status FROM password_requests'), [
     { account_id: 'account-loja', status: 'pending' },
   ]);
-  assert.deepEqual(await db.query('SELECT account_id, iv, cipher FROM whatsapp_configs'), [
+  assert.deepEqual(await db.migrationQuery('SELECT account_id, iv, cipher FROM whatsapp_configs'), [
     { account_id: 'account-loja', iv: 'x', cipher: 'y' },
   ]);
 });
 
 test('0002 drops raw-token sessions and only its rows from records', { skip }, async () => {
-  assert.equal((await db.query('SELECT 1 FROM sessions')).length, 0);
+  assert.equal((await db.migrationQuery('SELECT 1 FROM sessions')).length, 0);
   assert.deepEqual(
-    (await db.query('SELECT id FROM records ORDER BY id')).map((r) => r.id),
+    (await db.migrationQuery('SELECT id FROM records ORDER BY id')).map((r) => r.id),
     [
       'automation-1',
       'client-1',
@@ -254,18 +254,20 @@ test('0002 drops raw-token sessions and only its rows from records', { skip }, a
 
 test('0003 copies shops, clients, quotes and orders with safe conversions', { skip }, async () => {
   await db.apply('0003_core');
-  assert.deepEqual(await db.query('SELECT account_id, name, phone, profile FROM shops'), [
+  assert.deepEqual(await db.migrationQuery('SELECT account_id, name, phone, profile FROM shops'), [
     { account_id: 'account-loja', name: 'Loja', phone: '11', profile: { instagram: '@loja' } },
   ]);
   assert.deepEqual(
-    await db.query('SELECT id, name, vip, birth::text AS birth FROM clients ORDER BY id'),
+    await db.migrationQuery('SELECT id, name, vip, birth::text AS birth FROM clients ORDER BY id'),
     [
       { id: 'client-1', name: 'Ana', vip: true, birth: '1990-05-01' },
       { id: 'client-2', name: 'Sem nome', vip: false, birth: null },
     ],
   );
   assert.deepEqual(
-    await db.query(`SELECT id, total::text AS total, status, valid_until, client_id FROM quotes`),
+    await db.migrationQuery(
+      `SELECT id, total::text AS total, status, valid_until, client_id FROM quotes`,
+    ),
     [
       {
         id: 'quote-1',
@@ -276,7 +278,7 @@ test('0003 copies shops, clients, quotes and orders with safe conversions', { sk
       },
     ],
   );
-  const orders = await db.query(
+  const orders = await db.migrationQuery(
     `SELECT id, account_id, code, labor::text AS labor, parts::text AS parts, total::text AS total,
             pattern, quote_id, client_id, device_password FROM orders ORDER BY id`,
   );
@@ -307,7 +309,7 @@ test('0003 copies shops, clients, quotes and orders with safe conversions', { sk
     },
   ]);
   assert.deepEqual(
-    (await db.query('SELECT id FROM records ORDER BY id')).map((r) => r.id),
+    (await db.migrationQuery('SELECT id FROM records ORDER BY id')).map((r) => r.id),
     [
       'automation-1',
       'expense-1',
@@ -322,7 +324,7 @@ test('0003 copies shops, clients, quotes and orders with safe conversions', { sk
     ],
   );
   assert.equal(
-    (await db.query(`SELECT 1 FROM pg_proc WHERE proname LIKE 'migration_%'`)).length,
+    (await db.migrationQuery(`SELECT 1 FROM pg_proc WHERE proname LIKE 'migration_%'`)).length,
     0,
   );
 });
@@ -333,28 +335,30 @@ test(
   async () => {
     await db.apply('0004_rest');
     assert.deepEqual(
-      await db.query('SELECT id, stock, price::text AS price, published FROM parts'),
+      await db.migrationQuery('SELECT id, stock, price::text AS price, published FROM parts'),
       [{ id: 'part-1', stock: 0, price: '99.90', published: true }],
     );
     assert.deepEqual(
-      await db.query('SELECT id, kind, value::text AS value, date FROM cash_entries ORDER BY id'),
+      await db.migrationQuery(
+        'SELECT id, kind, value::text AS value, date FROM cash_entries ORDER BY id',
+      ),
       [
         { id: 'expense-1', kind: 'out', value: '0.00', date: null },
         { id: 'payment-1', kind: 'in', value: '10.00', date: null },
       ],
     );
-    assert.deepEqual(await db.query('SELECT id, order_id FROM messages ORDER BY id'), [
+    assert.deepEqual(await db.migrationQuery('SELECT id, order_id FROM messages ORDER BY id'), [
       { id: 'message-1', order_id: 'order-1' },
       { id: 'message-2', order_id: null },
     ]);
     assert.deepEqual(
-      (await db.query('SELECT id FROM films')).map((r) => r.id),
+      (await db.migrationQuery('SELECT id FROM films')).map((r) => r.id),
       ['film-1'],
     );
-    assert.equal((await db.query('SELECT 1 FROM automations WHERE enabled')).length, 1);
-    assert.equal((await db.query('SELECT 1 FROM tutorials')).length, 1);
+    assert.equal((await db.migrationQuery('SELECT 1 FROM automations WHERE enabled')).length, 1);
+    assert.equal((await db.migrationQuery('SELECT 1 FROM tutorials')).length, 1);
     assert.deepEqual(
-      (await db.query('SELECT id FROM records ORDER BY id')).map((r) => r.id),
+      (await db.migrationQuery('SELECT id FROM records ORDER BY id')).map((r) => r.id),
       ['mystery-1'],
     );
   },
@@ -362,19 +366,21 @@ test(
 
 test('0005 drops the records table', { skip }, async () => {
   await db.apply('0005_drop_records');
-  assert.deepEqual(await db.query(`SELECT to_regclass('records') AS name`), [{ name: null }]);
+  assert.deepEqual(await db.migrationQuery(`SELECT to_regclass('records') AS name`), [
+    { name: null },
+  ]);
 });
 
 test(
   '0006 disambiguates repeated order codes within an account and enforces uniqueness',
   { skip },
   async () => {
-    await db.query(
+    await db.migrationQuery(
       `INSERT INTO accounts (id, username, name, role, status, password_hash)
        VALUES ('account-dup-a', 'dup-a', 'Dup A', 'merchant', 'active', 'x'),
               ('account-dup-b', 'dup-b', 'Dup B', 'merchant', 'active', 'x')`,
     );
-    await db.query(
+    await db.migrationQuery(
       `INSERT INTO orders (id, account_id, code, customer, device, created_at) VALUES
          ('order-dup-1', 'account-dup-a', 'OS-1', 'Ana', 'iPhone', '2026-09-20T10:00:00Z'),
          ('order-dup-2', 'account-dup-a', 'OS-1', 'Beto', 'iPhone', '2026-09-21T10:00:00Z'),
@@ -384,7 +390,7 @@ test(
     await db.apply('0006_order_code_sequence');
 
     assert.deepEqual(
-      await db.query(
+      await db.migrationQuery(
         `SELECT id, account_id, code FROM orders
          WHERE account_id IN ('account-dup-a', 'account-dup-b') ORDER BY id`,
       ),
@@ -396,7 +402,7 @@ test(
     );
 
     await assert.rejects(
-      db.query(
+      db.migrationQuery(
         `INSERT INTO orders (id, account_id, code, customer, device)
          VALUES ('order-dup-4', 'account-dup-a', 'OS-1', 'Duda', 'iPhone')`,
       ),

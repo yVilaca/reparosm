@@ -119,7 +119,7 @@ test('recovery flow: admin, merchant, requests, reset and revocation', { skip },
 test('sessions store only a hash of the token', { skip }, async () => {
   const response = await login('adminreparosm', 'TestAdminPassword123', '10.0.0.2');
   const token = cookieOf(response).split('=')[1];
-  const rows = await db.query('SELECT token_hash FROM sessions');
+  const rows = await db.migrationQuery('SELECT token_hash FROM sessions');
   assert.ok(rows.length >= 1);
   assert.ok(rows.every((row) => row.token_hash !== token && /^[0-9a-f]{64}$/.test(row.token_hash)));
 });
@@ -133,7 +133,7 @@ test('logout ends the session', { skip }, async () => {
 
 test('expired sessions are rejected', { skip }, async () => {
   const cookie = cookieOf(await login('adminreparosm', 'TestAdminPassword123', '10.0.0.4'));
-  await db.query(`UPDATE sessions SET expires_at = now() - interval '1 minute'`);
+  await db.migrationQuery(`UPDATE sessions SET expires_at = now() - interval '1 minute'`);
   assert.equal(await lib.currentAccount(request({}, { cookie })), null);
 });
 
@@ -192,5 +192,8 @@ test('deleting an account cascades to all of its data', { skip }, async () => {
   );
   assert.deepEqual(await response.json(), { ok: true });
   for (const table of ['sessions', 'password_requests', 'orders', 'clients'])
-    assert.equal((await db.query(`SELECT 1 FROM ${table} WHERE account_id = $1`, [id])).length, 0);
+    assert.equal(
+      (await db.migrationQuery(`SELECT 1 FROM ${table} WHERE account_id = $1`, [id])).length,
+      0,
+    );
 });
