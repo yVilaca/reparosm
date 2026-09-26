@@ -49,7 +49,8 @@ export async function POST(request: Request) {
     let clientId: string | null = null;
     if (status === 'Aprovado') {
       orderId = orderId || `order-from-${record.id}`;
-      const order = orderFromQuote(quote, record.id, new Date().toISOString());
+      const code = await orders.nextCode(accountId, run);
+      const order = orderFromQuote(quote, record.id, new Date().toISOString(), code);
       await orders.save(accountId, orderId, order, run);
       clientId = await clients.upsertFromOrder(accountId, order, run);
       await orders.linkClient(orderId, clientId, run);

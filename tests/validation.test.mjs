@@ -32,6 +32,13 @@ test('accepts numeric part costs', () => {
   assert.equal(validateRecord('part', { name: 'Tela', stock: 2, cost: 80, price: 150 }).ok, true);
 });
 
+test('accepts an order without a code (the server assigns it)', () => {
+  assert.equal(
+    validateRecord('order', { customer: 'Ana', device: 'iPhone', problem: 'Não liga' }).ok,
+    true,
+  );
+});
+
 test('rejects missing required fields', () => {
   assert.equal(validateRecord('order', { code: 'OS-1', device: 'iPhone' }).ok, false);
   assert.equal(validateRecord('client', { name: 'Ana' }).ok, false);

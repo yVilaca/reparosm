@@ -364,3 +364,42 @@ test('0005 drops the records table', { skip }, async () => {
   await db.apply('0005_drop_records');
   assert.deepEqual(await db.query(`SELECT to_regclass('records') AS name`), [{ name: null }]);
 });
+
+test(
+  '0006 disambiguates repeated order codes within an account and enforces uniqueness',
+  { skip },
+  async () => {
+    await db.query(
+      `INSERT INTO accounts (id, username, name, role, status, password_hash)
+       VALUES ('account-dup-a', 'dup-a', 'Dup A', 'merchant', 'active', 'x'),
+              ('account-dup-b', 'dup-b', 'Dup B', 'merchant', 'active', 'x')`,
+    );
+    await db.query(
+      `INSERT INTO orders (id, account_id, code, customer, device, created_at) VALUES
+         ('order-dup-1', 'account-dup-a', 'OS-1', 'Ana', 'iPhone', '2026-09-20T10:00:00Z'),
+         ('order-dup-2', 'account-dup-a', 'OS-1', 'Beto', 'iPhone', '2026-09-21T10:00:00Z'),
+         ('order-dup-3', 'account-dup-b', 'OS-1', 'Carla', 'Android', '2026-09-20T10:00:00Z')`,
+    );
+
+    await db.apply('0006_order_code_sequence');
+
+    assert.deepEqual(
+      await db.query(
+        `SELECT id, account_id, code FROM orders
+         WHERE account_id IN ('account-dup-a', 'account-dup-b') ORDER BY id`,
+      ),
+      [
+        { id: 'order-dup-1', account_id: 'account-dup-a', code: 'OS-1' },
+        { id: 'order-dup-2', account_id: 'account-dup-a', code: 'OS-1-dup2' },
+        { id: 'order-dup-3', account_id: 'account-dup-b', code: 'OS-1' },
+      ],
+    );
+
+    await assert.rejects(
+      db.query(
+        `INSERT INTO orders (id, account_id, code, customer, device)
+         VALUES ('order-dup-4', 'account-dup-a', 'OS-1', 'Duda', 'iPhone')`,
+      ),
+    );
+  },
+);

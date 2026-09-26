@@ -73,7 +73,7 @@ const validateOrder = (value: unknown): ValidationResult<Order> => {
     !validateStrings(
       data,
       ['code', 'customer', 'phone', 'device', 'problem'],
-      ['code', 'customer', 'device'],
+      ['customer', 'device'],
     )
   )
     return { ok: false, error: 'Ordem inválida.' };

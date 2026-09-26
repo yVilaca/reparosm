@@ -138,6 +138,17 @@ export async function save(accountId: string, id: string, data: Order, run: Quer
   return saved.length ? get(accountId, id, run) : null;
 }
 
+/** Atomically assigns the next display code ("OS-N") for the account. */
+export async function nextCode(accountId: string, run: Query = query) {
+  const [row] = await run<{ next_seq: number }>(
+    `INSERT INTO order_code_counters (account_id, next_seq) VALUES ($1, 1)
+     ON CONFLICT (account_id) DO UPDATE SET next_seq = order_code_counters.next_seq + 1
+     RETURNING next_seq`,
+    [accountId],
+  );
+  return `OS-${row.next_seq}`;
+}
+
 export async function linkClient(id: string, clientId: string, run: Query = query) {
   await run('UPDATE orders SET client_id = $2 WHERE id = $1', [id, clientId]);
 }
