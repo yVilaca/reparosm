@@ -1,5 +1,5 @@
 // Account-scoped CRUD for tables that map one-to-one onto a record type's fields.
-import { query, type Query } from '@/lib/db';
+import { tenantQueryFor, type Query } from '@/lib/db';
 import type { TableRepo } from '@/lib/repos';
 import {
   compact,
@@ -79,8 +79,9 @@ export function simpleRepo<T extends BusinessRecordType>(options: {
       }),
     );
 
-  const get = async (accountId: string, id: string, run: Query = query) => {
-    const [row] = await run(`${select} WHERE t.account_id = $1 AND t.id = $2${scoped}`, [
+  const get = async (accountId: string, id: string, run?: Query) => {
+    const execute = tenantQueryFor(accountId, run);
+    const [row] = await execute(`${select} WHERE t.account_id = $1 AND t.id = $2${scoped}`, [
       accountId,
       id,
     ]);
@@ -103,22 +104,25 @@ export function simpleRepo<T extends BusinessRecordType>(options: {
     RETURNING t.id`;
 
   return {
-    async list(accountId: string) {
-      const rows = await query(
+    async list(accountId: string, run?: Query) {
+      const execute = tenantQueryFor(accountId, run);
+      const rows = await execute(
         `${select} WHERE t.account_id = $1${scoped} ORDER BY t.updated_at DESC`,
         [accountId],
       );
       return rows.map(toTypedRecord);
     },
     get,
-    async save(accountId: string, id: string, data: RecordData[T], run: Query = query) {
+    async save(accountId: string, id: string, data: RecordData[T], run?: Query) {
+      const execute = tenantQueryFor(accountId, run);
       const fields = data as DataObject;
       const params = columns.map(([, field, kind]) => toParam(kind, fields[field]));
-      const saved = await run(insert, [id, accountId, ...params]);
-      return saved.length ? get(accountId, id, run) : null;
+      const saved = await execute(insert, [id, accountId, ...params]);
+      return saved.length ? get(accountId, id, execute) : null;
     },
     async remove(accountId: string, id: string) {
-      const rows = await query(
+      const execute = tenantQueryFor(accountId);
+      const rows = await execute(
         `DELETE FROM ${table} t WHERE t.account_id = $1 AND t.id = $2${scoped} RETURNING t.id`,
         [accountId, id],
       );

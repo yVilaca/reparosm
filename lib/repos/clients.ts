@@ -1,4 +1,4 @@
-import { query, type Query } from '@/lib/db';
+import { tenantQueryFor, type Query } from '@/lib/db';
 import { normalizePhone } from '@/lib/format';
 import { compact, dateOrNull, iso, textOrNull, toRecord, type Timestamp } from '@/lib/repos/rows';
 import type { Client, Order } from '@/lib/types';
@@ -55,16 +55,17 @@ const toClient = (row: ClientRow) =>
     }),
   );
 
-export async function list(accountId: string) {
-  const rows = await query<ClientRow>(
+export async function list(accountId: string, run?: Query) {
+  const rows = await tenantQueryFor(accountId, run)<ClientRow>(
     `${select} WHERE c.account_id = $1 ORDER BY c.updated_at DESC`,
     [accountId],
   );
   return rows.map(toClient);
 }
 
-export async function get(accountId: string, id: string, run: Query = query) {
-  const [row] = await run<ClientRow>(`${select} WHERE c.account_id = $1 AND c.id = $2`, [
+export async function get(accountId: string, id: string, run?: Query) {
+  const execute = tenantQueryFor(accountId, run);
+  const [row] = await execute<ClientRow>(`${select} WHERE c.account_id = $1 AND c.id = $2`, [
     accountId,
     id,
   ]);
@@ -72,8 +73,9 @@ export async function get(accountId: string, id: string, run: Query = query) {
 }
 
 /** Creates or updates the client; null when the id belongs to another account. */
-export async function save(accountId: string, id: string, data: Client, run: Query = query) {
-  const saved = await run(
+export async function save(accountId: string, id: string, data: Client, run?: Query) {
+  const execute = tenantQueryFor(accountId, run);
+  const saved = await execute(
     `INSERT INTO clients AS c (id, account_id, name, phone, email, document, address, birth,
        status, vip, notes, automatic)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, coalesce($12, false))
@@ -98,14 +100,14 @@ export async function save(accountId: string, id: string, data: Client, run: Que
       typeof data.automatic === 'boolean' ? data.automatic : null,
     ],
   );
-  return saved.length ? get(accountId, id, run) : null;
+  return saved.length ? get(accountId, id, execute) : null;
 }
 
 export async function remove(accountId: string, id: string) {
-  const rows = await query('DELETE FROM clients WHERE account_id = $1 AND id = $2 RETURNING id', [
-    accountId,
-    id,
-  ]);
+  const rows = await tenantQueryFor(accountId)(
+    'DELETE FROM clients WHERE account_id = $1 AND id = $2 RETURNING id',
+    [accountId, id],
+  );
   return rows.length > 0;
 }
 
@@ -116,13 +118,14 @@ export async function remove(accountId: string, id: string) {
 export async function upsertFromOrder(
   accountId: string,
   order: Pick<Order, 'customer' | 'phone' | 'status'>,
-  run: Query = query,
+  run?: Query,
 ) {
+  const execute = tenantQueryFor(accountId, run);
   const name = order.customer.trim();
   const phone = order.phone ?? '';
   const digits = normalizePhone(phone);
   const status = order.status === 'Concluído' ? 'Concluído' : 'Em atendimento';
-  const [match] = await run<{ id: string }>(
+  const [match] = await execute<{ id: string }>(
     `SELECT id FROM clients
      WHERE account_id = $1
        AND ((length($2) >= 10 AND regexp_replace(phone, '\\D', '', 'g') = $2)
@@ -132,7 +135,7 @@ export async function upsertFromOrder(
     [accountId, digits, name],
   );
   if (match) {
-    await run(
+    await execute(
       `UPDATE clients SET name = $2, phone = CASE WHEN $3 <> '' THEN $3 ELSE phone END,
          status = $4, updated_at = now()
        WHERE id = $1`,
@@ -141,7 +144,7 @@ export async function upsertFromOrder(
     return match.id;
   }
   const id = `client-${crypto.randomUUID()}`;
-  await run(
+  await execute(
     `INSERT INTO clients (id, account_id, name, phone, status, automatic)
      VALUES ($1, $2, $3, $4, $5, true)`,
     [id, accountId, name, phone, status],

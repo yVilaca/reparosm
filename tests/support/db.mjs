@@ -15,14 +15,17 @@ export async function createTestDatabase({ migrate: runMigrations = true } = {})
   url.pathname = `/${name}`;
   process.env.DATABASE_URL = url.toString();
   const { migrate } = await import('../../scripts/migrate.mjs');
+  const migrationDb = await import('../../scripts/migration-db.mjs');
   const db = await import('../../lib/db.ts');
   if (runMigrations) await migrate();
   return {
     ...db,
+    migrationQuery: migrationDb.migrationQuery,
+    migrationTransaction: migrationDb.migrationTransaction,
     /** Applies one migration file by name, e.g. '0002_accounts'. */
     async apply(name) {
       const { readFile } = await import('node:fs/promises');
-      await db.query(
+      await migrationDb.migrationQuery(
         await readFile(
           new URL(`../../netlify/database/migrations/${name}.sql`, import.meta.url),
           'utf8',
@@ -31,6 +34,7 @@ export async function createTestDatabase({ migrate: runMigrations = true } = {})
     },
     async drop() {
       await db.closeDatabase();
+      await migrationDb.closeMigrationDatabase();
       await admin.pool.query(`DROP DATABASE ${name} WITH (FORCE)`);
       await admin.pool.end();
       process.env.DATABASE_URL = base;

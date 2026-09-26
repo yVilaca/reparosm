@@ -3,6 +3,13 @@ import { env } from '@/lib/env';
 
 export type Row = Record<string, unknown>;
 export type Query = <R extends Row = Row>(text: string, params?: unknown[]) => Promise<R[]>;
+type Transaction = <T>(fn: (query: Query) => Promise<T>) => Promise<T>;
+type ScopedTransaction = <T>(scope: string, fn: (query: Query) => Promise<T>) => Promise<T>;
+type TenantQuery = <R extends Row = Row>(
+  accountId: string,
+  text: string,
+  params?: unknown[],
+) => Promise<R[]>;
 
 // getDatabase() builds a new pool on every call, so keep one connection per server instance.
 // Connect lazily: Next.js imports this module while collecting build metadata.
@@ -15,29 +22,73 @@ const database = () => {
   return connection;
 };
 
-/** Runs one parameterized statement (`$1`, `$2`…) and returns its rows. */
-export const query: Query = async <R extends Row>(text: string, params: unknown[] = []) => {
-  const db = database();
-  if (db.driver === 'serverless') return (await db.httpClient.query(text, params)) as R[];
-  return (await db.pool.query(text, params)).rows as R[];
-};
-
-/** Runs `fn` inside BEGIN/COMMIT on a single connection; any error rolls everything back. */
-export async function transaction<T>(fn: (query: Query) => Promise<T>): Promise<T> {
-  const client = await database().pool.connect();
-  const run: Query = async <R extends Row>(text: string, params: unknown[] = []) =>
-    (await client.query(text, params)).rows as R[];
+async function runAsRuntime<T>(
+  fn: (query: Query) => Promise<T>,
+  setting?: readonly [string, string],
+) {
+  let client: Awaited<ReturnType<DatabaseConnection['pool']['connect']>> | undefined;
   try {
+    client = await database().pool.connect();
+    const activeClient = client;
+    const run: Query = async <R extends Row>(text: string, params: unknown[] = []) =>
+      (await activeClient.query(text, params)).rows as R[];
     await client.query('BEGIN');
+    await client.query('SET LOCAL ROLE reparosm_runtime');
+    if (setting) await run('SELECT set_config($1, $2, true)', [...setting]);
     const result = await fn(run);
     await client.query('COMMIT');
     return result;
   } catch (error) {
-    await client.query('ROLLBACK').catch(() => {});
+    await client?.query('ROLLBACK').catch(() => {});
     throw error;
   } finally {
-    client.release();
+    client?.release();
   }
+}
+
+/** Runs a statement as the restricted app role, with no tenant context. */
+export const query: Query = async <R extends Row>(text: string, params: unknown[] = []) =>
+  runAsRuntime((run) => run<R>(text, params));
+
+/** Runs app queries in a short transaction under the restricted role. */
+export const transaction: Transaction = (fn) => runAsRuntime(fn);
+
+function requiredContext(value: string, label: string) {
+  if (!value.trim()) throw new Error(`${label} não pode ser vazio.`);
+  return value;
+}
+
+/** Runs related tenant queries with an account setting local to this transaction. */
+export const tenantTransaction: ScopedTransaction = (accountId, fn) =>
+  runAsRuntime(fn, ['app.account_id', requiredContext(accountId, 'accountId')]);
+
+/** Switches the current restricted transaction to a DB-derived tenant context. */
+export async function setTenantContext(run: Query, accountId: string) {
+  await run('SELECT set_config($1, $2, true)', [
+    'app.account_id',
+    requiredContext(accountId, 'accountId'),
+  ]);
+}
+
+/** Runs read-only public storefront queries with a store-specific capability. */
+export const publicStoreTransaction: ScopedTransaction = (accountId, fn) =>
+  runAsRuntime(fn, ['app.public_store_account_id', requiredContext(accountId, 'accountId')]);
+
+/** Runs a public quote lookup/response with access to exactly its bearer quote ID. */
+export const publicQuoteTransaction: ScopedTransaction = (quoteId, fn) =>
+  runAsRuntime(fn, ['app.public_quote_id', requiredContext(quoteId, 'quoteId')]);
+
+export const tenantQuery: TenantQuery = async <R extends Row>(
+  accountId: string,
+  text: string,
+  params: unknown[] = [],
+) => tenantTransaction(accountId, (run) => run<R>(text, params));
+
+/** Uses an existing transaction query when supplied; otherwise creates a scoped query runner. */
+export function tenantQueryFor(accountId: string, run?: Query): Query {
+  if (run) return run;
+  return <R extends Row>(text: string, params: unknown[] = []) =>
+    tenantQuery<R>(accountId, text, params);
 }
 
 /** Closes the pool so scripts and tests can exit. */

@@ -16,7 +16,7 @@ import type { BusinessRecordType, RecordData, StoredRecord } from '@/lib/types';
 
 /** Business types stored in their own table, all scoped by account. */
 export type TableRepo<T extends BusinessRecordType = BusinessRecordType> = {
-  list(accountId: string): Promise<StoredRecord<T>[]>;
+  list(accountId: string, run?: Query): Promise<StoredRecord<T>[]>;
   get(accountId: string, id: string, run?: Query): Promise<StoredRecord<T> | null>;
   /** null when the id belongs to another account. */
   save(

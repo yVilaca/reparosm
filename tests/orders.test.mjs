@@ -9,7 +9,7 @@ let db, orders;
 before(async () => {
   if (skip) return;
   db = await createTestDatabase();
-  await db.query(
+  await db.migrationQuery(
     `INSERT INTO accounts (id, username, name, role, status, password_hash)
      VALUES ('account-codes-a', 'codes-a', 'Codes A', 'merchant', 'active', 'x'),
             ('account-codes-b', 'codes-b', 'Codes B', 'merchant', 'active', 'x')`,

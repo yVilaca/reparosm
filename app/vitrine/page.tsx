@@ -1,4 +1,5 @@
 import PublicStoreRoute from '@/components/public-store-route';
+import { publicStoreTransaction } from '@/lib/db';
 import { getAccount } from '@/lib/repos/accounts';
 import { parts, shops } from '@/lib/repos';
 
@@ -25,10 +26,9 @@ export default async function VitrinePage({
         error="Esta vitrine está indisponível. Confira o link com a assistência."
       />
     );
-  const [partRecords, shopRecords] = await Promise.all([
-    parts.list(accountId),
-    shops.list(accountId),
-  ]);
+  const [partRecords, shopRecords] = await publicStoreTransaction(accountId, (run) =>
+    Promise.all([parts.list(accountId, run), shops.list(accountId, run)]),
+  );
   const shop = shopRecords[0]?.data;
   return (
     <PublicStoreRoute

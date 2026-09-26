@@ -1,4 +1,4 @@
-import { query, type Query } from '@/lib/db';
+import { tenantQueryFor, type Query } from '@/lib/db';
 import {
   compact,
   dateOrNull,
@@ -65,16 +65,17 @@ const toQuote = (row: QuoteRow) =>
     }),
   );
 
-export async function list(accountId: string) {
-  const rows = await query<QuoteRow>(
+export async function list(accountId: string, run?: Query) {
+  const rows = await tenantQueryFor(accountId, run)<QuoteRow>(
     `${select} WHERE q.account_id = $1 ORDER BY q.updated_at DESC`,
     [accountId],
   );
   return rows.map(toQuote);
 }
 
-export async function get(accountId: string, id: string, run: Query = query) {
-  const [row] = await run<QuoteRow>(`${select} WHERE q.account_id = $1 AND q.id = $2`, [
+export async function get(accountId: string, id: string, run?: Query) {
+  const execute = tenantQueryFor(accountId, run);
+  const [row] = await execute<QuoteRow>(`${select} WHERE q.account_id = $1 AND q.id = $2`, [
     accountId,
     id,
   ]);
@@ -85,7 +86,7 @@ export async function get(accountId: string, id: string, run: Query = query) {
  * A quote by id for the public approval page, with its owner. `lock` takes a row lock so
  * concurrent approvals of the same quote run one at a time (use inside a transaction).
  */
-export async function findPublic(id: string, run: Query = query, lock = false) {
+export async function findPublic(id: string, run: Query, lock = false) {
   const [row] = await run<QuoteRow>(`${select} WHERE q.id = $1${lock ? ' FOR UPDATE OF q' : ''}`, [
     id,
   ]);
@@ -93,10 +94,11 @@ export async function findPublic(id: string, run: Query = query, lock = false) {
 }
 
 /** Creates or updates the quote; null when the id belongs to another account. */
-export async function save(accountId: string, id: string, data: Quote, run: Query = query) {
+export async function save(accountId: string, id: string, data: Quote, run?: Query) {
+  const execute = tenantQueryFor(accountId, run);
   const labor = money(data.labor);
   const parts = money(data.parts);
-  const saved = await run(
+  const saved = await execute(
     `INSERT INTO quotes AS q (id, account_id, code, customer, phone, device, problem, service,
        notes, labor, parts, total, valid_until, status)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
@@ -124,28 +126,29 @@ export async function save(accountId: string, id: string, data: Quote, run: Quer
       STATUSES.includes(data.status as QuoteStatus) ? data.status : 'Aguardando',
     ],
   );
-  return saved.length ? get(accountId, id, run) : null;
+  return saved.length ? get(accountId, id, execute) : null;
 }
 
 /** Records the customer's answer from the public page. */
 export async function answer(
+  accountId: string,
   id: string,
   status: 'Aprovado' | 'Recusado',
   clientId: string | null,
-  run: Query = query,
+  run?: Query,
 ) {
-  await run(
-    `UPDATE quotes SET status = $2, answered_at = now(), updated_at = now(),
-       client_id = coalesce($3, client_id)
-     WHERE id = $1`,
-    [id, status, clientId],
+  await tenantQueryFor(accountId, run)(
+    `UPDATE quotes SET status = $3, answered_at = now(), updated_at = now(),
+       client_id = coalesce($4, client_id)
+     WHERE account_id = $1 AND id = $2`,
+    [accountId, id, status, clientId],
   );
 }
 
 export async function remove(accountId: string, id: string) {
-  const rows = await query('DELETE FROM quotes WHERE account_id = $1 AND id = $2 RETURNING id', [
-    accountId,
-    id,
-  ]);
+  const rows = await tenantQueryFor(accountId)(
+    'DELETE FROM quotes WHERE account_id = $1 AND id = $2 RETURNING id',
+    [accountId, id],
+  );
   return rows.length > 0;
 }
