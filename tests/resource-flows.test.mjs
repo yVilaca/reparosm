@@ -75,15 +75,18 @@ test('orders use resource routes to create and reuse a client by phone', { skip 
   assert.equal(first.client.data.name, 'Ana Souza');
   assert.equal(first.client.data.automatic, true);
 
+  // The client still sends the same code it always did; the server must ignore it and
+  // assign its own, so two orders can never collide on the same display code.
   const secondResponse = await orderRoute.POST(
     request('orders', A, 'POST', {
-      data: order({ code: 'OS-FLOW-2', customer: 'Ana S.' }),
+      data: order({ customer: 'Ana S.' }),
     }),
   );
   const second = await secondResponse.json();
   const clients = await (await clientRoute.GET(request('clients', A, 'GET'))).json();
 
   assert.equal(secondResponse.status, 201);
+  assert.notEqual(second.record.data.code, first.record.data.code);
   assert.equal(clients.records.length, 1);
   assert.equal(clients.records[0].data.name, 'Ana S.');
   assert.equal(second.client.id, clients.records[0].id);

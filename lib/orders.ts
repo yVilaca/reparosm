@@ -4,14 +4,17 @@ import * as orders from '@/lib/repos/orders';
 import { notifyOrder } from '@/lib/whatsapp';
 import type { Order, Quote } from '@/lib/types';
 
-export function orderFromQuote(quote: Quote, quoteId: string, answeredAt: string): Order {
+export function orderFromQuote(
+  quote: Quote,
+  quoteId: string,
+  answeredAt: string,
+  code: string,
+): Order {
   const labor = Number(quote.labor || 0);
   const parts = Number(quote.parts || 0);
   const total = Number(quote.total ?? labor + parts);
   return {
-    code: `OS-${String(quote.code || answeredAt)
-      .replace(/\D/g, '')
-      .slice(-5)}`,
+    code,
     customer: quote.customer,
     phone: quote.phone,
     device: quote.device,
@@ -35,7 +38,10 @@ export function orderFromQuote(quote: Quote, quoteId: string, answeredAt: string
 export async function saveOrder(accountId: string, id: string, order: Order) {
   const result = await transaction(async (run) => {
     const previous = await orders.get(accountId, id, run);
-    const record = await orders.save(accountId, id, order, run);
+    // The display code is server-assigned and immutable: keep it on update,
+    // generate the next one for the account on creation. Never trust the client.
+    const code = previous ? previous.data.code : await orders.nextCode(accountId, run);
+    const record = await orders.save(accountId, id, { ...order, code }, run);
     if (!record) return null;
     const clientId = await clients.upsertFromOrder(accountId, order, run);
     await orders.linkClient(id, clientId, run);

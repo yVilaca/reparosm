@@ -1,0 +1,26 @@
+diff --git a/dist/graph/extract.js b/dist/graph/extract.js
+index ef21b606f58cda5be0717a5c7dcda1f860d3da8a..ebb9f0cf11dff0b7a9ae674ea7c61c222a7a834f 100644
+--- a/dist/graph/extract.js
++++ b/dist/graph/extract.js
+@@ -12,10 +12,20 @@ import Python from "tree-sitter-python";
+ import Go from "tree-sitter-go";
+ import R from "tree-sitter-r";
+ import Java from "tree-sitter-java";
+-import Kotlin from "tree-sitter-kotlin";
+ import Swift from "tree-sitter-swift";
+ import PHP from "tree-sitter-php";
+ import { basename } from "node:path";
++// ponytail: tree-sitter-kotlin ships no prebuilt binary and needs a native C++
++// toolchain (MSVC on Windows) to compile; on a machine without one, degrade to
++// "kotlin unsupported" instead of crashing every graft call. Install VS Build
++// Tools (Desktop C++ workload) and reinstall to restore Kotlin indexing.
++let Kotlin = null;
++try {
++    ({ default: Kotlin } = await import("tree-sitter-kotlin"));
++}
++catch {
++    Kotlin = null;
++}
+ import { contentHash } from "../util/id.js";
+ import { collectBindings, goReceiverVarOf, resolveRecvType } from "./bindings.js";
+ /**

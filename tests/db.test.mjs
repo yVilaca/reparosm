@@ -27,6 +27,7 @@ test('migrations leave one table per entity and no records table', { skip }, asy
     'local_migrations',
     'login_failures',
     'messages',
+    'order_code_counters',
     'orders',
     'parts',
     'password_requests',

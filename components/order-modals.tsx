@@ -217,7 +217,8 @@ export function OrderCreateModal({ close, save }: { close: () => void; save: Sav
     setSaving(true);
     try {
       await save({
-        code: `OS-${Date.now().toString().slice(-5)}`,
+        // The server assigns the real, unique code; this placeholder is discarded.
+        code: '',
         ...form,
         whatsappConsent,
         pattern,

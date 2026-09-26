@@ -16,7 +16,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node --import ./tests/support/setup.mjs --test \"tests/*.test.mjs\"",
-    "db:migrate": "node scripts/migrate.mjs"
+    "db:migrate": "node --import ./tests/support/setup.mjs scripts/migrate.mjs"
   },
   "dependencies": {
     "@netlify/database": "^2.0.1",
