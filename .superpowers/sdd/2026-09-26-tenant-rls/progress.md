@@ -9,19 +9,22 @@
 
 ## Verification so far
 
-- Full test suite: 57 passed, 0 failed, against disposable local databases. Added regressions cover fallback order-ID collisions, unsafe runtime role ownership/membership, and rollback context reset.
-- `pnpm typecheck`, `pnpm lint`, and `pnpm build` pass. Lint reports one existing warning in `lib/auth.ts`.
-- Prettier passes for changed TypeScript, JavaScript, and Markdown files. SQL is excluded because this project does not configure a Prettier SQL parser.
-- Graft wiring graph is in sync (548 nodes, 1,253 edges); privileged migration helpers have no application call sites.
-- These results validate the implementation locally; they do not verify Netlify's effective database role, migration grants, or deployed behavior.
-- Code review identified two important issues and one coverage gap. All three were fixed, and targeted plus full test suites passed.
+- GitHub CI passed 59/59 tests with no skips, plus format, lint, typecheck, build, and Graft checks on commit `fd23ebf`; a final run is pending for the diagnostic cleanup and updated docs.
+- The Netlify Deploy Preview branch applied migrations 0001–0009. Runtime membership now permits `SET ROLE reparosm_runtime`; migration 0008 was restored to its applied contents and migration 0009 carries the repair.
+- Live preview DB check: application transaction uses `current_user=reparosm_runtime`, with `rolsuper=false`, `rolbypassrls=false`, and no ownership of the twelve business tables. `shops` has RLS enabled and forced. The connection's `session_user=netlifydb_owner` has `BYPASSRLS`, so application SQL must remain behind `lib/db.ts` and its restricted-role transaction wrapper.
+- Live preview isolation test: each of two temporary tenants saw one own shop and no other tenant's shop; no context saw zero rows; cross-tenant insert failed with RLS. All test rows were rolled back.
+- Live preview public-flow test: storefront 200; two quote reads 200 with public-only fields; quote approval 200 and one linked order created. Temporary rows were deleted.
+- A temporary merchant login/session/logout test passed via server-to-server requests without `Origin`. A request with an explicit preview `Origin` returned 403 and needs browser verification before production rollout.
+- Subsequent preview Function invocations returned Netlify's `503 usage_exceeded`; deploy itself is ready, but further runtime checks are blocked by the platform allowance. No billing or plan change was made.
+- Local `pnpm test` in this worktree skips DB-backed tests because `DATABASE_URL` is not configured; the full CI run above used the configured disposable PostgreSQL service.
 
 ## Decisions and blockers
 
 - Work is isolated in `D:\Projetos\reparosm\reparosm-tenant-rls-design` on `codex/tenant-rls-design`; unrelated changes in the primary checkout are preserved.
 - The local PostgreSQL login is privileged, so tests must explicitly `SET LOCAL ROLE reparosm_runtime` to prove actual RLS behavior.
 - Runtime-role bootstrap creates secure attributes once, rejects an unsafe pre-existing role, and avoids rewriting cluster-wide role metadata on every test database; parallel migrations exposed and verified this requirement.
-- Netlify preview's database principal and role-membership behavior have not yet been verified. Do not treat local test success as preview or production deployment approval.
+- Netlify preview's effective runtime role and cross-tenant RLS behavior have been verified. Production remains untouched until the preview-origin login check and Function availability are resolved.
+- Ruling: keep the Netlify-managed `netlifydb_owner` privileges unchanged and require all app SQL to set the non-owner, non-`BYPASSRLS` `reparosm_runtime` role — the provider principal is `BYPASSRLS`, but the live request path successfully switched roles and enforced RLS; changing managed provider privileges could break migrations or the platform; cost if wrong: a future direct query path could bypass policies, so Graft/code search remains a release gate.
 - `orders.save()` runs through a tenant-scoped transaction; the account context is taken from the validated server-side account.
 - The migration fails closed if an existing runtime role owns an application table or is a member of another role. Public quote approval rolls back if its fallback order ID is already owned by another tenant.
-- The migration has only been applied to disposable test databases. Netlify preview and production databases have not been migrated.
+- Migrations have been applied and validated on the Netlify Deploy Preview database; production remains untouched.

@@ -40,35 +40,6 @@ async function runAsRuntime<T>(
     return result;
   } catch (error) {
     await client?.query('ROLLBACK').catch(() => {});
-    const databaseError = error as { code?: unknown; message?: unknown };
-    if (
-      !client ||
-      (typeof databaseError.code === 'string' && /^[0-9A-Z]{5}$/.test(databaseError.code))
-    )
-      console.error('Database transaction failed', {
-        code: typeof databaseError.code === 'string' ? databaseError.code : undefined,
-        message:
-          typeof databaseError.message === 'string'
-            ? databaseError.message
-            : error instanceof Error
-              ? error.name
-              : 'unknown',
-      });
-    if (
-      client &&
-      error instanceof Error &&
-      /^permission denied to set role "reparosm_runtime"$/.test(error.message)
-    ) {
-      const [identity] = await client
-        .query('SELECT current_user, session_user')
-        .then(({ rows }: { rows: Row[] }) => rows)
-        .catch(() => []);
-      if (identity)
-        console.error('Database principal cannot assume reparosm_runtime', {
-          currentUser: identity.current_user,
-          sessionUser: identity.session_user,
-        });
-    }
     throw error;
   } finally {
     client?.release();

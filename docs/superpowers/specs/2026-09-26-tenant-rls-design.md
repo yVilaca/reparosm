@@ -1,6 +1,6 @@
 # Isolamento multi-loja com PostgreSQL RLS
 
-**Status:** P0 implementado na branch `codex/tenant-rls-design`; verificado em bancos locais descartáveis. O preview Netlify e a produção ainda não foram migrados.
+**Status:** P0 implementado e validado no Deploy Preview de `codex/tenant-rls-design` (migrations 0001–0009 aplicadas). A produção ainda não foi migrada; a integração aguarda a validação final do endpoint de autenticação no preview e a disponibilidade das Functions da Netlify.
 **Data:** 26/09/2026
 
 ## Objetivo
@@ -48,6 +48,7 @@ O contexto de loja é uma decisão confiável do servidor, não uma prova cripto
 
 - Consultas tenant-scoped deixarão de usar o caminho HTTP avulso e passarão pelo pool em transação para definir o contexto com segurança. Agrupar consultas relacionadas na mesma transação reduz o custo; consultas simples terão uma transação curta.
 - Scripts locais de migration precisam continuar usando uma conexão privilegiada explícita, sem herdar o papel runtime. O código de aplicação não pode importar esse caminho privilegiado.
+- No preview, `session_user` é `netlifydb_owner` e tem `BYPASSRLS`; por isso, cada consulta da aplicação precisa passar por `lib/db.ts`, que executa `SET LOCAL ROLE reparosm_runtime`. O papel efetivo foi verificado como não superusuário, sem `BYPASSRLS` e sem propriedade das tabelas operacionais. Não usar conexões ou consultas diretas fora desse wrapper.
 - Antes de habilitar RLS num deploy preview, verificar que a migration consegue criar/conceder o papel e que cada operação de runtime vê `current_user = reparosm_runtime`, com `rolsuper = false`, `rolbypassrls = false` e papel diferente do proprietário das tabelas. Se Netlify Database não permitir essa separação efetiva, interromper o rollout e resolver o modelo de papel antes de aplicar RLS.
 - Validar primeiro em banco local descartável com papel runtime restrito; depois em deploy preview e só então no deploy de produção. As migrations Netlify são executadas por branch, então o preview valida o caminho real de provisionamento sem alterar o branch de produção.
 
@@ -60,22 +61,24 @@ O contexto de loja é uma decisão confiável do servidor, não uma prova cripto
 - A matriz roda com o papel runtime restrito, não apenas como `postgres`/proprietário.
 - `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build` e uma verificação manual dos fluxos login, vitrine e orçamento passam antes da integração.
 
-### Resultado local do P0
+### Resultado do P0 e validação do preview
 
-- A suíte completa passou com 57 testes e nenhuma falha, usando bancos descartáveis locais e o papel runtime restrito. Inclui colisão de ID da ordem entre lojas, rejeição de papel runtime com associação/propriedade insegura e reset do contexto após rollback na mesma conexão.
-- `pnpm typecheck`, `pnpm lint` e `pnpm build` passaram. O lint mantém um aviso preexistente em `lib/auth.ts`.
-- A checagem de formatação passou nos arquivos TypeScript, JavaScript e Markdown alterados. O arquivo SQL foi conferido separadamente, pois o projeto não configura um parser SQL para Prettier.
-- O Graft confirmou que o grafo de chamadas está sincronizado (548 nós, 1.253 arestas) e que os helpers privilegiados de migration não têm chamadas na aplicação.
-- O código da vitrine e do orçamento usa contextos públicos limitados; a aprovação de orçamento continua na mesma transação tenant-scoped após derivar `account_id` do orçamento retornado pelo banco.
-- Não foi aplicada migration no banco da aplicação, no Netlify preview nem em produção. O principal efetivo usado pelas migrations no Netlify e sua associação a `reparosm_runtime` ainda precisam ser confirmados no preview.
+- A CI passou com 59/59 testes, sem skips, além de typecheck, lint, build e verificações do Graft. Essa execução antecede somente a remoção dos diagnósticos temporários; uma execução final está pendente após a limpeza.
+- As migrations 0001–0009 estão aplicadas no banco do Deploy Preview; não há migrations pendentes. A migration 0008 foi restaurada ao conteúdo já aplicado e a correção da associação ficou na migration nova 0009, evitando alterar o checksum histórico.
+- A conexão da Function usa `session_user = netlifydb_owner`; a associação permite `SET ROLE reparosm_runtime`. Dentro da transação real da aplicação, `current_user = reparosm_runtime`, `rolsuper = false`, `rolbypassrls = false` e o papel não é proprietário de nenhuma das 12 tabelas operacionais. `shops` está com RLS habilitado e forçado.
+- Smoke test real no preview: duas lojas temporárias viram somente a própria linha; sem contexto nenhuma linha ficou visível; uma escrita na loja alheia foi rejeitada. Os registros foram removidos ao fim do teste.
+- A vitrine respondeu 200; orçamento público de duas contas respondeu 200 com projeção limitada; a aprovação pública respondeu 200 e criou uma ordem vinculada. Os dados temporários também foram removidos.
+- Login/logout de uma conta merchant temporária passou num teste servidor-a-servidor sem cabeçalho `Origin`. Uma tentativa com `Origin` explícito retornou 403; é necessário repetir o fluxo em navegador e confirmar a origem percebida pelo handler antes de promover.
+- Depois desses testes, novas chamadas de Function ao preview começaram a retornar `503` com `usage_exceeded`, embora o deploy continue marcado como pronto. Não foi feita alteração de plano ou billing; a checagem final de runtime depende de a Netlify voltar a aceitar invocações.
+- A produção não recebeu migrations nem deploy desta branch.
 
 ## Checklist antes do rollout
 
-1. Abrir um deploy preview e confirmar o principal efetivo de banco, proprietário das tabelas, `rolsuper`, `rolbypassrls` e associação ao papel `reparosm_runtime`.
-2. Confirmar que a migration do preview consegue criar o papel e conceder a associação necessária sem tornar o principal de runtime proprietário ou `BYPASSRLS`.
-3. No preview, executar testes de duas lojas, contexto ausente, vitrine pública e link público de orçamento; validar o papel efetivo dentro das consultas da aplicação.
-4. Exercitar login, vitrine, leitura e aprovação de orçamento e fluxos autenticados de ordens/clientes. Investigar qualquer incompatibilidade antes de promover.
-5. Só então planejar a promoção da migration e verificar o deploy de produção.
+1. [x] Confirmar no preview o principal, o papel efetivo, atributos RLS e propriedade das tabelas.
+2. [x] Aplicar as migrations do preview e confirmar que a associação permite assumir o papel restrito.
+3. [x] Executar smoke tests de isolamento entre lojas, ausência de contexto, vitrine e leitura/aprovação de orçamento.
+4. [ ] Repetir login/logout em navegador com `Origin` real e retestar Functions depois que a Netlify liberar invocações.
+5. [ ] Promover as migrations e verificar o deploy de produção somente após concluir o item 4.
 
 ## Alternativas consideradas
 
