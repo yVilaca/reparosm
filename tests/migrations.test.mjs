@@ -500,3 +500,26 @@ test('0007 rejects an existing runtime role that owns an application table', { s
     }
   }
 });
+
+test(
+  '0008 grants the runtime role to Netlify when its connection principal exists',
+  { skip },
+  async () => {
+    await db.apply('0007_tenant_rls');
+    await db.apply('0008_runtime_role_membership');
+    const [migrationPrincipal] = await db.migrationQuery(
+      `SELECT pg_has_role(CURRENT_USER, 'reparosm_runtime', 'MEMBER') AS granted`,
+    );
+    assert.equal(migrationPrincipal.granted, true);
+
+    const [netlifyPrincipal] = await db.migrationQuery(
+      `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'netlifydb_owner') AS present`,
+    );
+    if (netlifyPrincipal.present) {
+      const [membership] = await db.migrationQuery(
+        `SELECT pg_has_role('netlifydb_owner', 'reparosm_runtime', 'MEMBER') AS granted`,
+      );
+      assert.equal(membership.granted, true);
+    }
+  },
+);
