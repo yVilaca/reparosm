@@ -2,7 +2,7 @@
 
 - [x] Approved architecture/spec committed as `9623649`.
 - [x] Implementation plan drafted and reviewed against the approved spec.
-- [ ] Task 1: migration and cross-tenant integration tests.
+- [x] Task 1: migration and cross-tenant integration tests (`0007_tenant_rls.sql`; 14 database/migration tests pass).
 - [ ] Task 2: restricted-role DB helpers.
 - [ ] Task 3: tenant repositories and public routes.
 - [ ] Task 4: complete verification and P1 rollout checklist.
