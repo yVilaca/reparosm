@@ -38,6 +38,12 @@ async function runAsRuntime<T>(
     return result;
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
+    const databaseError = error as { code?: unknown; message?: unknown };
+    if (typeof databaseError.code === 'string' && /^[0-9A-Z]{5}$/.test(databaseError.code))
+      console.error('Database query failed', {
+        code: databaseError.code,
+        message: typeof databaseError.message === 'string' ? databaseError.message : 'unknown',
+      });
     if (
       error instanceof Error &&
       /^permission denied to set role "reparosm_runtime"$/.test(error.message)
