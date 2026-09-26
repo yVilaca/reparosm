@@ -186,7 +186,8 @@ test(
     assert.equal(quoteResponse.status, 201);
     assert.equal(conflictResponse.status, 201);
     const [counterBefore] = await db.migrationQuery(
-      'SELECT next_seq FROM order_code_counters WHERE account_id = $1',
+      `SELECT COALESCE((SELECT next_seq FROM order_code_counters WHERE account_id = $1), 0)
+       AS next_seq`,
       [A.id],
     );
     assert.equal((await answer(quote.record.id, 'Aprovado')).status, 409);
@@ -198,7 +199,8 @@ test(
       await (await quoteRoute.GET(request('quotes', A, 'GET'))).json()
     ).records.filter((record) => record.id === quote.record.id);
     const [counterAfter] = await db.migrationQuery(
-      'SELECT next_seq FROM order_code_counters WHERE account_id = $1',
+      `SELECT COALESCE((SELECT next_seq FROM order_code_counters WHERE account_id = $1), 0)
+       AS next_seq`,
       [A.id],
     );
     assert.equal(otherOrder.data.customer, 'Cliente da loja B');
