@@ -38,6 +38,20 @@ async function runAsRuntime<T>(
     return result;
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
+    if (
+      error instanceof Error &&
+      /^permission denied to set role "reparosm_runtime"$/.test(error.message)
+    ) {
+      const [identity] = await client
+        .query('SELECT current_user, session_user')
+        .then(({ rows }: { rows: Row[] }) => rows)
+        .catch(() => []);
+      if (identity)
+        console.error('Database principal cannot assume reparosm_runtime', {
+          currentUser: identity.current_user,
+          sessionUser: identity.session_user,
+        });
+    }
     throw error;
   } finally {
     client.release();
