@@ -89,6 +89,33 @@ test(
   },
 );
 
+test('tenant context resets when its transaction rolls back', { skip }, async () => {
+  let transactionPid;
+  await assert.rejects(
+    db.tenantTransaction('rls-rollback', async (run) => {
+      const [beforeRollback] = await run(
+        `SELECT pg_backend_pid() AS pid,
+                current_setting('app.account_id', true) AS account_id,
+                current_user`,
+      );
+      transactionPid = beforeRollback.pid;
+      assert.equal(beforeRollback.account_id, 'rls-rollback');
+      assert.equal(beforeRollback.current_user, 'reparosm_runtime');
+      throw new Error('rollback scoped transaction');
+    }),
+    /rollback scoped transaction/,
+  );
+
+  const [afterRollback] = await db.query(
+    `SELECT pg_backend_pid() AS pid,
+            COALESCE(NULLIF(current_setting('app.account_id', true), ''), 'none') AS account_id,
+            current_user`,
+  );
+  assert.equal(afterRollback.pid, transactionPid);
+  assert.equal(afterRollback.account_id, 'none');
+  assert.equal(afterRollback.current_user, 'reparosm_runtime');
+});
+
 test(
   'RLS isolates tenant rows and rejects writes without the matching account context',
   { skip },

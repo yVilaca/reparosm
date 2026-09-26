@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { after, before, test } from 'node:test';
 import { createTestDatabase, skipWithoutDatabase } from './support/db.mjs';
 
@@ -177,6 +178,16 @@ before(async () => {
   await db.apply('0002_accounts');
 });
 after(async () => db?.drop());
+
+async function runtimeRoleBootstrap(role) {
+  const migration = await readFile(
+    new URL('../netlify/database/migrations/0007_tenant_rls.sql', import.meta.url),
+    'utf8',
+  );
+  const end = migration.indexOf('\nGRANT USAGE ON SCHEMA public');
+  assert.notEqual(end, -1);
+  return migration.slice(0, end).replaceAll('reparosm_runtime', role);
+}
 
 test('0002 copies accounts, coercing values that break the new constraints', { skip }, async () => {
   const rows = await db.migrationQuery(
@@ -409,3 +420,51 @@ test(
     );
   },
 );
+
+test(
+  '0007 rejects an existing runtime role that is a member of another role',
+  { skip },
+  async () => {
+    const runtime = `reparosm_test_runtime_${process.pid}_${Date.now()}`;
+    const parent = `${runtime}_parent`;
+    const bootstrap = await runtimeRoleBootstrap(runtime);
+
+    try {
+      await db.migrationQuery(
+        `CREATE ROLE ${runtime} NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE
+       NOREPLICATION NOBYPASSRLS`,
+      );
+      await db.migrationQuery(`CREATE ROLE ${parent} NOLOGIN`);
+      await db.migrationQuery(`GRANT ${parent} TO ${runtime}`);
+
+      await assert.rejects(db.migrationQuery(bootstrap), /must not be a member of another role/);
+    } finally {
+      await db.migrationQuery(`REVOKE ${parent} FROM ${runtime}`).catch(() => {});
+      await db.migrationQuery(`REVOKE ${runtime} FROM CURRENT_USER`).catch(() => {});
+      await db.migrationQuery(`DROP ROLE IF EXISTS ${runtime}`).catch(() => {});
+      await db.migrationQuery(`DROP ROLE IF EXISTS ${parent}`).catch(() => {});
+    }
+  },
+);
+
+test('0007 rejects an existing runtime role that owns an application table', { skip }, async () => {
+  const runtime = `reparosm_test_runtime_${process.pid}_${Date.now()}`;
+  const bootstrap = await runtimeRoleBootstrap(runtime);
+  let ownsShop = false;
+
+  try {
+    await db.migrationQuery(
+      `CREATE ROLE ${runtime} NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE
+       NOREPLICATION NOBYPASSRLS`,
+    );
+    await db.migrationQuery(`ALTER TABLE shops OWNER TO ${runtime}`);
+    ownsShop = true;
+
+    await assert.rejects(db.migrationQuery(bootstrap), /must not own application tables/);
+  } finally {
+    if (ownsShop)
+      await db.migrationQuery('ALTER TABLE shops OWNER TO CURRENT_USER').catch(() => {});
+    await db.migrationQuery(`REVOKE ${runtime} FROM CURRENT_USER`).catch(() => {});
+    await db.migrationQuery(`DROP ROLE IF EXISTS ${runtime}`).catch(() => {});
+  }
+});

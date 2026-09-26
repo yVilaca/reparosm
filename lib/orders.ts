@@ -1,4 +1,4 @@
-import { transaction } from '@/lib/db';
+import { tenantTransaction } from '@/lib/db';
 import * as clients from '@/lib/repos/clients';
 import * as orders from '@/lib/repos/orders';
 import { notifyOrder } from '@/lib/whatsapp';
@@ -36,7 +36,7 @@ export function orderFromQuote(
 }
 
 export async function saveOrder(accountId: string, id: string, order: Order) {
-  const result = await transaction(async (run) => {
+  const result = await tenantTransaction(accountId, async (run) => {
     const previous = await orders.get(accountId, id, run);
     // The display code is server-assigned and immutable: keep it on update,
     // generate the next one for the account on creation. Never trust the client.
@@ -44,7 +44,7 @@ export async function saveOrder(accountId: string, id: string, order: Order) {
     const record = await orders.save(accountId, id, { ...order, code }, run);
     if (!record) return null;
     const clientId = await clients.upsertFromOrder(accountId, order, run);
-    await orders.linkClient(id, clientId, run);
+    await orders.linkClient(accountId, id, clientId, run);
     return { previous, record, client: await clients.get(accountId, clientId, run) };
   });
   if (!result) return null;

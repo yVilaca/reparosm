@@ -4,6 +4,7 @@ DO $$
 DECLARE
   created boolean := false;
   unsafe boolean;
+  runtime_role_oid oid;
 BEGIN
   BEGIN
     CREATE ROLE reparosm_runtime
@@ -21,6 +22,25 @@ BEGIN
     IF unsafe THEN
       RAISE EXCEPTION 'Existing reparosm_runtime role has unsafe attributes';
     END IF;
+  END IF;
+
+  SELECT oid INTO runtime_role_oid FROM pg_roles WHERE rolname = 'reparosm_runtime';
+  IF EXISTS (
+    SELECT 1 FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relname = ANY(ARRAY[
+        'shops', 'clients', 'quotes', 'orders', 'parts', 'cash_entries', 'messages',
+        'films', 'automations', 'tutorials', 'whatsapp_configs', 'order_code_counters',
+        'accounts', 'sessions', 'password_requests', 'login_failures'
+      ])
+      AND c.relowner = runtime_role_oid
+  ) THEN
+    RAISE EXCEPTION 'Existing reparosm_runtime role must not own application tables';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_auth_members WHERE member = runtime_role_oid) THEN
+    RAISE EXCEPTION 'Existing reparosm_runtime role must not be a member of another role';
   END IF;
 
   IF NOT EXISTS (

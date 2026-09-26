@@ -82,6 +82,13 @@ export const tenantQuery: TenantQuery = async <R extends Row>(
   params: unknown[] = [],
 ) => tenantTransaction(accountId, (run) => run<R>(text, params));
 
+/** Uses an existing transaction query when supplied; otherwise creates a scoped query runner. */
+export function tenantQueryFor(accountId: string, run?: Query): Query {
+  if (run) return run;
+  return <R extends Row>(text: string, params: unknown[] = []) =>
+    tenantQuery<R>(accountId, text, params);
+}
+
 /** Closes the pool so scripts and tests can exit. */
 export async function closeDatabase() {
   const current = connection;

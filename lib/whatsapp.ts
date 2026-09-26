@@ -1,4 +1,4 @@
-import { query } from '@/lib/db';
+import { tenantQuery } from '@/lib/db';
 import { env, requiredEnv } from '@/lib/env';
 import { messages } from '@/lib/repos';
 import { hasValidWhatsapp, whatsappPhone } from '@/lib/format';
@@ -63,7 +63,8 @@ async function decrypt(data: unknown) {
 export async function whatsappConfiguration(
   accountId: string,
 ): Promise<WhatsAppConfiguration | null> {
-  const [saved] = await query<{ iv: string; cipher: string }>(
+  const [saved] = await tenantQuery<{ iv: string; cipher: string }>(
+    accountId,
     'SELECT iv, cipher FROM whatsapp_configs WHERE account_id = $1',
     [accountId],
   );
@@ -87,7 +88,8 @@ export async function whatsappConfiguration(
 }
 export async function saveWhatsappConfiguration(accountId: string, config: WhatsAppConfiguration) {
   const { iv, cipher } = await encrypt(config);
-  await query(
+  await tenantQuery(
+    accountId,
     `INSERT INTO whatsapp_configs (account_id, iv, cipher) VALUES ($1, $2, $3)
      ON CONFLICT (account_id) DO UPDATE SET iv = excluded.iv, cipher = excluded.cipher,
        updated_at = now()`,
@@ -96,7 +98,7 @@ export async function saveWhatsappConfiguration(accountId: string, config: Whats
 }
 
 export async function deleteWhatsappConfiguration(accountId: string) {
-  await query('DELETE FROM whatsapp_configs WHERE account_id = $1', [accountId]);
+  await tenantQuery(accountId, 'DELETE FROM whatsapp_configs WHERE account_id = $1', [accountId]);
 }
 
 export async function validateWhatsappConfiguration(config: WhatsAppConfiguration) {
