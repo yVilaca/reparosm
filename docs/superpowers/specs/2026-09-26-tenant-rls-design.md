@@ -1,6 +1,6 @@
 # Isolamento multi-loja com PostgreSQL RLS
 
-**Status:** proposta para revisão; nenhuma política ou migration foi aplicada.
+**Status:** P0 implementado na branch `codex/tenant-rls-design`; verificado em bancos locais descartáveis. O preview Netlify e a produção ainda não foram migrados.
 **Data:** 26/09/2026
 
 ## Objetivo
@@ -18,18 +18,18 @@ Fazer o PostgreSQL impor o isolamento por loja, inclusive quando uma consulta da
 - Existem dois acessos públicos intencionais: a vitrine usa `?loja=<accountId>` e deve exibir apenas itens publicados com estoque; o link de orçamento usa o ID aleatório do orçamento como capacidade de acesso e retorna uma projeção filtrada.
 - `accounts`, `sessions`, `password_requests` e `login_failures` são dados de controle de autenticação, com fluxos de login, recuperação e administração que ainda não carregam um contexto uniforme de loja.
 
-## Decisão proposta
+## Decisão implementada no P0
 
 Usar RLS do PostgreSQL com contexto por transação e papel efetivo restrito. Aproveitar o `pg.Pool` já fornecido por `@netlify/database`; não adicionar dependências nem usar contexto de sessão que possa sobreviver à devolução da conexão ao pool.
 
 ### P0 — proteção dos dados operacionais
 
-1. Criar o papel efetivo `reparosm_runtime`, sem `SUPERUSER`, `BYPASSRLS` ou propriedade das tabelas. Conceder somente `SELECT`, `INSERT`, `UPDATE` e `DELETE` necessários. O principal usado pelas migrations continua separado e privilegiado.
+1. Criar o papel efetivo `reparosm_runtime`, sem `SUPERUSER`, `BYPASSRLS`, propriedade das tabelas da aplicação ou associação que permita assumir outro papel. Conceder somente `SELECT`, `INSERT`, `UPDATE` e `DELETE` necessários. O principal usado pelas migrations continua separado e privilegiado.
 2. Em cada operação da aplicação, abrir uma transação no pool e executar `SET LOCAL ROLE reparosm_runtime`. Para operação de loja, definir `app.account_id` com `set_config(..., true)` antes da consulta. A conexão volta ao pool sem papel ou loja persistidos.
 3. Criar um helper mínimo para consulta e transação tenant-scoped. Repositórios que já recebem `accountId` passam a usá-lo por padrão; transações de várias escritas recebem o mesmo contexto uma única vez. O contexto só vem da conta validada no servidor.
 4. Habilitar e forçar RLS nas 12 tabelas operacionais listadas acima. A política normal permite linhas cujo `account_id` corresponda a `app.account_id`, tanto em `USING` quanto em `WITH CHECK`. Contexto ausente ou vazio não corresponde a nenhuma linha.
 5. Preservar a vitrine com políticas somente de leitura separadas: em `parts`, `app.public_store_account_id` permite apenas produtos publicados e com estoque positivo; em `shops`, permite somente a loja correspondente. Como RLS é por linha, o repositório público também seleciona e serializa apenas os campos públicos do perfil. O ID da URL não concede acesso a consultas ou escritas administrativas.
-6. Preservar o orçamento público com uma política somente de leitura para o `id` indicado por `app.public_quote_id`. Na resposta do orçamento, a aplicação primeiro lê apenas esse orçamento pela capacidade do link; dentro da mesma transação, define `app.account_id` a partir do `account_id` retornado pelo banco antes de criar ordem/cliente e atualizar o orçamento. Não aceitar `account_id` do cliente.
+6. Preservar o orçamento público com uma política somente de leitura para o `id` indicado por `app.public_quote_id`. Na resposta do orçamento, a aplicação primeiro lê apenas esse orçamento pela capacidade do link; dentro da mesma transação, define `app.account_id` a partir do `account_id` retornado pelo banco antes de criar ordem/cliente e atualizar o orçamento. Se a ordem não puder ser salva por colisão de ID entre lojas, reverter também a sequência e manter o orçamento sem resposta. Não aceitar `account_id` do cliente.
 7. Manter `accounts`, `sessions`, `password_requests` e `login_failures` fora desta primeira migration, sob seus fluxos atuais de autenticação e administração. A aplicação e os testes não devem tratar essa exceção como isolamento RLS; ela é o item prioritário do P1 abaixo.
 
 ### P1 — fechar as exceções e relacionamentos
@@ -59,6 +59,23 @@ O contexto de loja é uma decisão confiável do servidor, não uma prova cripto
 - A vitrine lê somente partes publicadas com estoque e o orçamento público lê somente o ID do link; as rotas autenticadas mantêm os fluxos atuais.
 - A matriz roda com o papel runtime restrito, não apenas como `postgres`/proprietário.
 - `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build` e uma verificação manual dos fluxos login, vitrine e orçamento passam antes da integração.
+
+### Resultado local do P0
+
+- A suíte completa passou com 57 testes e nenhuma falha, usando bancos descartáveis locais e o papel runtime restrito. Inclui colisão de ID da ordem entre lojas, rejeição de papel runtime com associação/propriedade insegura e reset do contexto após rollback na mesma conexão.
+- `pnpm typecheck`, `pnpm lint` e `pnpm build` passaram. O lint mantém um aviso preexistente em `lib/auth.ts`.
+- A checagem de formatação passou nos arquivos TypeScript, JavaScript e Markdown alterados. O arquivo SQL foi conferido separadamente, pois o projeto não configura um parser SQL para Prettier.
+- O Graft confirmou que o grafo de chamadas está sincronizado (548 nós, 1.253 arestas) e que os helpers privilegiados de migration não têm chamadas na aplicação.
+- O código da vitrine e do orçamento usa contextos públicos limitados; a aprovação de orçamento continua na mesma transação tenant-scoped após derivar `account_id` do orçamento retornado pelo banco.
+- Não foi aplicada migration no banco da aplicação, no Netlify preview nem em produção. O principal efetivo usado pelas migrations no Netlify e sua associação a `reparosm_runtime` ainda precisam ser confirmados no preview.
+
+## Checklist antes do rollout
+
+1. Abrir um deploy preview e confirmar o principal efetivo de banco, proprietário das tabelas, `rolsuper`, `rolbypassrls` e associação ao papel `reparosm_runtime`.
+2. Confirmar que a migration do preview consegue criar o papel e conceder a associação necessária sem tornar o principal de runtime proprietário ou `BYPASSRLS`.
+3. No preview, executar testes de duas lojas, contexto ausente, vitrine pública e link público de orçamento; validar o papel efetivo dentro das consultas da aplicação.
+4. Exercitar login, vitrine, leitura e aprovação de orçamento e fluxos autenticados de ordens/clientes. Investigar qualquer incompatibilidade antes de promover.
+5. Só então planejar a promoção da migration e verificar o deploy de produção.
 
 ## Alternativas consideradas
 
