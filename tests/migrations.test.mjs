@@ -502,24 +502,33 @@ test('0007 rejects an existing runtime role that owns an application table', { s
 });
 
 test(
-  '0008 grants the runtime role to Netlify when its connection principal exists',
+  '0008 and 0009 grant a SET-capable runtime role to the connection principals',
   { skip },
   async () => {
     await db.apply('0007_tenant_rls');
     await db.apply('0008_runtime_role_membership');
+    await db.apply('0009_runtime_role_set_option');
     const [migrationPrincipal] = await db.migrationQuery(
-      `SELECT pg_has_role(CURRENT_USER, 'reparosm_runtime', 'MEMBER') AS granted`,
+      `SELECT m.set_option AS can_set
+       FROM pg_auth_members m
+       JOIN pg_roles granted ON granted.oid = m.roleid
+       JOIN pg_roles grantee ON grantee.oid = m.member
+       WHERE granted.rolname = 'reparosm_runtime' AND grantee.rolname = CURRENT_USER`,
     );
-    assert.equal(migrationPrincipal.granted, true);
+    assert.equal(migrationPrincipal.can_set, true);
 
     const [netlifyPrincipal] = await db.migrationQuery(
       `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'netlifydb_owner') AS present`,
     );
     if (netlifyPrincipal.present) {
       const [membership] = await db.migrationQuery(
-        `SELECT pg_has_role('netlifydb_owner', 'reparosm_runtime', 'MEMBER') AS granted`,
+        `SELECT m.set_option AS can_set
+         FROM pg_auth_members m
+         JOIN pg_roles granted ON granted.oid = m.roleid
+         JOIN pg_roles grantee ON grantee.oid = m.member
+         WHERE granted.rolname = 'reparosm_runtime' AND grantee.rolname = 'netlifydb_owner'`,
       );
-      assert.equal(membership.granted, true);
+      assert.equal(membership.can_set, true);
     }
   },
 );
