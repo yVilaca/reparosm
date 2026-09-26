@@ -87,4 +87,3 @@
 **Implementation:** Run and resolve the full required checks. Document P1 as the next scoped task: tenant-composite foreign keys, then account/session/password-reset/login-failure RLS and their auth/admin policies. Record the exact preview checks: effective `current_user`, `rolsuper=false`, `rolbypassrls=false`, runtime role is not table owner, migration-created membership works, and a two-account isolation smoke test passes.
 
 **Verify:** Run `pnpm test`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm exec graft build`, and `pnpm exec graft check`. Review the complete branch diff for security bypasses and unrelated changes. Do not claim production readiness until the preview database confirms its actual principal and role membership. Commit as `docs(security): record RLS verification and P1 rollout`.
-
