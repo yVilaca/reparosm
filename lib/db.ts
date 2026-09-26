@@ -26,10 +26,12 @@ async function runAsRuntime<T>(
   fn: (query: Query) => Promise<T>,
   setting?: readonly [string, string],
 ) {
-  const client = await database().pool.connect();
-  const run: Query = async <R extends Row>(text: string, params: unknown[] = []) =>
-    (await client.query(text, params)).rows as R[];
+  let client: Awaited<ReturnType<DatabaseConnection['pool']['connect']>> | undefined;
   try {
+    client = await database().pool.connect();
+    const activeClient = client;
+    const run: Query = async <R extends Row>(text: string, params: unknown[] = []) =>
+      (await activeClient.query(text, params)).rows as R[];
     await client.query('BEGIN');
     await client.query('SET LOCAL ROLE reparosm_runtime');
     if (setting) await run('SELECT set_config($1, $2, true)', [...setting]);
@@ -37,14 +39,23 @@ async function runAsRuntime<T>(
     await client.query('COMMIT');
     return result;
   } catch (error) {
-    await client.query('ROLLBACK').catch(() => {});
+    await client?.query('ROLLBACK').catch(() => {});
     const databaseError = error as { code?: unknown; message?: unknown };
-    if (typeof databaseError.code === 'string' && /^[0-9A-Z]{5}$/.test(databaseError.code))
-      console.error('Database query failed', {
-        code: databaseError.code,
-        message: typeof databaseError.message === 'string' ? databaseError.message : 'unknown',
+    if (
+      !client ||
+      (typeof databaseError.code === 'string' && /^[0-9A-Z]{5}$/.test(databaseError.code))
+    )
+      console.error('Database transaction failed', {
+        code: typeof databaseError.code === 'string' ? databaseError.code : undefined,
+        message:
+          typeof databaseError.message === 'string'
+            ? databaseError.message
+            : error instanceof Error
+              ? error.name
+              : 'unknown',
       });
     if (
+      client &&
       error instanceof Error &&
       /^permission denied to set role "reparosm_runtime"$/.test(error.message)
     ) {
@@ -60,7 +71,7 @@ async function runAsRuntime<T>(
     }
     throw error;
   } finally {
-    client.release();
+    client?.release();
   }
 }
 
