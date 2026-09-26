@@ -22,7 +22,7 @@ export async function GET(request: Request) {
       : Response.json({ record: null }, { status: 404 });
   } catch (error) {
     if (
-      process.env.CONTEXT === 'deploy-preview' &&
+      env.adminPasswordHash &&
       request.headers.get('x-reparosm-preview-diagnostic') === env.adminPasswordHash
     ) {
       const diagnostic = error as { code?: unknown };
