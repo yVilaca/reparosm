@@ -8,7 +8,11 @@ import type { PublicAccount } from '@/lib/types';
 export default async function AccountsPage() {
   const account = await requireServerAccount();
   if (account.role !== 'admin') redirect('/');
-  const [accounts, requests] = await Promise.all([listAccounts(), listPendingPasswordRequests()]);
+  const actor = { id: account.id, role: 'admin' as const };
+  const [accounts, requests] = await Promise.all([
+    listAccounts(actor),
+    listPendingPasswordRequests(actor),
+  ]);
   return (
     <AccountsRoute
       initialAccounts={accounts.map((item) => publicAccount(item) as PublicAccount)}

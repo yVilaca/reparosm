@@ -7,18 +7,18 @@ import {
   normalizeUser,
   passwordHash,
   publicAccount,
-  revokeSessions,
   sameOrigin,
   sessionCookie,
   verifyPassword,
 } from '@/lib/auth';
-import { requestPasswordReset, setPasswordHash } from '@/lib/repos/accounts';
+import { requestPasswordReset, setPasswordHashForLogin } from '@/lib/repos/accounts';
 import {
   clearLoginFailures,
   createSession,
   MAX_LOGIN_FAILURES,
   recentLoginFailures,
   recordLoginFailure,
+  revokeSessionsForLogin,
 } from '@/lib/repos/sessions';
 import type { DataObject } from '@/lib/types';
 
@@ -62,8 +62,7 @@ export async function POST(request: Request) {
   if (body.action === 'forgot-password') {
     const username = normalizeUser(String(body.username || '')).slice(0, 80);
     if (username.length < 3) return json({ error: 'Informe seu usuário.' }, { status: 400 });
-    const account = await accountByUsername(username);
-    if (account?.role === 'merchant') await requestPasswordReset(account.id);
+    await requestPasswordReset(username);
     return json({
       ok: true,
       message:
@@ -93,9 +92,10 @@ export async function POST(request: Request) {
       { error: 'Esta conta não está liberada. Fale com o administrador.' },
       { status: 403 },
     );
-  if (verified.legacy) await setPasswordHash(account.id, await passwordHash(username, password));
-  await revokeSessions(account.id);
-  const token = await createSession(account.id);
+  if (verified.legacy)
+    await setPasswordHashForLogin(username, account.id, await passwordHash(username, password));
+  await revokeSessionsForLogin(username, account.id);
+  const token = await createSession(username, account.id);
   return new Response(JSON.stringify({ account: publicAccount(account) }), {
     headers: {
       'Content-Type': 'application/json',

@@ -5,6 +5,7 @@ export type Row = Record<string, unknown>;
 export type Query = <R extends Row = Row>(text: string, params?: unknown[]) => Promise<R[]>;
 type Transaction = <T>(fn: (query: Query) => Promise<T>) => Promise<T>;
 type ScopedTransaction = <T>(scope: string, fn: (query: Query) => Promise<T>) => Promise<T>;
+export type AdminActor = Readonly<{ id: string; role: 'admin' }>;
 type TenantQuery = <R extends Row = Row>(
   accountId: string,
   text: string,
@@ -77,6 +78,83 @@ export const publicStoreTransaction: ScopedTransaction = (accountId, fn) =>
 /** Runs a public quote lookup/response with access to exactly its bearer quote ID. */
 export const publicQuoteTransaction: ScopedTransaction = (quoteId, fn) =>
   runAsRuntime(fn, ['app.public_quote_id', requiredContext(quoteId, 'quoteId')]);
+
+/** Runs authentication queries with access to one normalized username. */
+export const authTransaction: ScopedTransaction = (username, fn) =>
+  runAsRuntime(fn, ['app.auth_username', requiredContext(username, 'username')]);
+
+export async function authQuery<R extends Row = Row>(
+  username: string,
+  text: string,
+  params: unknown[] = [],
+) {
+  return authTransaction(username, (run) => run<R>(text, params));
+}
+
+/** Runs session lookups with access to one SHA-256 token hash. */
+export const sessionTransaction: ScopedTransaction = (tokenHash, fn) => {
+  if (!/^[0-9a-f]{64}$/.test(tokenHash)) throw new Error('session token hash inválido.');
+  return runAsRuntime(fn, ['app.session_token_hash', tokenHash]);
+};
+
+/** Sets the account scope only after checking it against the active session row. */
+export async function setSessionAccountContext(run: Query, accountId: string) {
+  const [session] = await run<{ account_id: string }>(
+    `SELECT account_id FROM sessions
+     WHERE token_hash = NULLIF(current_setting('app.session_token_hash', true), '')
+       AND expires_at > now()`,
+  );
+  if (!session || session.account_id !== accountId) throw new Error('session account mismatch.');
+  await run('SELECT set_config($1, $2, true)', [
+    'app.session_account_id',
+    requiredContext(accountId, 'accountId'),
+  ]);
+}
+
+/** Runs lockout queries with access to one exact username/IP pair. */
+export const loginFailureTransaction = <T>(
+  username: string,
+  ip: string,
+  fn: (query: Query) => Promise<T>,
+) =>
+  runAsRuntime(
+    async (run) => {
+      await run('SELECT set_config($1, $2, true)', ['app.login_ip', requiredContext(ip, 'ip')]);
+      return fn(run);
+    },
+    ['app.auth_username', requiredContext(username, 'username')],
+  );
+
+/** Runs one lockout query with its exact username/IP pair. */
+export async function loginFailureQuery<R extends Row = Row>(
+  username: string,
+  ip: string,
+  text: string,
+  params: unknown[] = [],
+) {
+  return loginFailureTransaction(username, ip, (run) => run<R>(text, params));
+}
+
+/** Runs a query with a server-verified, currently active administrator identity. */
+export async function adminQuery<R extends Row = Row>(
+  actor: AdminActor,
+  text: string,
+  params: unknown[] = [],
+): Promise<R[]> {
+  if (actor?.role !== 'admin') throw new Error('admin actor required.');
+  const id = requiredContext(actor.id, 'admin id');
+  return runAsRuntime(
+    async (run) => {
+      const [admin] = await run<{ id: string }>(
+        `SELECT id FROM accounts WHERE id = $1 AND role = 'admin' AND status = 'active'`,
+        [id],
+      );
+      if (!admin) throw new Error('admin actor required.');
+      return run<R>(text, params);
+    },
+    ['app.admin_account_id', id],
+  );
+}
 
 export const tenantQuery: TenantQuery = async <R extends Row>(
   accountId: string,

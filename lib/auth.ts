@@ -1,39 +1,37 @@
-import { query } from '@/lib/db';
+import { authTransaction } from '@/lib/db';
 import { env, requiredEnv } from '@/lib/env';
 import { findAccountByUsername } from '@/lib/repos/accounts';
-import {
-  accountForSession,
-  deleteSession,
-  revokeSessions,
-  SESSION_SECONDS,
-} from '@/lib/repos/sessions';
+import { accountForSession, deleteSession, SESSION_SECONDS } from '@/lib/repos/sessions';
 import { normalizeUser, passwordHash, passwordProblem, verifyPassword } from '@/lib/security';
-export { normalizeUser, passwordHash, passwordProblem, verifyPassword, revokeSessions };
+export { normalizeUser, passwordHash, passwordProblem, verifyPassword };
 export type { Account } from '@/lib/types';
 
 export const publicAccount = <T extends { passwordHash?: string }>(account: T) => {
-  const { passwordHash: _, ...safe } = account;
+  const safe = { ...account };
+  delete safe.passwordHash;
   return safe;
 };
 
 async function setupAdmin() {
-  const [admin] = await query<{ access_policy: string | null }>(
-    `SELECT access_policy FROM accounts WHERE id = 'account-admin'`,
-  );
-  if (admin?.access_policy === 'admin-managed-v2') return;
-  const hash = requiredEnv('ADMIN_PASSWORD_HASH', env.adminPasswordHash, /^pbkdf2\$/);
-  // One-time migration requested by the owner: the administrator password comes from the
-  // server environment; every other account and record is preserved.
-  await query(
-    `INSERT INTO accounts (id, username, name, role, status, password_hash, plan, access_policy)
-     VALUES ('account-admin', 'adminreparosm', 'Administrador', 'admin', 'active', $1,
-             'Administrador', 'admin-managed-v2')
-     ON CONFLICT (id) DO UPDATE SET username = 'adminreparosm', role = 'admin',
-       status = 'active', password_hash = $1, must_change_password = false,
-       plan = 'Administrador', access_policy = 'admin-managed-v2', updated_at = now()`,
-    [hash],
-  );
-  await revokeSessions('account-admin');
+  await authTransaction('adminreparosm', async (run) => {
+    const [admin] = await run<{ access_policy: string | null }>(
+      `SELECT access_policy FROM accounts WHERE id = 'account-admin'`,
+    );
+    if (admin?.access_policy === 'admin-managed-v2') return;
+    const hash = requiredEnv('ADMIN_PASSWORD_HASH', env.adminPasswordHash, /^pbkdf2\$/);
+    // One-time migration requested by the owner: the administrator password comes from the
+    // server environment; every other account and record is preserved.
+    await run(
+      `INSERT INTO accounts (id, username, name, role, status, password_hash, plan, access_policy)
+       VALUES ('account-admin', 'adminreparosm', 'Administrador', 'admin', 'active', $1,
+               'Administrador', 'admin-managed-v2')
+       ON CONFLICT (id) DO UPDATE SET username = 'adminreparosm', role = 'admin',
+         status = 'active', password_hash = $1, must_change_password = false,
+         plan = 'Administrador', access_policy = 'admin-managed-v2', updated_at = now()`,
+      [hash],
+    );
+    await run('DELETE FROM sessions WHERE account_id = $1', ['account-admin']);
+  });
 }
 
 let adminReady: Promise<void> | undefined;

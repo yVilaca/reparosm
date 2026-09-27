@@ -7,16 +7,14 @@ const skip = skipWithoutDatabase;
 let db, orderRoute, clientRoute, quoteRoute, publicQuoteRoute, A, B;
 
 async function merchant(username) {
-  const { createAccount } = await import('../lib/repos/accounts.ts');
   const { createSession } = await import('../lib/repos/sessions.ts');
-  const account = await createAccount({
-    id: `account-${username}`,
-    username,
-    name: username,
-    role: 'merchant',
-    passwordHash: 'unused',
-  });
-  return { id: account.id, cookie: `reparosm_session=${await createSession(account.id)}` };
+  const id = `account-${username}`;
+  await db.migrationQuery(
+    `INSERT INTO accounts (id, username, name, role, status, password_hash)
+     VALUES ($1, $2, $2, 'merchant', 'active', 'unused')`,
+    [id, username],
+  );
+  return { id, cookie: `reparosm_session=${await createSession(username, id)}` };
 }
 
 before(async () => {
