@@ -60,7 +60,7 @@ v4, shadcn/ui (Radix UI + `class-variance-authority` + `tailwind-merge` +
 - Produces: `cn(...inputs: ClassValue[]): string` exportado de `lib/utils.ts`
   (usado por todo componente shadcn e por todas as tasks seguintes).
 
-- [ ] **Step 1: Rodar o instalador do shadcn**
+- [x] **Step 1: Rodar o instalador do shadcn**
 
 ```bash
 pnpm dlx shadcn@latest init -y
@@ -75,7 +75,7 @@ dependências necessárias (`tailwindcss@4`, `class-variance-authority`,
 não adicione nada manualmente, deixe o instalador gerenciar o
 `package.json`).
 
-- [ ] **Step 2: Verificar que o bloco de tokens ficou no topo do arquivo**
+- [x] **Step 2: Verificar que o bloco de tokens ficou no topo do arquivo**
 
 Abra `app/globals.css` e confirme que `@import "tailwindcss";` e o bloco de
 tokens gerado pelo CLI estão **antes** das ~4.300 linhas de CSS legado
@@ -84,7 +84,7 @@ inserido em outro lugar, mova manualmente para o topo — CSS legado depois
 dos tokens deve continuar funcionando, já que não há conflito de nomes de
 classe, só de variáveis, que a Task 2 resolve).
 
-- [ ] **Step 3: Confirmar que `lib/utils.ts` foi criado com o `cn` helper**
+- [x] **Step 3: Confirmar que `lib/utils.ts` foi criado com o `cn` helper**
 
 ```ts
 import { type ClassValue, clsx } from 'clsx';
@@ -98,7 +98,7 @@ export function cn(...inputs: ClassValue[]) {
 Se o CLI gerou algo diferente disso, mantenha o que ele gerou — esta é
 apenas a forma padrão esperada, para referência.
 
-- [ ] **Step 4: Rodar o build pra confirmar que nada quebrou**
+- [x] **Step 4: Rodar o build pra confirmar que nada quebrou**
 
 Run: `pnpm typecheck && pnpm build`
 
@@ -106,7 +106,7 @@ Expected: ambos saem com código 0. O app deve continuar funcionando
 visualmente igual a antes (o CSS legado ainda está intacto, só ganhou
 Tailwind por cima).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add components.json lib/utils.ts package.json pnpm-lock.yaml app/globals.css
