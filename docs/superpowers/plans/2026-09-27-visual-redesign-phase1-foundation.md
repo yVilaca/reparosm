@@ -1164,7 +1164,7 @@ CSS legado destoando do novo roxo/tokens.
 > verificação visual automatizada neste ambiente. Não marcar como concluído
 > sem revisar `/login` e uma tela do painel nos temas e larguras indicados.
 
-- [ ] **Step 4: Push e abertura do PR**
+- [x] **Step 4: Push e abertura do PR**
 
 ```bash
 git push -u origin "$(git branch --show-current)"
