@@ -538,13 +538,13 @@ git commit -m "refactor: restyle feedback toasts and confirmation with shadcn"
 - Produces: nenhuma mudança de interface — `Login({ onLogin })` continua
   com a mesma prop.
 
-- [ ] **Step 1: Instalar os componentes shadcn necessários**
+- [x] **Step 1: Instalar os componentes shadcn necessários**
 
 ```bash
 pnpm dlx shadcn@latest add card input label
 ```
 
-- [ ] **Step 2: Reescrever `components/login.tsx`**
+- [x] **Step 2: Reescrever `components/login.tsx`**
 
 ```tsx
 'use client';
@@ -697,7 +697,7 @@ export default function Login({ onLogin }: { onLogin: (account: PublicAccount) =
 }
 ```
 
-- [ ] **Step 3: Verificar tipos e build**
+- [x] **Step 3: Verificar tipos e build**
 
 Run: `pnpm typecheck && pnpm build`
 
@@ -714,7 +714,7 @@ formulário de recuperação e volta; (5) login com as credenciais válidas
 Repita alternando o tema (claro/escuro, via o toggle temporário da Task 3
 ou definitivo da Task 6) e confirme que o texto continua legível nos dois.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add package.json pnpm-lock.yaml components/login.tsx components/ui/card.tsx components/ui/input.tsx components/ui/label.tsx
