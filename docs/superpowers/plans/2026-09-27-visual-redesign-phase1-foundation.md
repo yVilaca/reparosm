@@ -381,13 +381,13 @@ git commit -m "feat: add light/dark theme toggle"
   exatamente como antes; todo consumidor existente continua funcionando sem
   alteração.
 
-- [ ] **Step 1: Instalar os componentes shadcn necessários**
+- [x] **Step 1: Instalar os componentes shadcn necessários**
 
 ```bash
 pnpm dlx shadcn@latest add sonner alert-dialog button
 ```
 
-- [ ] **Step 2: Reescrever `components/feedback.tsx`**
+- [x] **Step 2: Reescrever `components/feedback.tsx`**
 
 ```tsx
 'use client';
@@ -492,7 +492,7 @@ A fila (`pendingQueue`) resolve o item do "Review Focus": duas chamadas de
 `confirm()` em sequência antes da primeira ser respondida agora enfileiram
 a segunda em vez de perdê-la ou sobrescrever a primeira.
 
-- [ ] **Step 3: Verificar tipos e build**
+- [x] **Step 3: Verificar tipos e build**
 
 Run: `pnpm typecheck && pnpm build`
 
@@ -517,7 +517,7 @@ Sonner já ajusta automaticamente a cor de fundo do toast de erro por tema;
 esta checagem é só para confirmar visualmente, não exige mudança de
 código se já estiver legível.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add package.json pnpm-lock.yaml components/feedback.tsx components/ui/sonner.tsx components/ui/alert-dialog.tsx components/ui/button.tsx
