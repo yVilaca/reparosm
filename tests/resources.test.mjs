@@ -13,24 +13,21 @@ before(async () => {
   clients = await import('../app/api/clients/route.ts');
   ({ parts, shops } = await import('../lib/repos/index.ts'));
   whatsapp = await import('../lib/whatsapp.ts');
-  const { createAccount } = await import('../lib/repos/accounts.ts');
   const { createSession } = await import('../lib/repos/sessions.ts');
   for (const username of ['resource-owner', 'resource-other']) {
-    await createAccount({
-      id: `account-${username}`,
-      username,
-      name: username,
-      role: 'merchant',
-      passwordHash: 'unused',
-    });
+    await db.migrationQuery(
+      `INSERT INTO accounts (id, username, name, role, status, password_hash)
+       VALUES ($1, $2, $2, 'merchant', 'active', 'unused')`,
+      [`account-${username}`, username],
+    );
   }
   owner = {
     id: 'account-resource-owner',
-    cookie: `reparosm_session=${await createSession('account-resource-owner')}`,
+    cookie: `reparosm_session=${await createSession('resource-owner', 'account-resource-owner')}`,
   };
   other = {
     id: 'account-resource-other',
-    cookie: `reparosm_session=${await createSession('account-resource-other')}`,
+    cookie: `reparosm_session=${await createSession('resource-other', 'account-resource-other')}`,
   };
 });
 

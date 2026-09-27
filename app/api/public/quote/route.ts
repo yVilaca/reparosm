@@ -1,7 +1,7 @@
 import { publicQuoteTransaction, setTenantContext } from '@/lib/db';
 import { orderFromQuote } from '@/lib/orders';
 import { publicRecord } from '@/lib/public-data';
-import { getAccount } from '@/lib/repos/accounts';
+import { getAccountStatus } from '@/lib/repos/accounts';
 import { clients, orders, quotes } from '@/lib/repos';
 import type { DataObject } from '@/lib/types';
 
@@ -49,8 +49,8 @@ export async function POST(request: Request) {
         return { error: 'Orçamento inválido', status: 400 };
       const { accountId, record } = found;
       const quote = record.data;
-      const account = await getAccount(accountId, run);
-      if (account?.status !== 'active') return { error: 'Assistência indisponível', status: 403 };
+      const accountStatus = await getAccountStatus(accountId, run);
+      if (accountStatus !== 'active') return { error: 'Assistência indisponível', status: 403 };
       if (quote.status === 'Aprovado' || quote.status === 'Recusado')
         return { error: 'Este orçamento já foi respondido.', status: 409 };
       if (quote.validUntil && quote.validUntil < new Date().toISOString().slice(0, 10))

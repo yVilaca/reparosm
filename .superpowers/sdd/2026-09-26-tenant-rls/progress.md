@@ -9,14 +9,15 @@
 
 ## Verification so far
 
-- GitHub CI passed 59/59 tests with no skips, plus format, lint, typecheck, build, and Graft checks on commit `fd23ebf`; a final run is pending for the diagnostic cleanup and updated docs.
+- Historical P0 GitHub CI passed 59/59 tests with no skips, plus format, lint, typecheck, build, and Graft checks on commit `fd23ebf`. P1 CI will run on its pull request.
+- Local baseline before P1: 59/59 tests passed with no skips against the disposable PostgreSQL cluster. After P1, the full local suite passed 61/61 with no skips.
 - The Netlify Deploy Preview branch applied migrations 0001–0009. Runtime membership now permits `SET ROLE reparosm_runtime`; migration 0008 was restored to its applied contents and migration 0009 carries the repair.
 - Live preview DB check: application transaction uses `current_user=reparosm_runtime`, with `rolsuper=false`, `rolbypassrls=false`, and no ownership of the twelve business tables. `shops` has RLS enabled and forced. The connection's `session_user=netlifydb_owner` has `BYPASSRLS`, so application SQL must remain behind `lib/db.ts` and its restricted-role transaction wrapper.
 - Live preview isolation test: each of two temporary tenants saw one own shop and no other tenant's shop; no context saw zero rows; cross-tenant insert failed with RLS. All test rows were rolled back.
 - Live preview public-flow test: storefront 200; two quote reads 200 with public-only fields; quote approval 200 and one linked order created. Temporary rows were deleted.
 - A temporary merchant login/session/logout test passed via server-to-server requests without `Origin`. A request with an explicit preview `Origin` returned 403 and needs browser verification before production rollout.
 - Subsequent preview Function invocations returned Netlify's `503 usage_exceeded`; deploy itself is ready, but further runtime checks are blocked by the platform allowance. No billing or plan change was made.
-- Local `pnpm test` in this worktree skips DB-backed tests because `DATABASE_URL` is not configured; the full CI run above used the configured disposable PostgreSQL service.
+- The DB-backed local tests ran against a disposable cluster at `127.0.0.1:55439`; no database tests were skipped for the recorded 59-test P0 baseline or the 61-test P1 run.
 
 ## Decisions and blockers
 

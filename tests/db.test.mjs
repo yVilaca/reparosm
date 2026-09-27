@@ -242,3 +242,207 @@ test(
     assert.deepEqual(quote, [{ id: 'rls-quote-b' }]);
   },
 );
+
+test(
+  'P1 references cannot cross accounts and unlink only the foreign key column',
+  { skip },
+  async () => {
+    await db.migrationQuery(
+      `INSERT INTO accounts (id, username, name, role, status, password_hash)
+       VALUES ('p1-fk-a', 'p1-fk-a', 'A', 'merchant', 'active', 'test'),
+              ('p1-fk-b', 'p1-fk-b', 'B', 'merchant', 'active', 'test')`,
+    );
+    await db.migrationQuery(
+      `INSERT INTO clients (id, account_id, name)
+       VALUES ('p1-client-a', 'p1-fk-a', 'Client A'), ('p1-client-b', 'p1-fk-b', 'Client B')`,
+    );
+    await db.migrationQuery(
+      `INSERT INTO quotes (id, account_id, client_id, customer, device, service)
+       VALUES ('p1-quote-a', 'p1-fk-a', 'p1-client-a', 'A', 'Device A', 'Repair'),
+              ('p1-quote-b', 'p1-fk-b', 'p1-client-b', 'B', 'Device B', 'Repair')`,
+    );
+    await db.migrationQuery(
+      `INSERT INTO orders (id, account_id, client_id, quote_id, code, customer, device)
+       VALUES ('p1-order-a', 'p1-fk-a', 'p1-client-a', 'p1-quote-a', 'OS-1', 'A', 'Device A'),
+              ('p1-order-b', 'p1-fk-b', 'p1-client-b', 'p1-quote-b', 'OS-1', 'B', 'Device B')`,
+    );
+    await db.migrationQuery(
+      `INSERT INTO messages (id, account_id, order_id)
+       VALUES ('p1-message-a', 'p1-fk-a', 'p1-order-a')`,
+    );
+
+    const invalidReferences = [
+      `INSERT INTO quotes (id, account_id, client_id, customer, device, service)
+       VALUES ('p1-cross-quote-client', 'p1-fk-a', 'p1-client-b', 'A', 'B', 'C')`,
+      `INSERT INTO orders (id, account_id, client_id, code, customer, device)
+       VALUES ('p1-cross-order-client', 'p1-fk-a', 'p1-client-b', 'OS-2', 'A', 'B')`,
+      `INSERT INTO orders (id, account_id, quote_id, code, customer, device)
+       VALUES ('p1-cross-order-quote', 'p1-fk-a', 'p1-quote-b', 'OS-3', 'A', 'B')`,
+      `INSERT INTO messages (id, account_id, order_id)
+       VALUES ('p1-cross-message-order', 'p1-fk-a', 'p1-order-b')`,
+    ];
+    for (const sql of invalidReferences)
+      await assert.rejects(db.migrationQuery(sql), { code: '23503' });
+
+    await db.migrationQuery("DELETE FROM clients WHERE id = 'p1-client-a'");
+    assert.deepEqual(
+      await db.migrationQuery(
+        `SELECT account_id, client_id FROM quotes WHERE id = 'p1-quote-a'
+         UNION ALL
+         SELECT account_id, client_id FROM orders WHERE id = 'p1-order-a'`,
+      ),
+      [
+        { account_id: 'p1-fk-a', client_id: null },
+        { account_id: 'p1-fk-a', client_id: null },
+      ],
+    );
+
+    await db.migrationQuery("DELETE FROM quotes WHERE id = 'p1-quote-a'");
+    assert.deepEqual(
+      await db.migrationQuery("SELECT account_id, quote_id FROM orders WHERE id = 'p1-order-a'"),
+      [{ account_id: 'p1-fk-a', quote_id: null }],
+    );
+
+    await db.migrationQuery("DELETE FROM orders WHERE id = 'p1-order-a'");
+    assert.deepEqual(
+      await db.migrationQuery(
+        "SELECT account_id, order_id FROM messages WHERE id = 'p1-message-a'",
+      ),
+      [{ account_id: 'p1-fk-a', order_id: null }],
+    );
+  },
+);
+
+test('P1 auth controls force RLS and require matching scoped capabilities', { skip }, async () => {
+  const tokenHashA = 'a'.repeat(64);
+  const tokenHashB = 'b'.repeat(64);
+  await db.migrationQuery(
+    `INSERT INTO accounts (id, username, name, role, status, password_hash)
+       VALUES ('p1-auth-a', 'p1-auth-a', 'A', 'merchant', 'active', 'test'),
+              ('p1-auth-b', 'p1-auth-b', 'B', 'merchant', 'active', 'test'),
+              ('p1-auth-admin', 'p1-auth-admin', 'Admin', 'admin', 'active', 'test')`,
+  );
+  await db.migrationQuery(
+    `INSERT INTO sessions (token_hash, account_id, expires_at)
+       VALUES ($1, 'p1-auth-a', now() + interval '1 hour'),
+              ($2, 'p1-auth-b', now() + interval '1 hour')`,
+    [tokenHashA, tokenHashB],
+  );
+  await db.migrationQuery(
+    `INSERT INTO password_requests (account_id, status) VALUES ('p1-auth-a', 'pending')`,
+  );
+  await db.migrationQuery(
+    `INSERT INTO login_failures (username, ip)
+       VALUES ('p1-auth-a', '10.2.0.1'), ('p1-auth-a', '10.2.0.2'), ('p1-auth-b', '10.2.0.1')`,
+  );
+
+  const tables = ['accounts', 'sessions', 'password_requests', 'login_failures'];
+  const secured = await db.query(
+    `SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity
+       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+       WHERE n.nspname = 'public' AND c.relname = ANY($1::text[])
+       ORDER BY c.relname`,
+    [tables],
+  );
+  assert.deepEqual(
+    secured.map((row) => row.relname),
+    [...tables].sort(),
+  );
+  assert.ok(secured.every((row) => row.relrowsecurity && row.relforcerowsecurity));
+
+  for (const table of tables) assert.deepEqual(await db.query(`SELECT 1 FROM ${table}`), []);
+  await assert.rejects(
+    db.query(
+      `INSERT INTO accounts (id, username, name, role, status, password_hash)
+         VALUES ('p1-auth-unscoped', 'unscoped', 'No context', 'merchant', 'active', 'test')`,
+    ),
+    { code: '42501' },
+  );
+  await assert.rejects(
+    db.query(
+      `INSERT INTO sessions (token_hash, account_id, expires_at)
+         VALUES ($1, 'p1-auth-a', now() + interval '1 hour')`,
+      ['c'.repeat(64)],
+    ),
+    { code: '42501' },
+  );
+  await assert.rejects(
+    db.query(`INSERT INTO password_requests (account_id, status) VALUES ('p1-auth-b', 'pending')`),
+    { code: '42501' },
+  );
+  await assert.rejects(
+    db.query(`INSERT INTO login_failures (username, ip) VALUES ('p1-auth-a', '10.3.0.1')`),
+    { code: '42501' },
+  );
+
+  assert.deepEqual(await db.authQuery('p1-auth-a', 'SELECT id FROM accounts ORDER BY id'), [
+    { id: 'p1-auth-a' },
+  ]);
+  await assert.rejects(
+    db.authQuery('p1-auth-a', 'SELECT password_hash FROM accounts WHERE id = $1', ['p1-auth-a']),
+    { code: '42501' },
+  );
+  assert.deepEqual(
+    await db.authQuery('p1-auth-a', 'SELECT account_password_hash($1) AS hash', ['p1-auth-a']),
+    [{ hash: 'test' }],
+  );
+  const [publicCredential] = await db.publicStoreTransaction('p1-auth-a', (run) =>
+    run('SELECT account_password_hash($1) AS hash', ['p1-auth-a']),
+  );
+  assert.equal(publicCredential.hash, null);
+  const sessionAccount = await db.sessionTransaction(tokenHashA, async (run) => {
+    assert.deepEqual(await run('SELECT token_hash FROM sessions ORDER BY token_hash'), [
+      { token_hash: tokenHashA },
+    ]);
+    const [session] = await run('SELECT account_id FROM sessions WHERE token_hash = $1', [
+      tokenHashA,
+    ]);
+    await db.setSessionAccountContext(run, session.account_id);
+    const [credential] = await run('SELECT account_password_hash($1) AS hash', ['p1-auth-a']);
+    assert.equal(credential.hash, null);
+    return run('SELECT id FROM accounts ORDER BY id');
+  });
+  assert.deepEqual(sessionAccount, [{ id: 'p1-auth-a' }]);
+  await assert.rejects(
+    db.sessionTransaction(tokenHashA, (run) => db.setSessionAccountContext(run, 'p1-auth-b')),
+    /session account mismatch/i,
+  );
+  assert.deepEqual(
+    await db.loginFailureQuery(
+      'p1-auth-a',
+      '10.2.0.1',
+      'SELECT ip FROM login_failures ORDER BY ip',
+    ),
+    [{ ip: '10.2.0.1' }],
+  );
+  assert.deepEqual(
+    await db.adminQuery(
+      { id: 'p1-auth-admin', role: 'admin' },
+      "SELECT id FROM accounts WHERE id LIKE 'p1-auth-%' ORDER BY id",
+    ),
+    [{ id: 'p1-auth-a' }, { id: 'p1-auth-admin' }, { id: 'p1-auth-b' }],
+  );
+  await assert.rejects(
+    db.adminQuery({ id: 'p1-auth-a', role: 'merchant' }, 'SELECT id FROM accounts'),
+    /admin actor required/i,
+  );
+  await assert.rejects(
+    db.adminQuery({ id: 'p1-auth-a', role: 'admin' }, 'SELECT id FROM accounts'),
+    /admin actor required/i,
+  );
+
+  const [after] = await db.query(
+    `SELECT COALESCE(NULLIF(current_setting('app.auth_username', true), ''), 'none') AS username,
+              COALESCE(NULLIF(current_setting('app.session_token_hash', true), ''), 'none') AS token_hash,
+              COALESCE(NULLIF(current_setting('app.session_account_id', true), ''), 'none') AS account_id,
+              COALESCE(NULLIF(current_setting('app.login_ip', true), ''), 'none') AS ip,
+              COALESCE(NULLIF(current_setting('app.admin_account_id', true), ''), 'none') AS admin_id`,
+  );
+  assert.deepEqual(after, {
+    username: 'none',
+    token_hash: 'none',
+    account_id: 'none',
+    ip: 'none',
+    admin_id: 'none',
+  });
+});

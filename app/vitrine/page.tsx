@@ -1,6 +1,6 @@
 import PublicStoreRoute from '@/components/public-store-route';
 import { publicStoreTransaction } from '@/lib/db';
-import { getAccount } from '@/lib/repos/accounts';
+import { getAccountStatus } from '@/lib/repos/accounts';
 import { parts, shops } from '@/lib/repos';
 
 export default async function VitrinePage({
@@ -17,8 +17,16 @@ export default async function VitrinePage({
         error="Link incompleto. Peça à assistência o link exclusivo da vitrine."
       />
     );
-  const account = await getAccount(accountId);
-  if (account?.status !== 'active')
+  const store = await publicStoreTransaction(accountId, async (run) => {
+    const status = await getAccountStatus(accountId, run);
+    if (status !== 'active') return null;
+    const [partRecords, shopRecords] = await Promise.all([
+      parts.list(accountId, run),
+      shops.list(accountId, run),
+    ]);
+    return { partRecords, shopRecords };
+  });
+  if (!store)
     return (
       <PublicStoreRoute
         items={[]}
@@ -26,9 +34,7 @@ export default async function VitrinePage({
         error="Esta vitrine está indisponível. Confira o link com a assistência."
       />
     );
-  const [partRecords, shopRecords] = await publicStoreTransaction(accountId, (run) =>
-    Promise.all([parts.list(accountId, run), shops.list(accountId, run)]),
-  );
+  const { partRecords, shopRecords } = store;
   const shop = shopRecords[0]?.data;
   return (
     <PublicStoreRoute
