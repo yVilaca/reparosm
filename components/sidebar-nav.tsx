@@ -89,7 +89,8 @@ function Item({ item, pathname, close }: { item: NavItem; pathname: string; clos
       className={cn(
         'flex min-h-10 min-w-0 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground',
         'max-md:min-h-[60px] max-md:flex-col max-md:justify-center max-md:gap-1 max-md:px-1 max-md:py-1 max-md:text-[10px]',
-        active && 'bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary',
+        active &&
+          'bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary dark:hover:text-primary-foreground',
       )}
       href={item.href}
       aria-current={active ? 'page' : undefined}
@@ -135,8 +136,8 @@ export default function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
         ))}
         <button
           className={cn(
-            'flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-lg px-1 py-1 text-[10px] font-medium text-muted-foreground',
-            moreActive && 'text-primary',
+            'flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-lg px-1 py-1 font-sans text-[10px] font-medium text-muted-foreground',
+            moreActive && 'bg-primary/10 text-primary dark:bg-primary dark:text-primary-foreground',
           )}
           type="button"
           aria-controls="mobile-more-menu"

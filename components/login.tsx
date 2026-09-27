@@ -102,7 +102,7 @@ export default function Login({ onLogin }: { onLogin: (account: PublicAccount) =
                   />
                   <button
                     type="button"
-                    className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+                    className="absolute inset-y-0 right-0 flex items-center px-3 font-sans text-muted-foreground hover:text-foreground"
                     aria-controls="login-password"
                     aria-pressed={showPassword}
                     aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
@@ -128,7 +128,7 @@ export default function Login({ onLogin }: { onLogin: (account: PublicAccount) =
             </Button>
             <button
               type="button"
-              className="text-sm text-muted-foreground underline-offset-2 hover:underline disabled:opacity-60"
+              className="font-sans text-sm text-muted-foreground underline-offset-2 hover:underline disabled:opacity-60"
               disabled={loading}
               onClick={() => {
                 setForgot(!forgot);
