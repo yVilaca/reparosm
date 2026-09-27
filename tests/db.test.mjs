@@ -242,3 +242,71 @@ test(
     assert.deepEqual(quote, [{ id: 'rls-quote-b' }]);
   },
 );
+
+test(
+  'P1 references cannot cross accounts and unlink only the foreign key column',
+  { skip },
+  async () => {
+    await db.migrationQuery(
+      `INSERT INTO accounts (id, username, name, role, status, password_hash)
+       VALUES ('p1-fk-a', 'p1-fk-a', 'A', 'merchant', 'active', 'test'),
+              ('p1-fk-b', 'p1-fk-b', 'B', 'merchant', 'active', 'test')`,
+    );
+    await db.migrationQuery(
+      `INSERT INTO clients (id, account_id, name)
+       VALUES ('p1-client-a', 'p1-fk-a', 'Client A'), ('p1-client-b', 'p1-fk-b', 'Client B')`,
+    );
+    await db.migrationQuery(
+      `INSERT INTO quotes (id, account_id, client_id, customer, device, service)
+       VALUES ('p1-quote-a', 'p1-fk-a', 'p1-client-a', 'A', 'Device A', 'Repair'),
+              ('p1-quote-b', 'p1-fk-b', 'p1-client-b', 'B', 'Device B', 'Repair')`,
+    );
+    await db.migrationQuery(
+      `INSERT INTO orders (id, account_id, client_id, quote_id, code, customer, device)
+       VALUES ('p1-order-a', 'p1-fk-a', 'p1-client-a', 'p1-quote-a', 'OS-1', 'A', 'Device A'),
+              ('p1-order-b', 'p1-fk-b', 'p1-client-b', 'p1-quote-b', 'OS-1', 'B', 'Device B')`,
+    );
+    await db.migrationQuery(
+      `INSERT INTO messages (id, account_id, order_id)
+       VALUES ('p1-message-a', 'p1-fk-a', 'p1-order-a')`,
+    );
+
+    const invalidReferences = [
+      `INSERT INTO quotes (id, account_id, client_id, customer, device, service)
+       VALUES ('p1-cross-quote-client', 'p1-fk-a', 'p1-client-b', 'A', 'B', 'C')`,
+      `INSERT INTO orders (id, account_id, client_id, code, customer, device)
+       VALUES ('p1-cross-order-client', 'p1-fk-a', 'p1-client-b', 'OS-2', 'A', 'B')`,
+      `INSERT INTO orders (id, account_id, quote_id, code, customer, device)
+       VALUES ('p1-cross-order-quote', 'p1-fk-a', 'p1-quote-b', 'OS-3', 'A', 'B')`,
+      `INSERT INTO messages (id, account_id, order_id)
+       VALUES ('p1-cross-message-order', 'p1-fk-a', 'p1-order-b')`,
+    ];
+    for (const sql of invalidReferences)
+      await assert.rejects(db.migrationQuery(sql), { code: '23503' });
+
+    await db.migrationQuery("DELETE FROM clients WHERE id = 'p1-client-a'");
+    assert.deepEqual(
+      await db.migrationQuery(
+        `SELECT account_id, client_id FROM quotes WHERE id = 'p1-quote-a'
+         UNION ALL
+         SELECT account_id, client_id FROM orders WHERE id = 'p1-order-a'`,
+      ),
+      [
+        { account_id: 'p1-fk-a', client_id: null },
+        { account_id: 'p1-fk-a', client_id: null },
+      ],
+    );
+
+    await db.migrationQuery("DELETE FROM quotes WHERE id = 'p1-quote-a'");
+    assert.deepEqual(
+      await db.migrationQuery("SELECT account_id, quote_id FROM orders WHERE id = 'p1-order-a'"),
+      [{ account_id: 'p1-fk-a', quote_id: null }],
+    );
+
+    await db.migrationQuery("DELETE FROM orders WHERE id = 'p1-order-a'");
+    assert.deepEqual(
+      await db.migrationQuery("SELECT account_id, order_id FROM messages WHERE id = 'p1-message-a'"),
+      [{ account_id: 'p1-fk-a', order_id: null }],
+    );
+  },
+);

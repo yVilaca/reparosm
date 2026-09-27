@@ -38,7 +38,7 @@
 
 **Files:** `tests/db.test.mjs`; `netlify/database/migrations/0010_tenant_composite_foreign_keys.sql`.
 
- - [ ] **Step 1: Write the failing relationship test.** In `tests/db.test.mjs`, add `P1 references cannot cross accounts and unlink only the foreign key column`. Seed accounts `p1-fk-a` and `p1-fk-b`, one client, quote, and order per account, plus a message for account A. Assert SQLSTATE `23503` for the four invalid references (A quote→B client, A order→B client, A order→B quote, A message→B order). Use assertions like:
+- [x] **Step 1: Write the failing relationship test.** In `tests/db.test.mjs`, add `P1 references cannot cross accounts and unlink only the foreign key column`. Seed accounts `p1-fk-a` and `p1-fk-b`, one client, quote, and order per account, plus a message for account A. Assert SQLSTATE `23503` for the four invalid references (A quote→B client, A order→B client, A order→B quote, A message→B order). Use assertions like:
 
 ```js
 await assert.rejects(
@@ -51,9 +51,9 @@ await assert.rejects(
 
 Also delete A's client, quote, and order in turn; assert only `client_id`, `quote_id`, or `order_id` becomes `NULL`, while `account_id` remains A.
 
-- [ ] **Step 2: Verify the test fails for the intended reason.** Run `pnpm test -- --test-name-pattern="P1 references cannot cross accounts"` against the disposable local database. Before migration 0010, the old single-column FK accepts the first cross-account reference, so the expected `23503` assertion fails.
+- [x] **Step 2: Verify the test fails for the intended reason.** Run `pnpm test -- --test-name-pattern="P1 references cannot cross accounts"` against the disposable local database. Before migration 0010, the old single-column FK accepts the first cross-account reference, so the expected `23503` assertion fails.
 
-- [ ] **Step 3: Add migration 0010.** First raise a descriptive exception if any existing non-null `quotes.client_id`, `orders.client_id`, `orders.quote_id`, or `messages.order_id` points to a row with another `account_id`. Add unique constraints `clients_account_id_id_key`, `quotes_account_id_id_key`, and `orders_account_id_id_key` on `(account_id, id)`. Drop `quotes_client_id_fkey`, `orders_client_id_fkey`, `orders_quote_id_fkey`, and `messages_order_id_fkey`; add named composite FKs `quotes_account_client_fkey`, `orders_account_client_fkey`, `orders_account_quote_fkey`, and `messages_account_order_fkey`:
+- [x] **Step 3: Add migration 0010.** First raise a descriptive exception if any existing non-null `quotes.client_id`, `orders.client_id`, `orders.quote_id`, or `messages.order_id` points to a row with another `account_id`. Add unique constraints `clients_account_id_id_key`, `quotes_account_id_id_key`, and `orders_account_id_id_key` on `(account_id, id)`. Drop `quotes_client_id_fkey`, `orders_client_id_fkey`, `orders_quote_id_fkey`, and `messages_order_id_fkey`; add named composite FKs `quotes_account_client_fkey`, `orders_account_client_fkey`, `orders_account_quote_fkey`, and `messages_account_order_fkey`:
 
 ```sql
 FOREIGN KEY (account_id, client_id) REFERENCES clients (account_id, id)
@@ -66,9 +66,9 @@ FOREIGN KEY (account_id, order_id) REFERENCES orders (account_id, id)
   ON DELETE SET NULL (order_id)
 ```
 
-- [ ] **Step 4: Verify the composite constraints and delete behavior.** The first client constraint above is for `quotes`; the second is for `orders`. Add `quotes_account_client_idx`, `orders_account_client_idx`, `orders_account_quote_idx`, and `messages_account_order_idx` on their matching `(account_id, foreign_key_id)` columns. Keep current account-to-account `ON DELETE CASCADE` constraints. Run `pnpm test -- --test-name-pattern="P1 references cannot cross accounts"`; expected: pass, including all four cross-account rejections and all three relation-only nullifications.
+- [x] **Step 4: Verify the composite constraints and delete behavior.** The first client constraint above is for `quotes`; the second is for `orders`. Add `quotes_account_client_idx`, `orders_account_client_idx`, `orders_account_quote_idx`, and `messages_account_order_idx` on their matching `(account_id, foreign_key_id)` columns. Keep current account-to-account `ON DELETE CASCADE` constraints. Run `pnpm test -- --test-name-pattern="P1 references cannot cross accounts"`; expected: pass, including all four cross-account rejections and all three relation-only nullifications.
 
-- [ ] **Step 5: Commit Task 1.** Run `git diff --check`, then commit `tests/db.test.mjs` and migration 0010 as `feat(db): enforce same-tenant foreign keys`.
+- [x] **Step 5: Commit Task 1.** Run `git diff --check`, then commit `tests/db.test.mjs` and migration 0010 as `feat(db): enforce same-tenant foreign keys`.
 
 ---
 
