@@ -736,13 +736,13 @@ git commit -m "refactor: restyle login screen with shadcn primitives"
 - Produces: nenhuma mudança de interface — `SidebarNav({ isAdmin })` e
   `LogoutButton()` continuam com a mesma assinatura.
 
-- [ ] **Step 1: Instalar o componente shadcn necessário**
+- [x] **Step 1: Instalar o componente shadcn necessário**
 
 ```bash
 pnpm dlx shadcn@latest add separator
 ```
 
-- [ ] **Step 2: Reescrever `components/sidebar-nav.tsx`**
+- [x] **Step 2: Reescrever `components/sidebar-nav.tsx`**
 
 ```tsx
 'use client';
@@ -892,7 +892,7 @@ export default function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
 }
 ```
 
-- [ ] **Step 3: Reescrever `components/logout-button.tsx`**
+- [x] **Step 3: Reescrever `components/logout-button.tsx`**
 
 ```tsx
 'use client';
@@ -921,7 +921,7 @@ export default function LogoutButton() {
 }
 ```
 
-- [ ] **Step 4: Reescrever `app/(painel)/layout.tsx`**
+- [x] **Step 4: Reescrever `app/(painel)/layout.tsx`**
 
 ```tsx
 import LogoutButton from '@/components/logout-button';
@@ -982,7 +982,7 @@ dentro dela mesma) quanto a mobile (`fixed ... md:hidden`); por isso ela
 aparece nos dois lugares do JSX acima — cada instância só desenha a parte
 relevante pro tamanho de tela atual, sem duplicar o menu visível.
 
-- [ ] **Step 5: Verificar tipos e build**
+- [x] **Step 5: Verificar tipos e build**
 
 Run: `pnpm typecheck && pnpm build`
 
@@ -1000,7 +1000,7 @@ secundários, e clicar em qualquer item fecha o menu e navega; (5) o botão
 de tema na sidebar (desktop) alterna claro/escuro e persiste ao recarregar;
 (6) "Sair da conta" desloga e volta pra `/login`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add package.json pnpm-lock.yaml components/sidebar-nav.tsx components/logout-button.tsx "app/(painel)/layout.tsx" components/ui/separator.tsx
