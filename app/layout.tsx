@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { FeedbackProvider } from '@/components/feedback';
+import { ThemeProvider } from '@/components/theme-provider';
 import { env } from '@/lib/env';
 import './accounts.css';
 import './globals.css';
@@ -35,7 +36,9 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
       <body className="antialiased font-sans">
-        <FeedbackProvider>{children}</FeedbackProvider>
+        <ThemeProvider>
+          <FeedbackProvider>{children}</FeedbackProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

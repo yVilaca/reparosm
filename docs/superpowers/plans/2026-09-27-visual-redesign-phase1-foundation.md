@@ -255,13 +255,13 @@ git commit -m "feat: apply brand purple tokens and Inter font"
   `<ThemeToggle />` (botão que alterna claro/escuro/sistema), reutilizável
   por qualquer tela a partir daqui.
 
-- [ ] **Step 1: Instalar `next-themes`**
+- [x] **Step 1: Instalar `next-themes`**
 
 ```bash
 pnpm add next-themes
 ```
 
-- [ ] **Step 2: Criar o provider de tema**
+- [x] **Step 2: Criar o provider de tema**
 
 Create `components/theme-provider.tsx`:
 
@@ -283,7 +283,7 @@ export function ThemeProvider({
 }
 ```
 
-- [ ] **Step 3: Criar o botão de alternância**
+- [x] **Step 3: Criar o botão de alternância**
 
 Antes deste step, rode `pnpm dlx shadcn@latest add button dropdown-menu` se
 ainda não tiver feito (necessário para o próximo componente — pode já ter
@@ -325,7 +325,7 @@ export function ThemeToggle() {
 }
 ```
 
-- [ ] **Step 4: Envolver o app com o provider**
+- [x] **Step 4: Envolver o app com o provider**
 
 Em `app/layout.tsx`, importe `ThemeProvider` e envolva `FeedbackProvider`:
 
@@ -339,7 +339,7 @@ import { ThemeProvider } from '@/components/theme-provider';
       </body>
 ```
 
-- [ ] **Step 5: Verificar tipos e build**
+- [x] **Step 5: Verificar tipos e build**
 
 Run: `pnpm typecheck && pnpm build`
 
@@ -356,7 +356,7 @@ Recarregue a página (F5): a classe deve continuar a mesma escolhida, não
 voltar para o padrão do sistema — isso confirma que `next-themes` está
 persistindo em `localStorage` (chave `theme`).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add package.json pnpm-lock.yaml components/theme-provider.tsx components/theme-toggle.tsx app/layout.tsx
