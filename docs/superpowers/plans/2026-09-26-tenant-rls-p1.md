@@ -76,7 +76,7 @@ FOREIGN KEY (account_id, order_id) REFERENCES orders (account_id, id)
 
 **Files:** `tests/db.test.mjs`, `tests/auth.test.mjs`, `netlify/database/migrations/0011_account_security_rls.sql`, `lib/db.ts`, `lib/repos/accounts.ts`, `lib/repos/sessions.ts`, `lib/auth.ts`, `app/api/auth/route.ts`, `app/api/accounts/route.ts`, `app/api/public/quote/route.ts`, `app/vitrine/page.tsx`.
 
-- [ ] **Step 1: Write failing RLS and scoped-access tests.** Extend `tests/db.test.mjs` to cover `accounts`, `sessions`, `password_requests`, and `login_failures`. Seed two merchants, one admin, two hashed sessions, one password request, and two login-failure pairs. Assert ordinary `db.query` sees no rows and that unscoped inserts fail:
+- [x] **Step 1: Write failing RLS and scoped-access tests.** Extend `tests/db.test.mjs` to cover `accounts`, `sessions`, `password_requests`, and `login_failures`. Seed two merchants, one admin, two hashed sessions, one password request, and two login-failure pairs. Assert ordinary `db.query` sees no rows and that unscoped inserts fail:
 
 ```js
 for (const table of ['accounts', 'sessions', 'password_requests', 'login_failures'])
@@ -85,26 +85,26 @@ for (const table of ['accounts', 'sessions', 'password_requests', 'login_failure
 
 Add scoped assertions for username-only account lookup, a session hash plus its database-derived account, one exact username/IP pair, and active-admin access. Run `pnpm test -- --test-name-pattern="P1 auth"`; before migration 0011, the catalog or unscoped-read assertion must fail because control tables lack RLS.
 
-- [ ] **Step 2: Add migration 0011 with forced policies.** Use these boundaries:
+- [x] **Step 2: Add migration 0011 with forced policies.** Use these boundaries:
 
 - `accounts`: SELECT by matching `app.auth_username`, database-derived `app.session_account_id`, `app.account_id` or `app.public_store_account_id` for status checks, or admin context; INSERT/UPDATE by matching login username or admin context; DELETE only by admin context.
 - `sessions`: SELECT/DELETE by exact `app.session_token_hash`, sessions for the account selected by `app.auth_username`, or admin context; INSERT only for the account selected by `app.auth_username`.
 - `password_requests`: access only to the merchant selected by `app.auth_username`, or admin context; public reset submission must resolve the username and write the request in one scoped transaction.
 - `login_failures`: access only to the exact `app.auth_username` plus `app.login_ip` pair.
 
-- [ ] **Step 3: Verify database-only RLS.** Run `pnpm test -- --test-name-pattern="P1 auth"`; expected: all four auth tables show RLS enabled and forced, unscoped reads return zero rows, and unscoped writes fail with `42501`.
+- [x] **Step 3: Verify database-only RLS.** Run the focused database test; all four auth tables show RLS enabled and forced, unscoped reads return zero rows, and unscoped writes fail with `42501`.
 
-- [ ] **Step 4: Add the scoped DB helpers.** Add `export type AdminActor = Readonly<{ id: string; role: 'admin' }>` and transaction-local helpers in `lib/db.ts`: `authTransaction(username, fn)`, `authQuery(username, text, params)`, `sessionTransaction(tokenHash, fn)`, `setSessionAccountContext(run, accountId)`, `loginFailureTransaction(username, ip, fn)`, `loginFailureQuery(username, ip, text, params)`, and `adminQuery(actor, text, params)`. At runtime, `adminQuery` must reject a value whose role is not `admin`. `setSessionAccountContext` must verify the active hashed session row belongs to `accountId` before setting the context. Reuse `runAsRuntime`; do not add a second pool or expose a generic arbitrary-settings helper.
+- [x] **Step 4: Add the scoped DB helpers.** Add `export type AdminActor = Readonly<{ id: string; role: 'admin' }>` and transaction-local helpers in `lib/db.ts`: `authTransaction(username, fn)`, `authQuery(username, text, params)`, `sessionTransaction(tokenHash, fn)`, `setSessionAccountContext(run, accountId)`, `loginFailureTransaction(username, ip, fn)`, `loginFailureQuery(username, ip, text, params)`, and `adminQuery(actor, text, params)`. `adminQuery` rejects non-admin roles and verifies the actor is an active database administrator. `setSessionAccountContext` verifies the active hashed session row belongs to `accountId` before setting the context. Reuse `runAsRuntime`; do not add a second pool or expose a generic arbitrary-settings helper.
 
-- [ ] **Step 5: Scope account repository methods.** Username lookup and own password migration use `authQuery`; account administration functions take `AdminActor` and use `adminQuery`; public page/quote checks use a status-only query with their existing transaction runner. Remove unscoped defaults for account/control-table operations.
+- [x] **Step 5: Scope account repository methods.** Username lookup and own password migration use `authQuery`; account administration functions take `AdminActor` and use `adminQuery`; public page/quote checks use a status-only query with their existing transaction runner. Remove unscoped defaults for account/control-table operations. The runtime cannot directly select `password_hash`; a guarded SQL function exposes it only in login/admin contexts.
 
-- [ ] **Step 6: Scope session and lockout flows.** `accountForSession` reads the session by token hash, sets `app.session_account_id` from the returned row in that same transaction, and then reads that account. Create/revoke login sessions under the matching normalized username; admin revocation uses the verified admin account ID. Scope login-failure cleanup/count/insert to the same username/IP pair. Do not globally delete other users' expired sessions during login.
+- [x] **Step 6: Scope session and lockout flows.** `accountForSession` reads the session by token hash, sets `app.session_account_id` from the returned row in that same transaction, and then reads that account. Create/revoke login sessions under the matching normalized username; admin revocation uses the verified admin account ID. Scope login-failure cleanup/count/insert to the same username/IP pair. Expired-session cleanup is limited to the account logging in.
 
-- [ ] **Step 7: Update route and public account reads.** `app/api/auth/route.ts` and `app/api/accounts/route.ts` pass identity only from the validated username or `currentAccount` result. The forgot-password operation accepts username and derives the merchant account within the same transaction. In the storefront and public quote approval path, query only account `status`; keep the existing public record projection unchanged.
+- [x] **Step 7: Update route and public account reads.** `app/api/auth/route.ts` and `app/api/accounts/route.ts` pass identity only from the validated username or `currentAccount` result. The forgot-password operation accepts username and derives the merchant account in the same scoped statement. In the storefront and public quote approval path, query only account `status`; keep the existing public record projection unchanged.
 
-- [ ] **Step 8: Verify auth flows.** Run `pnpm test -- --test-name-pattern="auth|session|login|password|P1 auth"` against local PostgreSQL, then `pnpm test`; expected: existing recovery, lockout, login, logout, admin, suspension, deletion, and new RLS tests all pass with zero skips.
+- [x] **Step 8: Verify auth flows.** The full `pnpm test` suite passed against local PostgreSQL; recovery, lockout, login, logout, admin, suspension, deletion, storefront, quote, and new RLS tests all passed with zero skips (61/61).
 
-- [ ] **Step 9: Commit Task 2.** Run `git diff --check`, then commit migration 0011, helpers, repositories, routes, and focused tests as `feat(security): isolate authentication data with RLS`.
+- [x] **Step 9: Commit Task 2.** `git diff --cached --check` passed; migration 0011, helpers, repositories, routes, and focused tests were committed as `2c3b679 feat(security): isolate authentication data with RLS`.
 
 ---
 
@@ -112,11 +112,11 @@ Add scoped assertions for username-only account lookup, a session hash plus its 
 
 **Files:** `docs/superpowers/specs/2026-09-26-tenant-rls-design.md`, `.superpowers/sdd/2026-09-26-tenant-rls-p1/progress.md`.
 
-- [ ] **Step 1: Update the spec and progress records.** Keep composite tenant FKs before auth-table RLS, record the context boundaries, and state that this implementation was validated only on disposable local PostgreSQL and CI; leave all Netlify/production checks deferred. Update the P0 progress record so it no longer says local database tests were skipped; record its 59-test local baseline and add the P1 result to this plan's ledger.
+- [x] **Step 1: Update the spec and progress records.** Kept composite tenant FKs before auth-table RLS, recorded the context boundaries, and stated that P1 was validated only on disposable local PostgreSQL; left all Netlify/production checks deferred. Updated the P0 progress record with its 59-test local baseline and recorded P1 results.
 
-- [ ] **Step 2: Run every local gate.** Run `pnpm test`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm exec graft build`, and `pnpm exec graft check`, in that order; expected: exit code 0 for each, no test skips.
+- [x] **Step 2: Run every local gate.** Ran `pnpm test`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm exec graft build`, and `pnpm exec graft check` in order; all passed with no test skips.
 
-- [ ] **Step 3: Review and commit.** Review `git diff origin/main...HEAD`, verify no application module imports `scripts/migration-db.mjs`, run `git diff --check`, and commit the spec/progress updates as `docs(security): record local P1 verification`.
+- [x] **Step 3: Review and commit.** Reviewed the full branch diff, verified no application module imports `scripts/migration-db.mjs`, and confirmed `git diff --check` passes. Final review: self-review (no subagent review tool available). The spec/progress updates are committed as `docs(security): record local P1 verification`.
 
 ## Review focus
 

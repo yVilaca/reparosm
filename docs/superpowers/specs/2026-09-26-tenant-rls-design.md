@@ -1,6 +1,6 @@
 # Isolamento multi-loja com PostgreSQL RLS
 
-**Status:** P0 implementado e validado no Deploy Preview de `codex/tenant-rls-design` (migrations 0001–0009 aplicadas). A produção ainda não foi migrada; a integração aguarda a validação final do endpoint de autenticação no preview e a disponibilidade das Functions da Netlify.
+**Status:** P0 e P1 implementados. O P1 foi validado apenas em PostgreSQL local descartável; esta execução não acessou Netlify nem produção.
 **Data:** 26/09/2026
 
 ## Objetivo
@@ -34,9 +34,15 @@ Usar RLS do PostgreSQL com contexto por transação e papel efetivo restrito. Ap
 
 ### P1 — fechar as exceções e relacionamentos
 
-1. Adicionar chaves estrangeiras compostas por loja para referências entre `orders`, `clients`, `quotes` e `messages`, impedindo relações entre lojas mesmo quando IDs forem fornecidos incorretamente. Ao remover um cliente, orçamento ou ordem, anular somente a coluna de referência; `account_id` deve permanecer intacto.
-2. Levar `accounts`, `sessions`, `password_requests` e `login_failures` para RLS forçada, com contextos separados para consulta de login por usuário, sessão pelo hash do token, pedido de recuperação por conta e operações administrativas verificadas no servidor. Nenhum contexto de administrador poderá vir de cabeçalho ou corpo HTTP. As consultas públicas devem selecionar somente o status da conta, nunca o hash da senha.
-3. Manter um inventário testado das tabelas que têm dados por loja; qualquer nova tabela com `account_id` entra com RLS na mesma migration que a cria.
+1. Migration 0010 aplica chaves estrangeiras compostas por loja para referências entre `orders`, `clients`, `quotes` e `messages`. Ao remover um cliente, orçamento ou ordem, anula somente a coluna de referência; `account_id` permanece intacto. A migration falha com diagnóstico se encontrar referências antigas entre lojas.
+2. Migration 0011 habilita e força RLS em `accounts`, `sessions`, `password_requests` e `login_failures`. Login e atualização de hash usam o nome normalizado; a sessão usa somente o hash SHA-256 do token e deriva o ID da conta da linha ativa; falhas usam o par usuário/IP; administração usa `AdminActor` validado no servidor e confirmado como administrador ativo no banco. Esses contextos são locais à transação. O runtime não pode ler diretamente `password_hash`; a função SQL de acesso exige contexto de login ou administrador. A vitrine e a resposta de orçamento consultam apenas o status da conta.
+3. O banco de testes cobre isolamento e acessos negados sem contexto. Novas tabelas com `account_id` devem entrar com RLS na migration que as cria.
+
+### Resultado local do P1
+
+- Testes contra um cluster PostgreSQL local descartável: 61/61 aprovados, sem skips, incluindo relações compostas, RLS forçada, bloqueio de leitura direta do hash, escopos de login/sessão/admin, recuperação, lockout, revogação e fluxos públicos.
+- `pnpm lint`, `pnpm typecheck` e `pnpm build` passaram.
+- A validação de migrations 0010–0011 ocorreu somente no PostgreSQL local. Nenhum teste P1 foi feito na Netlify ou em produção; a verificação de compatibilidade com a instância PostgreSQL da Netlify permanece adiada.
 
 ## Contextos públicos e limite de segurança
 
