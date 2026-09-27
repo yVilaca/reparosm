@@ -1021,7 +1021,7 @@ git commit -m "refactor: restyle panel shell, sidebar and logout with shadcn"
   `<EmptyState title, description?, action? />`, para uso nas Fases 2-4
   (nenhuma tela é migrada para eles nesta fase — só ficam prontos).
 
-- [ ] **Step 1: Escrever o teste de import/tipo (smoke test)**
+- [x] **Step 1: Escrever o teste de import/tipo (smoke test)**
 
 Create `tests/ui-primitives.test.mjs`:
 
@@ -1052,14 +1052,14 @@ test('EmptyState renders title without description when omitted', () => {
 });
 ```
 
-- [ ] **Step 2: Rodar e confirmar que falha (arquivos ainda não existem)**
+- [x] **Step 2: Rodar e confirmar que falha (arquivos ainda não existem)**
 
 Run: `node --import ./tests/support/setup.mjs --test tests/ui-primitives.test.mjs`
 
 Expected: FAIL com erro de módulo não encontrado
 (`components/ui/page-header.tsx`/`empty-state.tsx`).
 
-- [ ] **Step 3: Implementar `components/ui/page-header.tsx`**
+- [x] **Step 3: Implementar `components/ui/page-header.tsx`**
 
 ```tsx
 import type { ReactNode } from 'react';
@@ -1085,7 +1085,7 @@ export default function PageHeader({
 }
 ```
 
-- [ ] **Step 4: Implementar `components/ui/empty-state.tsx`**
+- [x] **Step 4: Implementar `components/ui/empty-state.tsx`**
 
 ```tsx
 import type { ReactNode } from 'react';
@@ -1109,7 +1109,7 @@ export default function EmptyState({
 }
 ```
 
-- [ ] **Step 5: Rodar o teste de novo**
+- [x] **Step 5: Rodar o teste de novo**
 
 Run: `node --import ./tests/support/setup.mjs --test tests/ui-primitives.test.mjs`
 
@@ -1121,7 +1121,7 @@ Run: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm buil
 
 Expected: tudo verde.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add tests/ui-primitives.test.mjs components/ui/page-header.tsx components/ui/empty-state.tsx

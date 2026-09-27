@@ -20,6 +20,8 @@ allowBuilds:
   tree-sitter-cli: false
   # Only sends an install telemetry ping.
   '@nanonets/graft': false
+  # Uses the prebuilt platform binary; its install hook only verifies it.
+  esbuild: false
 minimumReleaseAgeExclude:
   - '@nanonets/graft@0.19.0'
 patchedDependencies:
