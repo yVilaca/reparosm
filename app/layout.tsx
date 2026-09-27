@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import { FeedbackProvider } from '@/components/feedback';
 import { env } from '@/lib/env';
 import './accounts.css';
@@ -6,10 +7,7 @@ import './globals.css';
 import './mesa.css';
 import './recovery.css';
 import './whatsapp.css';
-import { Geist } from 'next/font/google';
-import { cn } from '@/lib/utils';
-
-const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
+const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
   metadataBase: new URL(env.siteUrl),
@@ -35,8 +33,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className={cn('font-sans', geist.variable)}>
-      <body className="antialiased">
+    <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
+      <body className="antialiased font-sans">
         <FeedbackProvider>{children}</FeedbackProvider>
       </body>
     </html>

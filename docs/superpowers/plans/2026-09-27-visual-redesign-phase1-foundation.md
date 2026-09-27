@@ -128,7 +128,7 @@ git commit -m "chore: install tailwind v4 and shadcn/ui"
   em ambos os temas; classe `font-sans` do Tailwind passa a resolver para
   Inter em todo o app (via `next/font/google` + variável CSS).
 
-- [ ] **Step 1: Sobrescrever os tokens de cor primária**
+- [x] **Step 1: Sobrescrever os tokens de cor primária**
 
 No bloco `:root` gerado pelo CLI em `app/globals.css`, adicione/substitua:
 
@@ -154,7 +154,7 @@ texto normal — não precisa clarear a cor pro tema escuro. Deixe as demais
 variáveis (`--background`, `--foreground`, `--muted`, `--border`, etc.)
 como o CLI gerou.
 
-- [ ] **Step 2: Adicionar a fonte Inter**
+- [x] **Step 2: Adicionar a fonte Inter**
 
 Em `app/layout.tsx`, importe e aplique a fonte:
 
@@ -215,7 +215,7 @@ próprio `@theme` do shadcn já mapeia `--font-sans: var(--font-sans)` por
 convenção; confirme visualmente no Step 4 que o texto renderiza em Inter e
 não em Arial.
 
-- [ ] **Step 3: Verificar tipos e build**
+- [x] **Step 3: Verificar tipos e build**
 
 Run: `pnpm typecheck && pnpm build`
 
@@ -232,7 +232,7 @@ rode `getComputedStyle(document.body).fontFamily` no console e confirme
 que começa com `"Inter"` (ou o nome da variável CSS `var(--font-sans)`
 resolvida para o font-family injetado pelo `next/font`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/globals.css app/layout.tsx
