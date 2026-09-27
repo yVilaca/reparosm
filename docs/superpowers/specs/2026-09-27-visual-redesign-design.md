@@ -18,7 +18,7 @@ negócio, contrato de API, schema de banco ou comportamento funcional muda.
 
 - Next.js 16.2.6, React 19.2.6, TypeScript strict, pnpm. Tailwind foi
   removido deliberadamente antes (`chore: validate environment and remove
-  unused tailwind`); esta reformulação reintroduz Tailwind a pedido explícito
+unused tailwind`); esta reformulação reintroduz Tailwind a pedido explícito
   do usuário, revertendo aquela decisão.
 - Não há `tailwind.config.*` nem `postcss.config.*` remanescentes — a
   reinstalação parte do zero, usando Tailwind v4 (config via CSS/`@theme`,
@@ -66,18 +66,18 @@ negócio, contrato de API, schema de banco ou comportamento funcional muda.
 Cada elemento repetido no CSS atual vira um primitivo shadcn, usado por
 todas as telas (isto é o que resolve a inconsistência entre telas):
 
-| Padrão atual (CSS ad-hoc) | Primitivo shadcn |
-| --- | --- |
-| `.panel`, `.page-panel` | `Card` |
-| `<button>` estilizado por classe | `Button` (variants: default/outline/ghost/destructive) |
-| `<input>`/`<select>`/`<textarea>` em formulários | `Input`/`Select`/`Textarea` + `Label` |
-| `.modal-backdrop`/`.modal` (order-modals, client-modal, part-modal, money-modal, quote-modal) | `Dialog` |
-| `.feedback-dialog` (confirmação) | `AlertDialog` |
-| `.toast`/`.toast-region` | `Sonner` (mantendo `useFeedback()` como fachada) |
-| tabelas de listagem (orders-table, etc.) | `Table` |
-| badges de status/prioridade/estágio | `Badge` (variants por cor semântica) |
-| cabeçalho de cada tela do painel | novo primitivo local `PageHeader` (título + ação principal), composto com `Button` |
-| estados vazios ("Nenhum registro") | novo primitivo local `EmptyState` |
+| Padrão atual (CSS ad-hoc)                                                                     | Primitivo shadcn                                                                   |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `.panel`, `.page-panel`                                                                       | `Card`                                                                             |
+| `<button>` estilizado por classe                                                              | `Button` (variants: default/outline/ghost/destructive)                             |
+| `<input>`/`<select>`/`<textarea>` em formulários                                              | `Input`/`Select`/`Textarea` + `Label`                                              |
+| `.modal-backdrop`/`.modal` (order-modals, client-modal, part-modal, money-modal, quote-modal) | `Dialog`                                                                           |
+| `.feedback-dialog` (confirmação)                                                              | `AlertDialog`                                                                      |
+| `.toast`/`.toast-region`                                                                      | `Sonner` (mantendo `useFeedback()` como fachada)                                   |
+| tabelas de listagem (orders-table, etc.)                                                      | `Table`                                                                            |
+| badges de status/prioridade/estágio                                                           | `Badge` (variants por cor semântica)                                               |
+| cabeçalho de cada tela do painel                                                              | novo primitivo local `PageHeader` (título + ação principal), composto com `Button` |
+| estados vazios ("Nenhum registro")                                                            | novo primitivo local `EmptyState`                                                  |
 
 `PageHeader` e `EmptyState` não existem no shadcn (são específicos deste
 produto); ficam em `components/ui/page-header.tsx` e

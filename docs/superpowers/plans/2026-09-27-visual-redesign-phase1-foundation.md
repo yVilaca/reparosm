@@ -271,10 +271,7 @@ Create `components/theme-provider.tsx`:
 import { ThemeProvider as NextThemesProvider } from 'next-themes';
 import type { ComponentProps } from 'react';
 
-export function ThemeProvider({
-  children,
-  ...props
-}: ComponentProps<typeof NextThemesProvider>) {
+export function ThemeProvider({ children, ...props }: ComponentProps<typeof NextThemesProvider>) {
   return (
     <NextThemesProvider attribute="class" defaultTheme="system" enableSystem {...props}>
       {children}
@@ -332,11 +329,11 @@ Em `app/layout.tsx`, importe `ThemeProvider` e envolva `FeedbackProvider`:
 ```tsx
 import { ThemeProvider } from '@/components/theme-provider';
 // ...
-      <body className="antialiased font-sans">
-        <ThemeProvider>
-          <FeedbackProvider>{children}</FeedbackProvider>
-        </ThemeProvider>
-      </body>
+<body className="antialiased font-sans">
+  <ThemeProvider>
+    <FeedbackProvider>{children}</FeedbackProvider>
+  </ThemeProvider>
+</body>;
 ```
 
 - [x] **Step 5: Verificar tipos e build**
@@ -392,14 +389,7 @@ pnpm dlx shadcn@latest add sonner alert-dialog button
 ```tsx
 'use client';
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import {
@@ -465,15 +455,22 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     <FeedbackContext.Provider value={{ notify, confirm }}>
       {children}
       <Toaster richColors closeButton />
-      <AlertDialog open={pending !== null} onOpenChange={(open) => !open && resolveConfirmation(false)}>
+      <AlertDialog
+        open={pending !== null}
+        onOpenChange={(open) => !open && resolveConfirmation(false)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirme esta ação</AlertDialogTitle>
             <AlertDialogDescription>{pending?.message}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => resolveConfirmation(false)}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={() => resolveConfirmation(true)}>Confirmar</AlertDialogAction>
+            <AlertDialogCancel onClick={() => resolveConfirmation(false)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => resolveConfirmation(true)}>
+              Confirmar
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -913,7 +910,12 @@ export default function LogoutButton() {
     router.refresh();
   };
   return (
-    <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={() => void logout()}>
+    <Button
+      variant="ghost"
+      size="sm"
+      className="w-full justify-start gap-2"
+      onClick={() => void logout()}
+    >
       <LogOut className="h-4 w-4" />
       Sair da conta
     </Button>
@@ -1136,7 +1138,7 @@ git commit -m "feat: add PageHeader and EmptyState primitives for later phases"
 
 - Inspect: todos os arquivos tocados nas Tasks 1-7
 
-- [ ] **Step 1: Rodar a suíte completa uma última vez**
+- [x] **Step 1: Rodar a suíte completa uma última vez**
 
 Run: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build`
 
@@ -1145,7 +1147,7 @@ rode também com a variável apontando pro Postgres local
 (`postgres://postgres:postgres@127.0.0.1:5432/postgres`, como usado nas
 fases anteriores desta sessão) pra cobrir os testes de banco.
 
-- [ ] **Step 2: Atualizar o grafo do Graft**
+- [x] **Step 2: Atualizar o grafo do Graft**
 
 Run: `pnpm exec graft build && pnpm exec graft check`
 
@@ -1157,6 +1159,10 @@ Run: `pnpm dev`. Percorra `/login` e qualquer tela do painel (ex.
 `/ordens`) nos dois temas e em duas larguras (desktop e mobile ~375px),
 confirmando que não sobrou nenhum elemento com o Arial antigo ou cores do
 CSS legado destoando do novo roxo/tokens.
+
+> Pendente nesta execução: o navegador local não está acessível para a
+> verificação visual automatizada neste ambiente. Não marcar como concluído
+> sem revisar `/login` e uma tela do painel nos temas e larguras indicados.
 
 - [ ] **Step 4: Push e abertura do PR**
 
