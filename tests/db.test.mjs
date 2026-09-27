@@ -40,6 +40,31 @@ test('migrations leave one table per entity and no records table', { skip }, asy
   ]);
 });
 
+test('every table with account_id forces RLS', { skip }, async () => {
+  const unprotectedAccountTables = () =>
+    db.migrationQuery(
+      `SELECT c.relname
+       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+       WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'f')
+         AND EXISTS (
+           SELECT 1 FROM pg_attribute a
+           WHERE a.attrelid = c.oid AND a.attname = 'account_id' AND NOT a.attisdropped
+         )
+         AND NOT (c.relrowsecurity AND c.relforcerowsecurity)
+       ORDER BY c.relname`,
+    );
+
+  assert.deepEqual(await unprotectedAccountTables(), []);
+
+  await db.migrationQuery('CREATE TABLE p1_rls_inventory_probe (account_id text)');
+  try {
+    assert.deepEqual(await unprotectedAccountTables(), [{ relname: 'p1_rls_inventory_probe' }]);
+  } finally {
+    await db.migrationQuery('DROP TABLE p1_rls_inventory_probe');
+  }
+  assert.deepEqual(await unprotectedAccountTables(), []);
+});
+
 test('query binds parameters', { skip }, async () => {
   await db.query('INSERT INTO notes (id, body) VALUES ($1, $2)', ['a', "it's safe"]);
   assert.deepEqual(await db.query('SELECT body FROM notes WHERE id = $1', ['a']), [
