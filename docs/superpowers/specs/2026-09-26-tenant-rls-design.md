@@ -34,8 +34,8 @@ Usar RLS do PostgreSQL com contexto por transação e papel efetivo restrito. Ap
 
 ### P1 — fechar as exceções e relacionamentos
 
-1. Levar `accounts`, `sessions`, `password_requests` e `login_failures` para RLS, com contextos separados para consulta de login por usuário, sessão por hash de token, pedido de recuperação por conta e operações administrativas verificadas no servidor. Nenhum contexto de administrador poderá vir de cabeçalho ou corpo HTTP.
-2. Adicionar chaves estrangeiras compostas por loja para referências entre `orders`, `clients`, `quotes` e `messages`, impedindo relações entre lojas mesmo quando IDs forem fornecidos incorretamente. Confirmar a compatibilidade da versão PostgreSQL com as ações `ON DELETE` necessárias antes de escolher a forma final das constraints.
+1. Adicionar chaves estrangeiras compostas por loja para referências entre `orders`, `clients`, `quotes` e `messages`, impedindo relações entre lojas mesmo quando IDs forem fornecidos incorretamente. Ao remover um cliente, orçamento ou ordem, anular somente a coluna de referência; `account_id` deve permanecer intacto.
+2. Levar `accounts`, `sessions`, `password_requests` e `login_failures` para RLS forçada, com contextos separados para consulta de login por usuário, sessão pelo hash do token, pedido de recuperação por conta e operações administrativas verificadas no servidor. Nenhum contexto de administrador poderá vir de cabeçalho ou corpo HTTP. As consultas públicas devem selecionar somente o status da conta, nunca o hash da senha.
 3. Manter um inventário testado das tabelas que têm dados por loja; qualquer nova tabela com `account_id` entra com RLS na mesma migration que a cria.
 
 ## Contextos públicos e limite de segurança
