@@ -1153,16 +1153,19 @@ Run: `pnpm exec graft build && pnpm exec graft check`
 
 Expected: `graph check: OK`.
 
-- [ ] **Step 3: Checagem visual final nas duas telas desta fase**
+- [x] **Step 3: Checagem visual final nas duas telas desta fase**
 
-Run: `pnpm dev`. Percorra `/login` e qualquer tela do painel (ex.
-`/ordens`) nos dois temas e em duas larguras (desktop e mobile ~375px),
-confirmando que não sobrou nenhum elemento com o Arial antigo ou cores do
-CSS legado destoando do novo roxo/tokens.
-
-> Pendente nesta execução: o navegador local não está acessível para a
-> verificação visual automatizada neste ambiente. Não marcar como concluído
-> sem revisar `/login` e uma tela do painel nos temas e larguras indicados.
+Feito em sessão seguinte via Playwright headless (login, ordens, mobile,
+claro/escuro — screenshots reais). Achado durante a checagem: o import do
+Tailwind gerado nesta execução tinha `theme.css` + `utilities.css` mas
+faltava `preflight.css` (o reset de base), então qualquer `<button>` sem
+o componente `Button` do shadcn (ex.: "Esqueci minha senha" do login, os
+botões WhatsApp/Editar/Excluir da tabela de OS) mantinha a aparência
+padrão do navegador — visualmente parecia "desabilitado" ao lado dos
+botões shadcn corretos. Corrigido adicionando
+`@import 'tailwindcss/preflight.css' layer(base);` em `app/globals.css`
+(commit `dd43f04`); reverificado visualmente que a correção não regride
+as telas ainda não migradas (Mesa, Dashboard).
 
 - [x] **Step 4: Push e abertura do PR**
 
