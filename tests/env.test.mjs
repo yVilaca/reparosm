@@ -3,7 +3,13 @@ import test from 'node:test';
 
 import { validateEnv } from '../lib/env.ts';
 
-const names = ['DATABASE_URL', 'URL', 'ADMIN_PASSWORD_HASH', 'WHATSAPP_CONFIG_KEY'];
+const names = [
+  'DATABASE_URL',
+  'NETLIFY_DB_URL',
+  'URL',
+  'ADMIN_PASSWORD_HASH',
+  'WHATSAPP_CONFIG_KEY',
+];
 
 function withEnv(values, callback) {
   const previous = Object.fromEntries(names.map((name) => [name, process.env[name]]));
@@ -25,6 +31,16 @@ test('rejects missing database configuration', () => {
   withEnv({ ADMIN_PASSWORD_HASH: 'pbkdf2$valid' }, () => {
     assert.throws(() => validateEnv(), /DATABASE_URL/);
   });
+});
+
+test('accepts the Netlify-managed database connection', () => {
+  withEnv(
+    {
+      NETLIFY_DB_URL: 'postgres://localhost/reparosm',
+      ADMIN_PASSWORD_HASH: 'pbkdf2$valid',
+    },
+    () => assert.doesNotThrow(() => validateEnv()),
+  );
 });
 
 test('rejects an invalid site URL', () => {

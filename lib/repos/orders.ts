@@ -1,4 +1,4 @@
-import { query, type Query } from '@/lib/db';
+import { tenantQueryFor, type Query } from '@/lib/db';
 import { compact, iso, money, textOrNull, toRecord, type Timestamp } from '@/lib/repos/rows';
 import type { Order } from '@/lib/types';
 
@@ -71,16 +71,17 @@ const toOrder = (row: OrderRow) =>
     }),
   );
 
-export async function list(accountId: string) {
-  const rows = await query<OrderRow>(
+export async function list(accountId: string, run?: Query) {
+  const rows = await tenantQueryFor(accountId, run)<OrderRow>(
     `${select} WHERE o.account_id = $1 ORDER BY o.updated_at DESC`,
     [accountId],
   );
   return rows.map(toOrder);
 }
 
-export async function get(accountId: string, id: string, run: Query = query) {
-  const [row] = await run<OrderRow>(`${select} WHERE o.account_id = $1 AND o.id = $2`, [
+export async function get(accountId: string, id: string, run?: Query) {
+  const execute = tenantQueryFor(accountId, run);
+  const [row] = await execute<OrderRow>(`${select} WHERE o.account_id = $1 AND o.id = $2`, [
     accountId,
     id,
   ]);
@@ -91,8 +92,9 @@ export async function get(accountId: string, id: string, run: Query = query) {
  * Creates or updates the order; null when the id belongs to another account.
  * A quoteId is kept only when that quote belongs to the same account.
  */
-export async function save(accountId: string, id: string, data: Order, run: Query = query) {
-  const saved = await run(
+export async function save(accountId: string, id: string, data: Order, run?: Query) {
+  const execute = tenantQueryFor(accountId, run);
+  const saved = await execute(
     `INSERT INTO orders AS o (id, account_id, quote_id, code, customer, phone, device, imei,
        device_password, pattern, problem, service, notes, technician, priority, stage, status,
        labor, parts, cost, total, warranty_days, whatsapp_consent)
@@ -135,12 +137,12 @@ export async function save(accountId: string, id: string, data: Order, run: Quer
       data.whatsappConsent === true,
     ],
   );
-  return saved.length ? get(accountId, id, run) : null;
+  return saved.length ? get(accountId, id, execute) : null;
 }
 
 /** Atomically assigns the next display code ("OS-N") for the account. */
-export async function nextCode(accountId: string, run: Query = query) {
-  const [row] = await run<{ next_seq: number }>(
+export async function nextCode(accountId: string, run?: Query) {
+  const [row] = await tenantQueryFor(accountId, run)<{ next_seq: number }>(
     `INSERT INTO order_code_counters (account_id, next_seq) VALUES ($1, 1)
      ON CONFLICT (account_id) DO UPDATE SET next_seq = order_code_counters.next_seq + 1
      RETURNING next_seq`,
@@ -149,14 +151,17 @@ export async function nextCode(accountId: string, run: Query = query) {
   return `OS-${row.next_seq}`;
 }
 
-export async function linkClient(id: string, clientId: string, run: Query = query) {
-  await run('UPDATE orders SET client_id = $2 WHERE id = $1', [id, clientId]);
+export async function linkClient(accountId: string, id: string, clientId: string, run?: Query) {
+  await tenantQueryFor(accountId, run)(
+    'UPDATE orders SET client_id = $3 WHERE account_id = $1 AND id = $2',
+    [accountId, id, clientId],
+  );
 }
 
 export async function remove(accountId: string, id: string) {
-  const rows = await query('DELETE FROM orders WHERE account_id = $1 AND id = $2 RETURNING id', [
-    accountId,
-    id,
-  ]);
+  const rows = await tenantQueryFor(accountId)(
+    'DELETE FROM orders WHERE account_id = $1 AND id = $2 RETURNING id',
+    [accountId, id],
+  );
   return rows.length > 0;
 }

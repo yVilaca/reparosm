@@ -1,5 +1,7 @@
 import LogoutButton from '@/components/logout-button';
 import SidebarNav from '@/components/sidebar-nav';
+import { ThemeToggle } from '@/components/theme-toggle';
+import { Separator } from '@/components/ui/separator';
 import { requireServerAccount } from '@/lib/server-auth';
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
@@ -7,29 +9,46 @@ export default async function PanelLayout({ children }: { children: React.ReactN
   const initials = String(account.name || account.username)
     .slice(0, 2)
     .toUpperCase();
+
   return (
-    <main className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-mark">R</span>
+    <div className="flex min-h-svh bg-background text-foreground">
+      <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r bg-background p-4 md:flex">
+        <div className="flex items-center gap-3 px-2 pb-4">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground">
+            R
+          </span>
           <div>
-            <strong>ReparoSM</strong>
-            <small>Repair System Master</small>
+            <strong className="block text-sm font-semibold leading-none">ReparoSM</strong>
+            <small className="text-xs text-muted-foreground">Repair System Master</small>
           </div>
         </div>
+        <Separator className="mb-4" />
         <SidebarNav isAdmin={account.role === 'admin'} />
-        <div className="sidebar-foot">
-          <div className="profile">
-            <span>{initials}</span>
-            <div>
-              <strong>{account.name}</strong>
-              <small>{account.role === 'admin' ? 'Administrador' : 'Lojista'}</small>
+        <Separator className="my-4" />
+        <div className="flex items-center justify-between gap-2 px-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+              {initials}
+            </span>
+            <div className="min-w-0">
+              <strong className="block truncate text-sm font-medium leading-none">
+                {account.name}
+              </strong>
+              <small className="text-xs text-muted-foreground">
+                {account.role === 'admin' ? 'Administrador' : 'Lojista'}
+              </small>
             </div>
           </div>
-          <LogoutButton />
+          <ThemeToggle />
         </div>
+        <LogoutButton />
       </aside>
-      <section className="workspace">{children}</section>
-    </main>
+      <section className="min-w-0 flex-1 overflow-y-auto p-4 pb-24 sm:p-6 md:p-8 md:pb-8">
+        {children}
+      </section>
+      <div className="md:hidden">
+        <SidebarNav isAdmin={account.role === 'admin'} />
+      </div>
+    </div>
   );
 }

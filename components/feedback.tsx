@@ -1,18 +1,23 @@
 'use client';
 
+import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
+import { toast } from 'sonner';
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Toaster } from '@/components/ui/sonner';
+import { createConfirmationQueue } from './feedback-confirmation-queue.mjs';
 
 type NoticeTone = 'info' | 'success' | 'error';
-type Notice = { id: number; message: string; tone: NoticeTone };
 type PendingConfirmation = {
+  id: number;
   message: string;
   resolve: (confirmed: boolean) => void;
 };
@@ -24,84 +29,53 @@ type FeedbackContextValue = {
 const FeedbackContext = createContext<FeedbackContextValue | null>(null);
 
 export function FeedbackProvider({ children }: { children: ReactNode }) {
-  const [notice, setNotice] = useState<Notice | null>(null);
   const [pending, setPending] = useState<PendingConfirmation | null>(null);
-  const cancelRef = useRef<HTMLButtonElement>(null);
-  const noticeId = useRef(0);
+  const pendingQueue = useRef<ReturnType<typeof createConfirmationQueue> | null>(null);
+  if (pendingQueue.current == null) pendingQueue.current = createConfirmationQueue(setPending);
 
   const notify = useCallback((message: string, tone: NoticeTone = 'info') => {
-    noticeId.current += 1;
-    setNotice({ id: noticeId.current, message, tone });
+    if (tone === 'success') toast.success(message);
+    else if (tone === 'error') toast.error(message);
+    else toast(message);
   }, []);
 
   const confirm = useCallback(
     (message: string) =>
       new Promise<boolean>((resolve) => {
-        setPending({ message, resolve });
+        pendingQueue.current!.enqueue(message, resolve);
       }),
     [],
   );
 
-  const resolveConfirmation = useCallback((confirmed: boolean) => {
-    setPending((current) => {
-      current?.resolve(confirmed);
-      return null;
-    });
+  const resolveConfirmation = useCallback((id: number, confirmed: boolean) => {
+    pendingQueue.current?.resolve(id, confirmed);
   }, []);
-
-  useEffect(() => {
-    if (!notice) return;
-    const timeout = window.setTimeout(() => setNotice(null), 4500);
-    return () => window.clearTimeout(timeout);
-  }, [notice]);
-
-  useEffect(() => {
-    if (!pending) return;
-    cancelRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        resolveConfirmation(false);
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [pending, resolveConfirmation]);
 
   return (
     <FeedbackContext.Provider value={{ notify, confirm }}>
       {children}
-      <div className="toast-region" aria-live="polite" aria-atomic="true">
-        {notice && (
-          <div className={`toast toast-${notice.tone}`} key={notice.id} role="status">
-            <span>{notice.message}</span>
-            <button type="button" aria-label="Fechar notificação" onClick={() => setNotice(null)}>
-              ×
-            </button>
-          </div>
-        )}
-      </div>
-      {pending && (
-        <div className="feedback-dialog-backdrop">
-          <section
-            className="feedback-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="feedback-dialog-title"
-          >
-            <h2 id="feedback-dialog-title">Confirme esta ação</h2>
-            <p>{pending.message}</p>
-            <div className="feedback-dialog-actions">
-              <button ref={cancelRef} type="button" onClick={() => resolveConfirmation(false)}>
-                Cancelar
-              </button>
-              <button className="danger" type="button" onClick={() => resolveConfirmation(true)}>
-                Confirmar
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
+      <Toaster richColors closeButton />
+      <AlertDialog
+        open={pending !== null}
+        onOpenChange={(open) => {
+          if (!open && pending) resolveConfirmation(pending.id, false);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirme esta ação</AlertDialogTitle>
+            <AlertDialogDescription>{pending?.message}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => pending && resolveConfirmation(pending.id, false)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => pending && resolveConfirmation(pending.id, true)}>
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </FeedbackContext.Provider>
   );
 }

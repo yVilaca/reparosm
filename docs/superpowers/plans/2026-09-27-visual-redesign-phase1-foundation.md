@@ -60,7 +60,7 @@ v4, shadcn/ui (Radix UI + `class-variance-authority` + `tailwind-merge` +
 - Produces: `cn(...inputs: ClassValue[]): string` exportado de `lib/utils.ts`
   (usado por todo componente shadcn e por todas as tasks seguintes).
 
-- [ ] **Step 1: Rodar o instalador do shadcn**
+- [x] **Step 1: Rodar o instalador do shadcn**
 
 ```bash
 pnpm dlx shadcn@latest init -y
@@ -75,7 +75,7 @@ dependências necessárias (`tailwindcss@4`, `class-variance-authority`,
 não adicione nada manualmente, deixe o instalador gerenciar o
 `package.json`).
 
-- [ ] **Step 2: Verificar que o bloco de tokens ficou no topo do arquivo**
+- [x] **Step 2: Verificar que o bloco de tokens ficou no topo do arquivo**
 
 Abra `app/globals.css` e confirme que `@import "tailwindcss";` e o bloco de
 tokens gerado pelo CLI estão **antes** das ~4.300 linhas de CSS legado
@@ -84,7 +84,7 @@ inserido em outro lugar, mova manualmente para o topo — CSS legado depois
 dos tokens deve continuar funcionando, já que não há conflito de nomes de
 classe, só de variáveis, que a Task 2 resolve).
 
-- [ ] **Step 3: Confirmar que `lib/utils.ts` foi criado com o `cn` helper**
+- [x] **Step 3: Confirmar que `lib/utils.ts` foi criado com o `cn` helper**
 
 ```ts
 import { type ClassValue, clsx } from 'clsx';
@@ -98,7 +98,7 @@ export function cn(...inputs: ClassValue[]) {
 Se o CLI gerou algo diferente disso, mantenha o que ele gerou — esta é
 apenas a forma padrão esperada, para referência.
 
-- [ ] **Step 4: Rodar o build pra confirmar que nada quebrou**
+- [x] **Step 4: Rodar o build pra confirmar que nada quebrou**
 
 Run: `pnpm typecheck && pnpm build`
 
@@ -106,7 +106,7 @@ Expected: ambos saem com código 0. O app deve continuar funcionando
 visualmente igual a antes (o CSS legado ainda está intacto, só ganhou
 Tailwind por cima).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add components.json lib/utils.ts package.json pnpm-lock.yaml app/globals.css
@@ -128,7 +128,7 @@ git commit -m "chore: install tailwind v4 and shadcn/ui"
   em ambos os temas; classe `font-sans` do Tailwind passa a resolver para
   Inter em todo o app (via `next/font/google` + variável CSS).
 
-- [ ] **Step 1: Sobrescrever os tokens de cor primária**
+- [x] **Step 1: Sobrescrever os tokens de cor primária**
 
 No bloco `:root` gerado pelo CLI em `app/globals.css`, adicione/substitua:
 
@@ -154,7 +154,7 @@ texto normal — não precisa clarear a cor pro tema escuro. Deixe as demais
 variáveis (`--background`, `--foreground`, `--muted`, `--border`, etc.)
 como o CLI gerou.
 
-- [ ] **Step 2: Adicionar a fonte Inter**
+- [x] **Step 2: Adicionar a fonte Inter**
 
 Em `app/layout.tsx`, importe e aplique a fonte:
 
@@ -215,7 +215,7 @@ próprio `@theme` do shadcn já mapeia `--font-sans: var(--font-sans)` por
 convenção; confirme visualmente no Step 4 que o texto renderiza em Inter e
 não em Arial.
 
-- [ ] **Step 3: Verificar tipos e build**
+- [x] **Step 3: Verificar tipos e build**
 
 Run: `pnpm typecheck && pnpm build`
 
@@ -232,7 +232,7 @@ rode `getComputedStyle(document.body).fontFamily` no console e confirme
 que começa com `"Inter"` (ou o nome da variável CSS `var(--font-sans)`
 resolvida para o font-family injetado pelo `next/font`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/globals.css app/layout.tsx
@@ -255,13 +255,13 @@ git commit -m "feat: apply brand purple tokens and Inter font"
   `<ThemeToggle />` (botão que alterna claro/escuro/sistema), reutilizável
   por qualquer tela a partir daqui.
 
-- [ ] **Step 1: Instalar `next-themes`**
+- [x] **Step 1: Instalar `next-themes`**
 
 ```bash
 pnpm add next-themes
 ```
 
-- [ ] **Step 2: Criar o provider de tema**
+- [x] **Step 2: Criar o provider de tema**
 
 Create `components/theme-provider.tsx`:
 
@@ -271,10 +271,7 @@ Create `components/theme-provider.tsx`:
 import { ThemeProvider as NextThemesProvider } from 'next-themes';
 import type { ComponentProps } from 'react';
 
-export function ThemeProvider({
-  children,
-  ...props
-}: ComponentProps<typeof NextThemesProvider>) {
+export function ThemeProvider({ children, ...props }: ComponentProps<typeof NextThemesProvider>) {
   return (
     <NextThemesProvider attribute="class" defaultTheme="system" enableSystem {...props}>
       {children}
@@ -283,7 +280,7 @@ export function ThemeProvider({
 }
 ```
 
-- [ ] **Step 3: Criar o botão de alternância**
+- [x] **Step 3: Criar o botão de alternância**
 
 Antes deste step, rode `pnpm dlx shadcn@latest add button dropdown-menu` se
 ainda não tiver feito (necessário para o próximo componente — pode já ter
@@ -325,21 +322,21 @@ export function ThemeToggle() {
 }
 ```
 
-- [ ] **Step 4: Envolver o app com o provider**
+- [x] **Step 4: Envolver o app com o provider**
 
 Em `app/layout.tsx`, importe `ThemeProvider` e envolva `FeedbackProvider`:
 
 ```tsx
 import { ThemeProvider } from '@/components/theme-provider';
 // ...
-      <body className="antialiased font-sans">
-        <ThemeProvider>
-          <FeedbackProvider>{children}</FeedbackProvider>
-        </ThemeProvider>
-      </body>
+<body className="antialiased font-sans">
+  <ThemeProvider>
+    <FeedbackProvider>{children}</FeedbackProvider>
+  </ThemeProvider>
+</body>;
 ```
 
-- [ ] **Step 5: Verificar tipos e build**
+- [x] **Step 5: Verificar tipos e build**
 
 Run: `pnpm typecheck && pnpm build`
 
@@ -356,7 +353,7 @@ Recarregue a página (F5): a classe deve continuar a mesma escolhida, não
 voltar para o padrão do sistema — isso confirma que `next-themes` está
 persistindo em `localStorage` (chave `theme`).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add package.json pnpm-lock.yaml components/theme-provider.tsx components/theme-toggle.tsx app/layout.tsx
@@ -381,25 +378,18 @@ git commit -m "feat: add light/dark theme toggle"
   exatamente como antes; todo consumidor existente continua funcionando sem
   alteração.
 
-- [ ] **Step 1: Instalar os componentes shadcn necessários**
+- [x] **Step 1: Instalar os componentes shadcn necessários**
 
 ```bash
 pnpm dlx shadcn@latest add sonner alert-dialog button
 ```
 
-- [ ] **Step 2: Reescrever `components/feedback.tsx`**
+- [x] **Step 2: Reescrever `components/feedback.tsx`**
 
 ```tsx
 'use client';
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import {
@@ -465,15 +455,22 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     <FeedbackContext.Provider value={{ notify, confirm }}>
       {children}
       <Toaster richColors closeButton />
-      <AlertDialog open={pending !== null} onOpenChange={(open) => !open && resolveConfirmation(false)}>
+      <AlertDialog
+        open={pending !== null}
+        onOpenChange={(open) => !open && resolveConfirmation(false)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirme esta ação</AlertDialogTitle>
             <AlertDialogDescription>{pending?.message}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => resolveConfirmation(false)}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={() => resolveConfirmation(true)}>Confirmar</AlertDialogAction>
+            <AlertDialogCancel onClick={() => resolveConfirmation(false)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => resolveConfirmation(true)}>
+              Confirmar
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -492,7 +489,7 @@ A fila (`pendingQueue`) resolve o item do "Review Focus": duas chamadas de
 `confirm()` em sequência antes da primeira ser respondida agora enfileiram
 a segunda em vez de perdê-la ou sobrescrever a primeira.
 
-- [ ] **Step 3: Verificar tipos e build**
+- [x] **Step 3: Verificar tipos e build**
 
 Run: `pnpm typecheck && pnpm build`
 
@@ -517,7 +514,7 @@ Sonner já ajusta automaticamente a cor de fundo do toast de erro por tema;
 esta checagem é só para confirmar visualmente, não exige mudança de
 código se já estiver legível.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add package.json pnpm-lock.yaml components/feedback.tsx components/ui/sonner.tsx components/ui/alert-dialog.tsx components/ui/button.tsx
@@ -538,13 +535,13 @@ git commit -m "refactor: restyle feedback toasts and confirmation with shadcn"
 - Produces: nenhuma mudança de interface — `Login({ onLogin })` continua
   com a mesma prop.
 
-- [ ] **Step 1: Instalar os componentes shadcn necessários**
+- [x] **Step 1: Instalar os componentes shadcn necessários**
 
 ```bash
 pnpm dlx shadcn@latest add card input label
 ```
 
-- [ ] **Step 2: Reescrever `components/login.tsx`**
+- [x] **Step 2: Reescrever `components/login.tsx`**
 
 ```tsx
 'use client';
@@ -697,7 +694,7 @@ export default function Login({ onLogin }: { onLogin: (account: PublicAccount) =
 }
 ```
 
-- [ ] **Step 3: Verificar tipos e build**
+- [x] **Step 3: Verificar tipos e build**
 
 Run: `pnpm typecheck && pnpm build`
 
@@ -714,7 +711,7 @@ formulário de recuperação e volta; (5) login com as credenciais válidas
 Repita alternando o tema (claro/escuro, via o toggle temporário da Task 3
 ou definitivo da Task 6) e confirme que o texto continua legível nos dois.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add package.json pnpm-lock.yaml components/login.tsx components/ui/card.tsx components/ui/input.tsx components/ui/label.tsx
@@ -736,13 +733,13 @@ git commit -m "refactor: restyle login screen with shadcn primitives"
 - Produces: nenhuma mudança de interface — `SidebarNav({ isAdmin })` e
   `LogoutButton()` continuam com a mesma assinatura.
 
-- [ ] **Step 1: Instalar o componente shadcn necessário**
+- [x] **Step 1: Instalar o componente shadcn necessário**
 
 ```bash
 pnpm dlx shadcn@latest add separator
 ```
 
-- [ ] **Step 2: Reescrever `components/sidebar-nav.tsx`**
+- [x] **Step 2: Reescrever `components/sidebar-nav.tsx`**
 
 ```tsx
 'use client';
@@ -892,7 +889,7 @@ export default function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
 }
 ```
 
-- [ ] **Step 3: Reescrever `components/logout-button.tsx`**
+- [x] **Step 3: Reescrever `components/logout-button.tsx`**
 
 ```tsx
 'use client';
@@ -913,7 +910,12 @@ export default function LogoutButton() {
     router.refresh();
   };
   return (
-    <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={() => void logout()}>
+    <Button
+      variant="ghost"
+      size="sm"
+      className="w-full justify-start gap-2"
+      onClick={() => void logout()}
+    >
       <LogOut className="h-4 w-4" />
       Sair da conta
     </Button>
@@ -921,7 +923,7 @@ export default function LogoutButton() {
 }
 ```
 
-- [ ] **Step 4: Reescrever `app/(painel)/layout.tsx`**
+- [x] **Step 4: Reescrever `app/(painel)/layout.tsx`**
 
 ```tsx
 import LogoutButton from '@/components/logout-button';
@@ -982,7 +984,7 @@ dentro dela mesma) quanto a mobile (`fixed ... md:hidden`); por isso ela
 aparece nos dois lugares do JSX acima — cada instância só desenha a parte
 relevante pro tamanho de tela atual, sem duplicar o menu visível.
 
-- [ ] **Step 5: Verificar tipos e build**
+- [x] **Step 5: Verificar tipos e build**
 
 Run: `pnpm typecheck && pnpm build`
 
@@ -1000,7 +1002,7 @@ secundários, e clicar em qualquer item fecha o menu e navega; (5) o botão
 de tema na sidebar (desktop) alterna claro/escuro e persiste ao recarregar;
 (6) "Sair da conta" desloga e volta pra `/login`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add package.json pnpm-lock.yaml components/sidebar-nav.tsx components/logout-button.tsx "app/(painel)/layout.tsx" components/ui/separator.tsx
@@ -1021,7 +1023,7 @@ git commit -m "refactor: restyle panel shell, sidebar and logout with shadcn"
   `<EmptyState title, description?, action? />`, para uso nas Fases 2-4
   (nenhuma tela é migrada para eles nesta fase — só ficam prontos).
 
-- [ ] **Step 1: Escrever o teste de import/tipo (smoke test)**
+- [x] **Step 1: Escrever o teste de import/tipo (smoke test)**
 
 Create `tests/ui-primitives.test.mjs`:
 
@@ -1052,14 +1054,14 @@ test('EmptyState renders title without description when omitted', () => {
 });
 ```
 
-- [ ] **Step 2: Rodar e confirmar que falha (arquivos ainda não existem)**
+- [x] **Step 2: Rodar e confirmar que falha (arquivos ainda não existem)**
 
 Run: `node --import ./tests/support/setup.mjs --test tests/ui-primitives.test.mjs`
 
 Expected: FAIL com erro de módulo não encontrado
 (`components/ui/page-header.tsx`/`empty-state.tsx`).
 
-- [ ] **Step 3: Implementar `components/ui/page-header.tsx`**
+- [x] **Step 3: Implementar `components/ui/page-header.tsx`**
 
 ```tsx
 import type { ReactNode } from 'react';
@@ -1085,7 +1087,7 @@ export default function PageHeader({
 }
 ```
 
-- [ ] **Step 4: Implementar `components/ui/empty-state.tsx`**
+- [x] **Step 4: Implementar `components/ui/empty-state.tsx`**
 
 ```tsx
 import type { ReactNode } from 'react';
@@ -1109,7 +1111,7 @@ export default function EmptyState({
 }
 ```
 
-- [ ] **Step 5: Rodar o teste de novo**
+- [x] **Step 5: Rodar o teste de novo**
 
 Run: `node --import ./tests/support/setup.mjs --test tests/ui-primitives.test.mjs`
 
@@ -1121,7 +1123,7 @@ Run: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm buil
 
 Expected: tudo verde.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add tests/ui-primitives.test.mjs components/ui/page-header.tsx components/ui/empty-state.tsx
@@ -1136,7 +1138,7 @@ git commit -m "feat: add PageHeader and EmptyState primitives for later phases"
 
 - Inspect: todos os arquivos tocados nas Tasks 1-7
 
-- [ ] **Step 1: Rodar a suíte completa uma última vez**
+- [x] **Step 1: Rodar a suíte completa uma última vez**
 
 Run: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build`
 
@@ -1145,7 +1147,7 @@ rode também com a variável apontando pro Postgres local
 (`postgres://postgres:postgres@127.0.0.1:5432/postgres`, como usado nas
 fases anteriores desta sessão) pra cobrir os testes de banco.
 
-- [ ] **Step 2: Atualizar o grafo do Graft**
+- [x] **Step 2: Atualizar o grafo do Graft**
 
 Run: `pnpm exec graft build && pnpm exec graft check`
 
@@ -1158,7 +1160,11 @@ Run: `pnpm dev`. Percorra `/login` e qualquer tela do painel (ex.
 confirmando que não sobrou nenhum elemento com o Arial antigo ou cores do
 CSS legado destoando do novo roxo/tokens.
 
-- [ ] **Step 4: Push e abertura do PR**
+> Pendente nesta execução: o navegador local não está acessível para a
+> verificação visual automatizada neste ambiente. Não marcar como concluído
+> sem revisar `/login` e uma tela do painel nos temas e larguras indicados.
+
+- [x] **Step 4: Push e abertura do PR**
 
 ```bash
 git push -u origin "$(git branch --show-current)"

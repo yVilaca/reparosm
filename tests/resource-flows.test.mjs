@@ -4,19 +4,17 @@ import { passwordHash } from '../lib/security.ts';
 import { createTestDatabase, skipWithoutDatabase } from './support/db.mjs';
 
 const skip = skipWithoutDatabase;
-let db, orderRoute, clientRoute, quoteRoute, publicQuoteRoute, A;
+let db, orderRoute, clientRoute, quoteRoute, publicQuoteRoute, A, B;
 
 async function merchant(username) {
-  const { createAccount } = await import('../lib/repos/accounts.ts');
   const { createSession } = await import('../lib/repos/sessions.ts');
-  const account = await createAccount({
-    id: `account-${username}`,
-    username,
-    name: username,
-    role: 'merchant',
-    passwordHash: 'unused',
-  });
-  return { id: account.id, cookie: `reparosm_session=${await createSession(account.id)}` };
+  const id = `account-${username}`;
+  await db.migrationQuery(
+    `INSERT INTO accounts (id, username, name, role, status, password_hash)
+     VALUES ($1, $2, $2, 'merchant', 'active', 'unused')`,
+    [id, username],
+  );
+  return { id, cookie: `reparosm_session=${await createSession(username, id)}` };
 }
 
 before(async () => {
@@ -28,6 +26,7 @@ before(async () => {
   quoteRoute = await import('../app/api/quotes/route.ts');
   publicQuoteRoute = await import('../app/api/public/quote/route.ts');
   A = await merchant('resource-flows');
+  B = await merchant('resource-flows-other');
 });
 
 after(async () => db?.drop());
@@ -59,11 +58,11 @@ const order = (extra = {}) => ({
   ...extra,
 });
 
-const answer = (id, status) =>
+const answer = (id, status, extra = {}) =>
   publicQuoteRoute.POST(
     new Request('https://test.local/api/public/quote', {
       method: 'POST',
-      body: JSON.stringify({ id, status }),
+      body: JSON.stringify({ id, status, ...extra }),
     }),
   );
 
@@ -97,6 +96,7 @@ test(
   'public quote approval creates one linked order when answered concurrently',
   { skip },
   async () => {
+    assert.equal((await answer('', 'Aprovado')).status, 400);
     const quoteResponse = await quoteRoute.POST(
       request('quotes', A, 'POST', {
         data: {
@@ -124,13 +124,21 @@ test(
     assert.equal(publicView.record.data.phone, undefined);
 
     const results = await Promise.all([
-      answer(quote.record.id, 'Aprovado'),
+      answer(quote.record.id, 'Aprovado', { accountId: B.id }),
       answer(quote.record.id, 'Aprovado'),
     ]);
     const statuses = results.map((result) => result.status).sort();
     const accepted = results.find((result) => result.status === 200);
+    assert.ok(
+      accepted,
+      JSON.stringify({
+        statuses,
+        responses: await Promise.all(results.map((result) => result.clone().json())),
+      }),
+    );
     const orderId = (await accepted.json()).orderId;
     const orders = await (await orderRoute.GET(request('orders', A, 'GET'))).json();
+    const otherOrders = await (await orderRoute.GET(request('orders', B, 'GET'))).json();
     const quotes = await (await quoteRoute.GET(request('quotes', A, 'GET'))).json();
     const createdOrder = orders.records.find((record) => record.id === orderId);
     const answeredQuote = quotes.records.find((record) => record.id === quote.record.id);
@@ -140,8 +148,61 @@ test(
     assert.equal(createdOrder.data.quoteCode, 'ORC-FLOW-1');
     assert.equal(createdOrder.data.total, 300);
     assert.ok(createdOrder.data.clientId);
+    assert.equal(otherOrders.records.length, 0);
     assert.equal(answeredQuote.data.status, 'Aprovado');
     assert.equal(answeredQuote.data.orderId, orderId);
     assert.ok(answeredQuote.data.answeredAt);
+  },
+);
+
+test(
+  'public quote approval fails if another tenant already owns its fallback order ID',
+  { skip },
+  async () => {
+    const quoteResponse = await quoteRoute.POST(
+      request('quotes', A, 'POST', {
+        data: {
+          customer: 'Carla',
+          phone: '11977776666',
+          device: 'Moto G',
+          service: 'Conector de carga',
+          labor: 80,
+          parts: 40,
+          status: 'Aguardando',
+        },
+      }),
+    );
+    const quote = await quoteResponse.json();
+    const fallbackOrderId = `order-from-${quote.record.id}`;
+    const conflictResponse = await orderRoute.POST(
+      request('orders', B, 'POST', {
+        id: fallbackOrderId,
+        data: order({ customer: 'Cliente da loja B' }),
+      }),
+    );
+
+    assert.equal(quoteResponse.status, 201);
+    assert.equal(conflictResponse.status, 201);
+    const [counterBefore] = await db.migrationQuery(
+      `SELECT COALESCE((SELECT next_seq FROM order_code_counters WHERE account_id = $1), 0)
+       AS next_seq`,
+      [A.id],
+    );
+    assert.equal((await answer(quote.record.id, 'Aprovado')).status, 409);
+
+    const [otherOrder] = (
+      await (await orderRoute.GET(request('orders', B, 'GET'))).json()
+    ).records.filter((record) => record.id === fallbackOrderId);
+    const [stillWaiting] = (
+      await (await quoteRoute.GET(request('quotes', A, 'GET'))).json()
+    ).records.filter((record) => record.id === quote.record.id);
+    const [counterAfter] = await db.migrationQuery(
+      `SELECT COALESCE((SELECT next_seq FROM order_code_counters WHERE account_id = $1), 0)
+       AS next_seq`,
+      [A.id],
+    );
+    assert.equal(otherOrder.data.customer, 'Cliente da loja B');
+    assert.equal(stillWaiting.data.status, 'Aguardando');
+    assert.equal(counterAfter.next_seq, counterBefore.next_seq);
   },
 );
