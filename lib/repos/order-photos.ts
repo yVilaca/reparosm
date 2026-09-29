@@ -80,7 +80,14 @@ export async function create(
       `INSERT INTO order_photos (id, account_id, order_id, content_type, size_bytes, bytes)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, order_id, content_type, size_bytes, created_at`,
-      [photo.id, accountId, photo.orderId, photo.contentType, photo.sizeBytes, Buffer.from(photo.bytes)],
+      [
+        photo.id,
+        accountId,
+        photo.orderId,
+        photo.contentType,
+        photo.sizeBytes,
+        Buffer.from(photo.bytes),
+      ],
     );
     return toPhoto(created);
   });

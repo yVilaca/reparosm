@@ -11,8 +11,15 @@ import {
   type SaveOrder,
 } from '@/components/order-modals';
 import type { Order } from '@/lib/types';
+import { uploadOrderPhotos } from '@/lib/order-photo-upload';
 
-export default function OrdersRoute({ initialOrders }: { initialOrders: OrderRow[] }) {
+export default function OrdersRoute({
+  initialOrders,
+  defaultWarrantyDays = 90,
+}: {
+  initialOrders: OrderRow[];
+  defaultWarrantyDays?: number;
+}) {
   const { notify } = useFeedback();
   const [orders, setOrders] = useState(initialOrders),
     [modal, setModal] = useState<'create' | 'edit' | null>(null),
@@ -32,7 +39,7 @@ export default function OrdersRoute({ initialOrders }: { initialOrders: OrderRow
     return matchesQuery && matchesStage && matchesPriority;
   });
   const filtered = Boolean(query || stage !== 'Todas' || priority !== 'Todas');
-  const save: SaveOrder = async (data: Order, id?: string) => {
+  const save: SaveOrder = async (data: Order, id?: string, photos: File[] = []) => {
     try {
       const response = await fetch('/api/orders', {
         method: 'POST',
@@ -46,6 +53,15 @@ export default function OrdersRoute({ initialOrders }: { initialOrders: OrderRow
       if (!response.ok || !result.record)
         throw new Error(result.error || 'Não foi possível salvar a ordem.');
       const saved = { id: result.record.id, ...result.record.data };
+      if (!id && photos.length) {
+        const uploaded = await uploadOrderPhotos(saved.id, photos);
+        notify(
+          uploaded === photos.length
+            ? `OS criada com ${uploaded} foto(s) de prova.`
+            : `OS criada; ${uploaded} de ${photos.length} foto(s) foram enviadas. Edite a OS para tentar novamente.`,
+          uploaded === photos.length ? 'success' : 'error',
+        );
+      }
       setOrders((current) =>
         id ? current.map((order) => (order.id === id ? saved : order)) : [saved, ...current],
       );
@@ -70,7 +86,10 @@ export default function OrdersRoute({ initialOrders }: { initialOrders: OrderRow
         <div>
           <p>REPAROSM</p>
           <h1>Ordens de serviço</h1>
-          <small>Dados carregados no servidor para a conta atual.</small>
+          <small>
+            Nova OS: adicione fotos na etapa Aparelho. Garantia: Editar OS. Impressão: botão
+            Imprimir OS.
+          </small>
         </div>
         <div className="top-actions">
           <Link className="top-action-link" href="/">
@@ -144,7 +163,13 @@ export default function OrdersRoute({ initialOrders }: { initialOrders: OrderRow
         onEdit={edit}
         onRemoved={(id) => setOrders((current) => current.filter((order) => order.id !== id))}
       />
-      {modal === 'create' && <OrderCreateModal close={() => setModal(null)} save={save} />}
+      {modal === 'create' && (
+        <OrderCreateModal
+          close={() => setModal(null)}
+          save={save}
+          defaultWarrantyDays={defaultWarrantyDays}
+        />
+      )}
       {modal === 'edit' && editing && (
         <OrderEditModal item={editing} close={() => setModal(null)} save={save} />
       )}

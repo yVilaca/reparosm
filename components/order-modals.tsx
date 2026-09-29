@@ -2,11 +2,13 @@
 
 import { useState, type ChangeEvent } from 'react';
 import { useFeedback } from '@/components/feedback';
+import OrderPhotos from '@/components/order-photos';
 import { formatMoney as money } from '@/lib/format';
+import { addOrderPhotoSelection } from '@/lib/order-photo-selection';
 import type { Order, OrderPriority } from '@/lib/types';
 
 export type OrderRow = Order & { id: string };
-export type SaveOrder = (data: Order, id?: string) => Promise<void>;
+export type SaveOrder = (data: Order, id?: string, photos?: File[]) => Promise<void>;
 type FieldChange = ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>;
 
 const stages = [
@@ -67,6 +69,7 @@ export function OrderEditModal({
             ×
           </button>
         </div>
+        <OrderPhotos orderId={item.id} />
         <div className="form-row">
           <label>
             Cliente *<input value={form.customer || ''} onChange={field('customer')} />
@@ -123,6 +126,17 @@ export function OrderEditModal({
             <input value={form.technician || ''} onChange={field('technician')} />
           </label>
         </div>
+        <label>
+          Garantia (dias)
+          <input
+            type="number"
+            min="1"
+            max="3650"
+            step="1"
+            value={form.warrantyDays ?? ''}
+            onChange={field('warrantyDays')}
+          />
+        </label>
         <div className="form-row three">
           <label>
             Mão de obra
@@ -178,14 +192,25 @@ export function OrderEditModal({
   );
 }
 
-export function OrderCreateModal({ close, save }: { close: () => void; save: SaveOrder }) {
+export function OrderCreateModal({
+  close,
+  save,
+  defaultWarrantyDays = 90,
+}: {
+  close: () => void;
+  save: SaveOrder;
+  defaultWarrantyDays?: number;
+}) {
   const { notify } = useFeedback();
   const [step, setStep] = useState(1),
     [pattern, setPattern] = useState<number[]>([]),
     [labor, setLabor] = useState(0),
     [parts, setParts] = useState(0),
     [cost, setCost] = useState(0),
+    [warrantyDays, setWarrantyDays] = useState(defaultWarrantyDays),
     [saving, setSaving] = useState(false),
+    [photos, setPhotos] = useState<File[]>([]),
+    [photoError, setPhotoError] = useState(''),
     [whatsappConsent, setWhatsappConsent] = useState(false),
     [form, setForm] = useState({
       customer: '',
@@ -199,6 +224,16 @@ export function OrderCreateModal({ close, save }: { close: () => void; save: Sav
   const total = labor + parts;
   const field = (key: keyof typeof form) => (e: FieldChange) =>
     setForm((value) => ({ ...value, [key]: e.target.value }));
+  const selectPhotos = (event: ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(event.currentTarget.files || []);
+    event.currentTarget.value = '';
+    const result = addOrderPhotoSelection(photos, selected);
+    if (result.error) setPhotoError(result.error);
+    else {
+      setPhotos([...result.files]);
+      setPhotoError('');
+    }
+  };
   const toggle = (number: number) =>
     setPattern((value) =>
       value.includes(number) ? value.filter((item) => item !== number) : [...value, number],
@@ -216,21 +251,26 @@ export function OrderCreateModal({ close, save }: { close: () => void; save: Sav
     if (saving) return;
     setSaving(true);
     try {
-      await save({
-        // The server assigns the real, unique code; this placeholder is discarded.
-        code: '',
-        ...form,
-        whatsappConsent,
-        pattern,
-        labor,
-        parts,
-        cost,
-        total,
-        profit: total - cost,
-        stage: 'Recebido',
-        status: 'Aberto',
-        createdAt: new Date().toISOString(),
-      });
+      await save(
+        {
+          // The server assigns the real, unique code; this placeholder is discarded.
+          code: '',
+          ...form,
+          whatsappConsent,
+          pattern,
+          labor,
+          parts,
+          cost,
+          warrantyDays,
+          total,
+          profit: total - cost,
+          stage: 'Recebido',
+          status: 'Aberto',
+          createdAt: new Date().toISOString(),
+        },
+        undefined,
+        photos,
+      );
     } finally {
       setSaving(false);
     }
@@ -320,6 +360,47 @@ export function OrderCreateModal({ close, save }: { close: () => void; save: Sav
               ))}
             </div>
             <small className="pattern-help">Sequência: {pattern.join(' → ') || 'nenhuma'}</small>
+            <section className="new-order-photos" aria-labelledby="new-order-photos-title">
+              <div>
+                <h3 id="new-order-photos-title">Fotos de prova (opcional)</h3>
+                <small>Fotografe ou selecione imagens do aparelho. Até 5 fotos, 8 MB cada.</small>
+              </div>
+              <label className="order-photos-add">
+                📷 Fotografar / selecionar fotos
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  capture="environment"
+                  aria-label="Fotografar ou selecionar fotos de prova do aparelho"
+                  onChange={selectPhotos}
+                />
+              </label>
+              <small aria-live="polite">{photos.length} de 5 fotos selecionadas</small>
+              {photoError && (
+                <p className="photo-selection-error" role="alert">
+                  {photoError}
+                </p>
+              )}
+              {photos.length > 0 && (
+                <ul className="new-order-photo-list" aria-label="Fotos selecionadas">
+                  {photos.map((photo, index) => (
+                    <li key={`${photo.name}-${photo.lastModified}-${index}`}>
+                      <span>{photo.name}</span>
+                      <button
+                        type="button"
+                        aria-label={`Remover foto ${photo.name}`}
+                        onClick={() =>
+                          setPhotos((current) => current.filter((_, i) => i !== index))
+                        }
+                      >
+                        Remover
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           </div>
         )}
         {step === 3 && (
@@ -370,6 +451,17 @@ export function OrderCreateModal({ close, save }: { close: () => void; save: Sav
                 step="0.01"
                 value={cost}
                 onChange={(event) => setCost(Number(event.target.value))}
+              />
+            </label>
+            <label>
+              Garantia (dias)
+              <input
+                type="number"
+                min="1"
+                max="3650"
+                step="1"
+                value={warrantyDays}
+                onChange={(event) => setWarrantyDays(Number(event.target.value))}
               />
             </label>
             <div className="estimate-grid">

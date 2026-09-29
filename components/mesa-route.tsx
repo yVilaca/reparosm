@@ -6,6 +6,7 @@ import { useFeedback } from '@/components/feedback';
 import { OrderCreateModal, type SaveOrder } from '@/components/order-modals';
 import { formatMoney } from '@/lib/format';
 import type { Order, OrderStage } from '@/lib/types';
+import { uploadOrderPhotos } from '@/lib/order-photo-upload';
 
 type OrderRow = Order & { id: string };
 const stages: OrderStage[] = [
@@ -17,11 +18,17 @@ const stages: OrderStage[] = [
   'Retirada',
 ];
 
-export default function MesaRoute({ initialOrders }: { initialOrders: OrderRow[] }) {
+export default function MesaRoute({
+  initialOrders,
+  defaultWarrantyDays = 90,
+}: {
+  initialOrders: OrderRow[];
+  defaultWarrantyDays?: number;
+}) {
   const { notify } = useFeedback();
   const [orders, setOrders] = useState(initialOrders);
   const [modal, setModal] = useState(false);
-  const save: SaveOrder = async (data, id) => {
+  const save: SaveOrder = async (data, id, photos = []) => {
     try {
       const response = await fetch('/api/orders', {
         method: 'POST',
@@ -35,6 +42,15 @@ export default function MesaRoute({ initialOrders }: { initialOrders: OrderRow[]
       if (!response.ok || !result.record)
         throw new Error(result.error || 'Não foi possível atualizar a ordem.');
       const saved = { id: result.record.id, ...result.record.data };
+      if (!id && photos.length) {
+        const uploaded = await uploadOrderPhotos(saved.id, photos);
+        notify(
+          uploaded === photos.length
+            ? `OS criada com ${uploaded} foto(s) de prova.`
+            : `OS criada; ${uploaded} de ${photos.length} foto(s) foram enviadas. Edite a OS para tentar novamente.`,
+          uploaded === photos.length ? 'success' : 'error',
+        );
+      }
       setOrders((current) =>
         id ? current.map((order) => (order.id === id ? saved : order)) : [saved, ...current],
       );
@@ -127,7 +143,13 @@ export default function MesaRoute({ initialOrders }: { initialOrders: OrderRow[]
           ))}
         </div>
       )}
-      {modal && <OrderCreateModal close={() => setModal(false)} save={save} />}
+      {modal && (
+        <OrderCreateModal
+          close={() => setModal(false)}
+          save={save}
+          defaultWarrantyDays={defaultWarrantyDays}
+        />
+      )}
     </>
   );
 }

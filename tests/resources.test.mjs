@@ -4,13 +4,14 @@ import { passwordHash } from '../lib/security.ts';
 import { createTestDatabase, skipWithoutDatabase } from './support/db.mjs';
 
 const skip = skipWithoutDatabase;
-let db, clients, parts, shops, whatsapp, owner, other;
+let db, clients, filmRoute, parts, shops, whatsapp, owner, other;
 
 before(async () => {
   if (skip) return;
   db = await createTestDatabase();
   process.env.ADMIN_PASSWORD_HASH = await passwordHash('adminreparosm', 'TestAdminPassword123');
   clients = await import('../app/api/clients/route.ts');
+  filmRoute = await import('../app/api/films/route.ts');
   ({ parts, shops } = await import('../lib/repos/index.ts'));
   whatsapp = await import('../lib/whatsapp.ts');
   const { createSession } = await import('../lib/repos/sessions.ts');
@@ -44,6 +45,17 @@ const request = (method, who, body, id) =>
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
 
+const filmRequest = (method, who, body, id) =>
+  new Request(`https://test.local/api/films${id ? `?id=${encodeURIComponent(id)}` : ''}`, {
+    method,
+    headers: {
+      origin: 'https://test.local',
+      cookie: who?.cookie || '',
+      'Content-Type': 'application/json',
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+
 test('resource route validates payloads and scopes ownership', { skip }, async () => {
   assert.equal((await clients.POST(request('POST', owner, { data: { name: 'Ana' } }))).status, 400);
   const saved = await clients.POST(
@@ -55,6 +67,37 @@ test('resource route validates payloads and scopes ownership', { skip }, async (
   assert.equal((await clients.GET(request('GET', other, null, id))).status, 403);
   assert.equal((await clients.DELETE(request('DELETE', other, null, id))).status, 403);
   assert.equal((await clients.DELETE(request('DELETE', owner, null, id))).status, 200);
+});
+
+test('film compatibility edits update the tenant-owned record only', { skip }, async () => {
+  const id = 'film-edit-owned';
+  const created = await filmRoute.POST(
+    filmRequest('POST', owner, {
+      id,
+      data: { brand: 'Apple', model: 'iPhone 13', compatible: 'iPhone 13 Pro', size: '6,1' },
+    }),
+  );
+  assert.equal(created.status, 201);
+
+  const updated = await filmRoute.POST(
+    filmRequest('POST', owner, {
+      id,
+      data: { brand: 'Apple', model: 'iPhone 13', compatible: 'iPhone 14', size: '6,1' },
+    }),
+  );
+  assert.equal(updated.status, 201);
+  assert.equal((await updated.json()).record.data.compatible, 'iPhone 14');
+
+  const crossTenantUpdate = await filmRoute.POST(
+    filmRequest('POST', other, {
+      id,
+      data: { brand: 'Samsung', model: 'Galaxy S24', compatible: 'Galaxy S25', size: '6,2' },
+    }),
+  );
+  assert.equal(crossTenantUpdate.status, 403);
+
+  const stillOwned = await filmRoute.GET(filmRequest('GET', owner, null, id));
+  assert.equal((await stillOwned.json()).record.data.compatible, 'iPhone 14');
 });
 
 test('tenant repository scopes reads and writes at the database boundary', { skip }, async () => {

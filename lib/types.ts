@@ -76,6 +76,7 @@ export interface Order extends DataObject {
   quoteCode?: string;
   technician?: string;
   warrantyDays?: number;
+  deliveredAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }

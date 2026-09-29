@@ -1,5 +1,13 @@
 import { tenantQueryFor, type Query } from '@/lib/db';
-import { compact, iso, money, textOrNull, toRecord, type Timestamp } from '@/lib/repos/rows';
+import {
+  compact,
+  dateOrNull,
+  iso,
+  money,
+  textOrNull,
+  toRecord,
+  type Timestamp,
+} from '@/lib/repos/rows';
 import type { Order } from '@/lib/types';
 
 type OrderRow = {
@@ -23,6 +31,7 @@ type OrderRow = {
   cost: string;
   total: string;
   warranty_days: number | null;
+  delivered_at: string | Date | null;
   whatsapp_consent: boolean;
   quote_id: string | null;
   quote_code: string | null;
@@ -33,7 +42,7 @@ type OrderRow = {
 
 const select = `SELECT o.id, o.code, o.customer, o.phone, o.device, o.imei, o.device_password,
     o.pattern, o.problem, o.service, o.notes, o.technician, o.priority, o.stage, o.status,
-    o.labor, o.parts, o.cost, o.total, o.warranty_days, o.whatsapp_consent, o.quote_id,
+    o.labor, o.parts, o.cost, o.total, o.warranty_days, o.delivered_at, o.whatsapp_consent, o.quote_id,
     q.code AS quote_code, o.client_id, o.created_at, o.updated_at
   FROM orders o LEFT JOIN quotes q ON q.id = o.quote_id`;
 
@@ -62,6 +71,10 @@ const toOrder = (row: OrderRow) =>
       total: money(row.total),
       profit: money(row.total) - money(row.cost),
       warrantyDays: row.warranty_days,
+      deliveredAt:
+        row.delivered_at instanceof Date
+          ? row.delivered_at.toISOString().slice(0, 10)
+          : dateOrNull(row.delivered_at),
       whatsappConsent: row.whatsapp_consent,
       quoteId: row.quote_id,
       quoteCode: row.quote_code,
@@ -97,9 +110,9 @@ export async function save(accountId: string, id: string, data: Order, run?: Que
   const saved = await execute(
     `INSERT INTO orders AS o (id, account_id, quote_id, code, customer, phone, device, imei,
        device_password, pattern, problem, service, notes, technician, priority, stage, status,
-       labor, parts, cost, total, warranty_days, whatsapp_consent)
+       labor, parts, cost, total, warranty_days, whatsapp_consent, delivered_at)
      VALUES ($1, $2, (SELECT id FROM quotes WHERE id = $3 AND account_id = $2), $4, $5, $6, $7,
-       $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+       $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
      ON CONFLICT (id) DO UPDATE SET quote_id = excluded.quote_id, code = excluded.code,
        customer = excluded.customer, phone = excluded.phone, device = excluded.device,
        imei = excluded.imei, device_password = excluded.device_password,
@@ -107,7 +120,8 @@ export async function save(accountId: string, id: string, data: Order, run?: Que
        notes = excluded.notes, technician = excluded.technician, priority = excluded.priority,
        stage = excluded.stage, status = excluded.status, labor = excluded.labor,
        parts = excluded.parts, cost = excluded.cost, total = excluded.total,
-       warranty_days = excluded.warranty_days, whatsapp_consent = excluded.whatsapp_consent,
+       warranty_days = excluded.warranty_days, delivered_at = excluded.delivered_at,
+       whatsapp_consent = excluded.whatsapp_consent,
        updated_at = now()
      WHERE o.account_id = excluded.account_id
      RETURNING o.id`,
@@ -135,6 +149,7 @@ export async function save(accountId: string, id: string, data: Order, run?: Que
       money(data.total),
       Number.isInteger(data.warrantyDays) ? data.warrantyDays : null,
       data.whatsappConsent === true,
+      dateOrNull(data.deliveredAt),
     ],
   );
   return saved.length ? get(accountId, id, execute) : null;

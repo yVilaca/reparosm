@@ -4,7 +4,7 @@ import { passwordHash } from '../lib/security.ts';
 import { createTestDatabase, skipWithoutDatabase } from './support/db.mjs';
 
 const skip = skipWithoutDatabase;
-let db, orderRoute, clientRoute, quoteRoute, publicQuoteRoute, A, B;
+let db, orderRoute, clientRoute, quoteRoute, publicQuoteRoute, shopRoute, A, B;
 
 async function merchant(username) {
   const { createSession } = await import('../lib/repos/sessions.ts');
@@ -24,6 +24,7 @@ before(async () => {
   orderRoute = await import('../app/api/orders/route.ts');
   clientRoute = await import('../app/api/clients/route.ts');
   quoteRoute = await import('../app/api/quotes/route.ts');
+  shopRoute = await import('../app/api/shops/route.ts');
   publicQuoteRoute = await import('../app/api/public/quote/route.ts');
   A = await merchant('resource-flows');
   B = await merchant('resource-flows-other');
@@ -91,6 +92,72 @@ test('orders use resource routes to create and reuse a client by phone', { skip 
   assert.equal(second.client.id, clients.records[0].id);
   assert.deepEqual(clients.records[0].data.lastOrderId, second.record.id);
 });
+
+test(
+  'orders snapshot the shop warranty and the server records the delivery date',
+  { skip },
+  async () => {
+    const { todayInSaoPaulo } = await import('../lib/warranty.ts');
+    const shopResponse = await shopRoute.POST(
+      request('shops', A, 'POST', {
+        data: { name: 'Loja A', phone: '11911112222', warranty: '30 dias' },
+      }),
+    );
+    assert.equal(shopResponse.status, 201);
+
+    const createdResponse = await orderRoute.POST(
+      request('orders', A, 'POST', {
+        data: order({
+          customer: 'Warranty Client',
+          phone: '11333334444',
+          deliveredAt: '2000-01-01',
+        }),
+      }),
+    );
+    const created = await createdResponse.json();
+    assert.equal(createdResponse.status, 201);
+    assert.equal(created.record.data.warrantyDays, 30);
+    assert.equal(created.record.data.deliveredAt, undefined);
+
+    const deliveredResponse = await orderRoute.POST(
+      request('orders', A, 'POST', {
+        id: created.record.id,
+        data: { ...created.record.data, stage: 'Retirada', deliveredAt: '2000-01-01' },
+      }),
+    );
+    const delivered = await deliveredResponse.json();
+    assert.equal(deliveredResponse.status, 201);
+    assert.equal(delivered.record.data.deliveredAt, todayInSaoPaulo());
+
+    await shopRoute.POST(
+      request('shops', A, 'POST', {
+        data: { name: 'Loja A', phone: '11911112222', warranty: '180 dias' },
+      }),
+    );
+    const editedResponse = await orderRoute.POST(
+      request('orders', A, 'POST', {
+        id: created.record.id,
+        data: { ...delivered.record.data, notes: 'Revisado' },
+      }),
+    );
+    const edited = await editedResponse.json();
+    assert.equal(edited.record.data.warrantyDays, 30);
+    assert.equal(edited.record.data.deliveredAt, delivered.record.data.deliveredAt);
+
+    // The UI sends warrantyDays: 0 when the field is cleared; that must not 400
+    // and discard the rest of the edit — it should fall back to the shop default.
+    const clearedResponse = await orderRoute.POST(
+      request('orders', A, 'POST', {
+        id: created.record.id,
+        data: { ...edited.record.data, warrantyDays: 0, notes: 'Garantia limpa' },
+      }),
+    );
+    const cleared = await clearedResponse.json();
+    assert.equal(clearedResponse.status, 201);
+    assert.equal(cleared.record.data.notes, 'Garantia limpa');
+    assert.equal(cleared.record.data.warrantyDays, 180);
+  },
+);
 
 test(
   'public quote approval creates one linked order when answered concurrently',

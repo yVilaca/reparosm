@@ -164,6 +164,18 @@ export default function OrdersTable({
   function actions(order: OrderRow) {
     return (
       <>
+        <button
+          type="button"
+          onClick={() =>
+            window.open(
+              `/ordens/${encodeURIComponent(order.id)}/imprimir`,
+              '_blank',
+              'noopener,noreferrer',
+            )
+          }
+        >
+          Imprimir OS
+        </button>
         <button type="button" onClick={() => send(order)}>
           WhatsApp
         </button>
