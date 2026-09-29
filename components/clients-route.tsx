@@ -2,12 +2,42 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import ClientModal, { type ClientRow, type SaveClient } from '@/components/client-modal';
+import ClientModal, {
+  clientStatuses,
+  type ClientRow,
+  type SaveClient,
+} from '@/components/client-modal';
 import { useFeedback } from '@/components/feedback';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import EmptyState from '@/components/ui/empty-state';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import PageHeader from '@/components/ui/page-header';
 import { hasValidWhatsapp, whatsappUrl } from '@/lib/format';
-import type { Client } from '@/lib/types';
+import type { Client, ClientStatus } from '@/lib/types';
 
-const statuses = ['Novo', 'Em atendimento', 'Aguardando', 'Concluído', 'Inativo'] as const;
+export function clientStatusVariant(status: string | undefined) {
+  if (status === 'Em atendimento') return 'default';
+  if (status === 'Concluído') return 'success';
+  if (status === 'Aguardando') return 'warning';
+  return 'secondary';
+}
 
 export default function ClientsRoute({ initialClients }: { initialClients: ClientRow[] }) {
   const { notify, confirm } = useFeedback();
@@ -66,7 +96,7 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
       );
     }
   };
-  const change = (client: ClientRow, status: Client['status']) => {
+  const change = (client: ClientRow, status: ClientStatus) => {
     void save({ ...client, status }, client.id).catch(() => undefined);
   };
   const chat = (client: ClientRow) => {
@@ -94,179 +124,212 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
   const visible = clients.filter((client) =>
     `${client.name} ${client.phone}`.toLowerCase().includes(search.toLowerCase()),
   );
+  const metrics = [
+    { title: 'Clientes', value: clients.length, detail: 'Cadastrados diretamente' },
+    {
+      title: 'Em atendimento',
+      value: clients.filter((client) => client.status === 'Em atendimento').length,
+      detail: 'Com acompanhamento',
+    },
+    {
+      title: 'Concluídos',
+      value: clients.filter((client) => client.status === 'Concluído').length,
+      detail: 'Atendimentos finalizados',
+    },
+    { title: 'VIP', value: clients.filter((client) => client.vip).length, detail: 'Prioritários' },
+  ];
+
   return (
     <>
-      <header className="topbar">
-        <div>
-          <p>REPAROSM</p>
-          <h1>Clientes</h1>
-          <small>Clientes carregados no servidor para a conta atual.</small>
-        </div>
-        <div className="top-actions">
-          <Link className="top-action-link" href="/">
-            ← Painel completo
-          </Link>
-          <button className="primary" type="button" onClick={create}>
-            + Novo cliente
-          </button>
-        </div>
-      </header>
-      <div className="metrics">
-        <Metric title="Clientes" value={String(clients.length)} detail="Cadastrados diretamente" />
-        <Metric
-          title="Em atendimento"
-          value={String(clients.filter((client) => client.status === 'Em atendimento').length)}
-          detail="Com acompanhamento"
-        />
-        <Metric
-          title="Concluídos"
-          value={String(clients.filter((client) => client.status === 'Concluído').length)}
-          detail="Atendimentos finalizados"
-        />
-        <Metric
-          title="VIP"
-          value={String(clients.filter((client) => client.vip).length)}
-          detail="Clientes prioritários"
-        />
-      </div>
-      {clients.length ? (
-        <article className="panel page-panel clients-page">
-          <div className="toolbar">
-            <label>
-              ⌕
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Buscar cliente por nome ou telefone..."
-              />
-            </label>
+      <PageHeader
+        title="Clientes"
+        description="Consulte contatos, acompanhe atendimentos e mantenha os dados atualizados."
+        action={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Button asChild className="w-full sm:w-auto" variant="outline">
+              <Link href="/">Painel completo</Link>
+            </Button>
+            <Button className="w-full sm:w-auto" onClick={create}>
+              Novo cliente
+            </Button>
           </div>
+        }
+      />
+
+      <section aria-label="Resumo de clientes" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {metrics.map((metric) => (
+          <Card key={metric.title} size="sm">
+            <CardContent className="grid gap-1">
+              <p className="text-sm text-muted-foreground">{metric.title}</p>
+              <p className="text-2xl font-semibold tabular-nums">{metric.value}</p>
+              <p className="text-xs text-muted-foreground">{metric.detail}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </section>
+
+      {clients.length ? (
+        <>
+          <Card className="my-4">
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
+              <div className="space-y-1">
+                <CardTitle>Diretório de clientes</CardTitle>
+                <CardDescription>Busque pelo nome ou telefone cadastrado.</CardDescription>
+              </div>
+              <div className="flex items-center gap-3">
+                <p aria-live="polite" className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">{visible.length}</span> de{' '}
+                  {clients.length} clientes
+                </p>
+                {search && (
+                  <Button onClick={() => setSearch('')} size="sm" variant="ghost">
+                    Limpar
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid max-w-md gap-2">
+                <label className="text-sm font-medium" htmlFor="client-search">
+                  Buscar clientes
+                </label>
+                <Input
+                  autoComplete="off"
+                  id="client-search"
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Nome ou telefone"
+                  value={search}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
           {visible.length ? (
-            <>
-              <div className="clients-mobile-list">
-                {visible.map((client) => (
-                  <article className="client-mobile-card" key={client.id}>
-                    <div className="list-card-heading">
-                      <div>
-                        <b>{client.name}</b>
-                        {client.vip && <small className="vip">VIP</small>}
-                      </div>
-                      <select
-                        className="status-select"
-                        value={client.status || 'Novo'}
-                        onChange={(event) => change(client, event.target.value as Client['status'])}
-                        aria-label={`Status de ${client.name}`}
-                      >
-                        {statuses.map((status) => (
-                          <option key={status}>{status}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <span>{client.phone}</span>
-                    {client.email && <small className="list-card-muted">{client.email}</small>}
-                    <div className="list-card-meta">
-                      <span>{client.document || 'Sem documento'}</span>
-                      <span>{client.notes || 'Sem observações'}</span>
-                    </div>
-                    <div className="row-actions">
-                      <button
-                        className="whatsapp-btn small"
-                        type="button"
-                        onClick={() => chat(client)}
-                      >
-                        Conversar
-                      </button>
-                      <button type="button" onClick={() => edit(client)}>
-                        Editar
-                      </button>
-                      <button type="button" onClick={() => remove(client)}>
-                        Excluir
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Cliente</th>
-                      <th>Contato</th>
-                      <th>Documento</th>
-                      <th>Status</th>
-                      <th>Observações</th>
-                      <th>Mensagem</th>
-                      <th>Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visible.map((client) => (
-                      <tr key={client.id}>
-                        <td>
-                          <b>{client.name}</b>
-                          {client.vip && <small className="vip"> VIP</small>}
-                        </td>
-                        <td>
-                          {client.phone}
-                          <small>{client.email}</small>
-                        </td>
-                        <td>{client.document || '—'}</td>
-                        <td>
-                          <select
-                            className="status-select"
-                            value={client.status || 'Novo'}
-                            onChange={(event) =>
-                              change(client, event.target.value as Client['status'])
-                            }
-                          >
-                            {statuses.map((status) => (
-                              <option key={status}>{status}</option>
-                            ))}
-                          </select>
-                        </td>
-                        <td>{client.notes || '—'}</td>
-                        <td>
-                          <button
-                            className="whatsapp-btn small"
-                            type="button"
-                            onClick={() => chat(client)}
-                          >
-                            Conversar
-                          </button>
-                        </td>
-                        <td>
-                          <div className="row-actions">
-                            <button type="button" onClick={() => edit(client)}>
-                              Editar
-                            </button>
-                            <button type="button" onClick={() => remove(client)}>
-                              Excluir
-                            </button>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between gap-3">
+                <CardTitle>Clientes</CardTitle>
+                <span className="text-sm text-muted-foreground">
+                  {visible.length} {visible.length === 1 ? 'cadastro' : 'cadastros'}
+                </span>
+              </CardHeader>
+              <CardContent>
+                <ul aria-label="Clientes encontrados" className="grid gap-3 md:hidden">
+                  {visible.map((client) => (
+                    <li key={client.id}>
+                      <Card className="gap-3" size="sm">
+                        <CardContent className="grid gap-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <h3 className="truncate font-semibold">{client.name}</h3>
+                              {client.vip && <Badge variant="warning">VIP</Badge>}
+                            </div>
+                            <ClientStatusControl client={client} onChange={change} />
                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
+                          <div className="min-w-0 text-sm">
+                            <p className="truncate font-medium">{client.phone}</p>
+                            {client.email && (
+                              <p className="truncate text-muted-foreground">{client.email}</p>
+                            )}
+                          </div>
+                          <div className="grid gap-1 border-t pt-3 text-xs text-muted-foreground">
+                            <p>Documento: {client.document || 'não informado'}</p>
+                            <p className="line-clamp-2">Observações: {client.notes || 'nenhuma'}</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2 border-t pt-3">
+                            <Button onClick={() => chat(client)} size="sm">
+                              Conversar
+                            </Button>
+                            <Button onClick={() => edit(client)} size="sm" variant="outline">
+                              Editar
+                            </Button>
+                            <Button onClick={() => void remove(client)} size="sm" variant="ghost">
+                              Excluir
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="hidden md:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Contato</TableHead>
+                        <TableHead>Documento</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Observações</TableHead>
+                        <TableHead>Mensagem</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {visible.map((client) => (
+                        <TableRow key={client.id}>
+                          <TableCell>
+                            <div className="grid gap-1">
+                              <span className="font-medium">{client.name}</span>
+                              {client.vip && (
+                                <Badge className="w-fit" variant="warning">
+                                  VIP
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="grid gap-1">
+                              <span>{client.phone}</span>
+                              {client.email && (
+                                <span className="text-xs text-muted-foreground">
+                                  {client.email}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>{client.document || '—'}</TableCell>
+                          <TableCell>
+                            <ClientStatusControl client={client} onChange={change} />
+                          </TableCell>
+                          <TableCell className="max-w-56 truncate">{client.notes || '—'}</TableCell>
+                          <TableCell>
+                            <Button onClick={() => chat(client)} size="sm" variant="outline">
+                              Conversar
+                            </Button>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex justify-end gap-1">
+                              <Button onClick={() => edit(client)} size="sm" variant="ghost">
+                                Editar
+                              </Button>
+                              <Button onClick={() => void remove(client)} size="sm" variant="ghost">
+                                Excluir
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
           ) : (
-            <div className="list-filter-empty">
-              <b>Nenhum cliente encontrado</b>
-              <span>Tente buscar por outro nome ou telefone.</span>
-            </div>
+            <EmptyState
+              description="Tente buscar por outro nome ou telefone."
+              title="Nenhum cliente encontrado"
+            />
           )}
-        </article>
+        </>
       ) : (
-        <article className="empty-state">
-          <div>✦</div>
-          <h2>Nenhum cliente cadastrado</h2>
-          <p>Você pode cadastrar clientes mesmo sem criar uma ordem de serviço.</p>
-          <button className="primary" type="button" onClick={create}>
-            Cadastrar cliente
-          </button>
-        </article>
+        <EmptyState
+          action={<Button onClick={create}>Cadastrar cliente</Button>}
+          description="Você pode cadastrar clientes mesmo sem criar uma ordem de serviço."
+          title="Nenhum cliente cadastrado"
+        />
       )}
+
       {modal === 'create' && <ClientModal close={() => setModal(null)} save={save} />}
       {modal === 'edit' && editing && (
         <ClientModal item={editing} close={() => setModal(null)} save={save} />
@@ -275,12 +338,33 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
   );
 }
 
-function Metric({ title, value, detail }: { title: string; value: string; detail: string }) {
+function ClientStatusControl({
+  client,
+  onChange,
+}: {
+  client: ClientRow;
+  onChange: (client: ClientRow, status: ClientStatus) => void;
+}) {
+  const status = client.status || 'Novo';
   return (
-    <div className="metric">
-      <span>{title}</span>
-      <strong>{value}</strong>
-      <small>{detail}</small>
+    <div className="flex items-center gap-1">
+      <Badge variant={clientStatusVariant(status)}>{status}</Badge>
+      <Select value={status} onValueChange={(value) => onChange(client, value as ClientStatus)}>
+        <SelectTrigger
+          aria-label={`Alterar status de ${client.name}`}
+          className="size-8 p-0"
+          size="sm"
+        >
+          <SelectValue className="sr-only" />
+        </SelectTrigger>
+        <SelectContent>
+          {clientStatuses.map((item) => (
+            <SelectItem key={item} value={item}>
+              {item}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

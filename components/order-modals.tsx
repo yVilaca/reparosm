@@ -3,13 +3,31 @@
 import { useState, type ChangeEvent } from 'react';
 import { useFeedback } from '@/components/feedback';
 import OrderPhotos from '@/components/order-photos';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { formatMoney as money } from '@/lib/format';
 import { addOrderPhotoSelection } from '@/lib/order-photo-selection';
 import type { Order, OrderPriority } from '@/lib/types';
 
 export type OrderRow = Order & { id: string };
 export type SaveOrder = (data: Order, id?: string, photos?: File[]) => Promise<void>;
-type FieldChange = ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>;
+type FieldChange = ChangeEvent<HTMLInputElement | HTMLTextAreaElement>;
 
 const stages = [
   'Recebido',
@@ -19,6 +37,8 @@ const stages = [
   'Teste final',
   'Retirada',
 ];
+const statuses = ['Aberto', 'Pendente', 'Aguardando pagamento', 'Concluído', 'Cancelado'];
+const priorities: OrderPriority[] = ['Normal', 'Urgente', 'Garantia'];
 
 export function OrderEditModal({
   item,
@@ -32,16 +52,18 @@ export function OrderEditModal({
   const { notify } = useFeedback();
   const [form, setForm] = useState({ ...item }),
     [saving, setSaving] = useState(false);
-  const field = (key: keyof OrderRow) => (e: FieldChange) =>
+  const field = (key: keyof OrderRow) => (event: FieldChange) =>
     setForm(
       (value) =>
         ({
           ...value,
-          [key]: e.target.type === 'number' ? Number(e.target.value) : e.target.value,
+          [key]: event.target.type === 'number' ? Number(event.target.value) : event.target.value,
         }) as OrderRow,
     );
-  const total = Number(form.labor || 0) + Number(form.parts || 0),
-    profit = total - Number(form.cost || 0);
+  const setChoice = (key: 'stage' | 'status' | 'priority', value: string) =>
+    setForm((current) => ({ ...current, [key]: value }) as OrderRow);
+  const total = Number(form.labor || 0) + Number(form.parts || 0);
+  const profit = total - Number(form.cost || 0);
   const submit = async () => {
     if (!String(form.customer || '').trim() || !String(form.device || '').trim()) {
       notify('Informe cliente e aparelho.', 'error');
@@ -54,141 +76,191 @@ export function OrderEditModal({
       setSaving(false);
     }
   };
+
   return (
-    <div className="modal-backdrop">
-      <form className="modal order-edit-modal" onSubmit={(e) => e.preventDefault()}>
-        <div className="modal-title">
-          <div>
-            <span>✎</span>
-            <div>
-              <h2>Editar ordem {item.code}</h2>
-              <p>Atualize os dados e salve as alterações</p>
+    <Dialog open onOpenChange={(open) => !open && close()}>
+      <DialogContent className="max-w-3xl p-0">
+        <form
+          className="grid max-h-[90dvh] gap-6 overflow-y-auto p-6"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submit();
+          }}
+        >
+          <DialogHeader className="pr-8">
+            <DialogTitle>Editar ordem {item.code}</DialogTitle>
+            <DialogDescription>Atualize os dados e salve as alterações.</DialogDescription>
+          </DialogHeader>
+
+          <OrderPhotos orderId={item.id} />
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="order-edit-customer">Cliente *</Label>
+              <Input
+                autoComplete="name"
+                id="order-edit-customer"
+                onChange={field('customer')}
+                required
+                value={form.customer || ''}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="order-edit-phone">WhatsApp</Label>
+              <Input
+                autoComplete="tel"
+                id="order-edit-phone"
+                onChange={field('phone')}
+                value={form.phone || ''}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="order-edit-device">Aparelho *</Label>
+              <Input
+                id="order-edit-device"
+                onChange={field('device')}
+                required
+                value={form.device || ''}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="order-edit-imei">IMEI / série</Label>
+              <Input id="order-edit-imei" onChange={field('imei')} value={form.imei || ''} />
+            </div>
+            <div className="grid gap-2 sm:col-span-2">
+              <Label htmlFor="order-edit-problem">Problema relatado</Label>
+              <Textarea
+                id="order-edit-problem"
+                onChange={field('problem')}
+                value={form.problem || ''}
+              />
             </div>
           </div>
-          <button type="button" onClick={close}>
-            ×
-          </button>
-        </div>
-        <OrderPhotos orderId={item.id} />
-        <div className="form-row">
-          <label>
-            Cliente *<input value={form.customer || ''} onChange={field('customer')} />
-          </label>
-          <label>
-            WhatsApp
-            <input value={form.phone || ''} onChange={field('phone')} />
-          </label>
-        </div>
-        <div className="form-row">
-          <label>
-            Aparelho *<input value={form.device || ''} onChange={field('device')} />
-          </label>
-          <label>
-            IMEI / série
-            <input value={form.imei || ''} onChange={field('imei')} />
-          </label>
-        </div>
-        <label>
-          Problema relatado
-          <textarea value={form.problem || ''} onChange={field('problem')} />
-        </label>
-        <div className="form-row">
-          <label>
-            Etapa
-            <select value={form.stage || 'Recebido'} onChange={field('stage')}>
-              {stages.map((stage) => (
-                <option key={stage}>{stage}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Status
-            <select value={form.status || 'Aberto'} onChange={field('status')}>
-              <option>Aberto</option>
-              <option>Pendente</option>
-              <option>Aguardando pagamento</option>
-              <option>Concluído</option>
-              <option>Cancelado</option>
-            </select>
-          </label>
-        </div>
-        <div className="form-row">
-          <label>
-            Prioridade
-            <select value={form.priority || 'Normal'} onChange={field('priority')}>
-              <option>Normal</option>
-              <option>Urgente</option>
-              <option>Garantia</option>
-            </select>
-          </label>
-          <label>
-            Técnico responsável
-            <input value={form.technician || ''} onChange={field('technician')} />
-          </label>
-        </div>
-        <label>
-          Garantia (dias)
-          <input
-            type="number"
-            min="1"
-            max="3650"
-            step="1"
-            value={form.warrantyDays ?? ''}
-            onChange={field('warrantyDays')}
-          />
-        </label>
-        <div className="form-row three">
-          <label>
-            Mão de obra
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.labor || 0}
-              onChange={field('labor')}
-            />
-          </label>
-          <label>
-            Peças
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.parts || 0}
-              onChange={field('parts')}
-            />
-          </label>
-          <label>
-            Custo
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.cost || 0}
-              onChange={field('cost')}
-            />
-          </label>
-        </div>
-        <div className="estimate-grid">
-          <div>
-            <span>Total</span>
-            <strong>{money(total)}</strong>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-2">
+              <Label htmlFor="order-edit-stage">Etapa</Label>
+              <Select
+                onValueChange={(value) => setChoice('stage', value)}
+                value={form.stage || 'Recebido'}
+              >
+                <SelectTrigger id="order-edit-stage">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {stages.map((stage) => (
+                    <SelectItem key={stage} value={stage}>
+                      {stage}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="order-edit-status">Status</Label>
+              <Select
+                onValueChange={(value) => setChoice('status', value)}
+                value={form.status || 'Aberto'}
+              >
+                <SelectTrigger id="order-edit-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {statuses.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="order-edit-priority">Prioridade</Label>
+              <Select
+                onValueChange={(value) => setChoice('priority', value)}
+                value={form.priority || 'Normal'}
+              >
+                <SelectTrigger id="order-edit-priority">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {priorities.map((priority) => (
+                    <SelectItem key={priority} value={priority}>
+                      {priority}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div>
-            <span>Lucro</span>
-            <strong className={profit < 0 ? 'negative' : ''}>{money(profit)}</strong>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-2">
+              <Label htmlFor="order-edit-technician">Técnico responsável</Label>
+              <Input
+                id="order-edit-technician"
+                onChange={field('technician')}
+                value={form.technician || ''}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="order-edit-warranty">Garantia (dias)</Label>
+              <Input
+                id="order-edit-warranty"
+                max="3650"
+                min="1"
+                onChange={field('warrantyDays')}
+                step="1"
+                type="number"
+                value={form.warrantyDays ?? ''}
+              />
+            </div>
+            {[
+              { label: 'Mão de obra', key: 'labor' as const },
+              { label: 'Peças', key: 'parts' as const },
+              { label: 'Custo', key: 'cost' as const },
+            ].map(({ label, key }) => (
+              <div className="grid gap-2" key={key}>
+                <Label htmlFor={`order-edit-${key}`}>{label}</Label>
+                <Input
+                  id={`order-edit-${key}`}
+                  min="0"
+                  onChange={field(key)}
+                  step="0.01"
+                  type="number"
+                  value={form[key] || 0}
+                />
+              </div>
+            ))}
           </div>
-        </div>
-        <div className="modal-actions">
-          <button type="button" onClick={close}>
-            Cancelar
-          </button>
-          <button type="button" className="primary" disabled={saving} onClick={() => void submit()}>
-            {saving ? 'Salvando...' : 'Salvar alterações'}
-          </button>
-        </div>
-      </form>
-    </div>
+
+          <div className="grid grid-cols-2 gap-3 rounded-lg bg-muted/50 p-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Total</p>
+              <p className="mt-1 font-semibold tabular-nums">{money(total)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Lucro</p>
+              <p
+                className={`mt-1 font-semibold tabular-nums ${profit < 0 ? 'text-destructive' : ''}`}
+              >
+                {money(profit)}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
+            <Button onClick={close} type="button" variant="outline">
+              Cancelar
+            </Button>
+            <Button disabled={saving} type="submit">
+              {saving ? 'Salvando…' : 'Salvar alterações'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -222,8 +294,8 @@ export function OrderCreateModal({
       priority: 'Normal' as OrderPriority,
     });
   const total = labor + parts;
-  const field = (key: keyof typeof form) => (e: FieldChange) =>
-    setForm((value) => ({ ...value, [key]: e.target.value }));
+  const field = (key: keyof typeof form) => (event: FieldChange) =>
+    setForm((value) => ({ ...value, [key]: event.target.value }));
   const selectPhotos = (event: ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(event.currentTarget.files || []);
     event.currentTarget.value = '';
@@ -275,235 +347,308 @@ export function OrderCreateModal({
       setSaving(false);
     }
   };
+
   return (
-    <div className="modal-backdrop">
-      <form
-        className="modal order-modal"
-        onSubmit={(event) => event.preventDefault()}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' && (event.target as HTMLElement).tagName !== 'TEXTAREA')
-            event.preventDefault();
-        }}
-      >
-        <div className="modal-title">
-          <div>
-            <span>⚒</span>
-            <div>
-              <h2>Nova ordem de serviço</h2>
-              <p>Etapa {step} de 4</p>
-            </div>
-          </div>
-          <button type="button" onClick={close}>
-            ×
-          </button>
-        </div>
-        <div className="form-steps">
-          {['Cliente', 'Aparelho', 'Diagnóstico', 'Valores'].map((label, index) => (
-            <div
-              className={step === index + 1 ? 'active' : step > index + 1 ? 'done' : ''}
-              key={label}
-            >
-              <i>{step > index + 1 ? '✓' : index + 1}</i>
-              <span>{label}</span>
-            </div>
-          ))}
-        </div>
-        {step === 1 && (
-          <div className="form-section">
-            <label>
-              Cliente *<input value={form.customer} onChange={field('customer')} required />
-            </label>
-            <label>
-              WhatsApp
-              <input value={form.phone} onChange={field('phone')} placeholder="(DDD) número" />
-            </label>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={whatsappConsent}
-                onChange={(event) => setWhatsappConsent(event.target.checked)}
-              />{' '}
-              Cliente autorizou receber atualizações desta ordem pelo WhatsApp.
-            </label>
-          </div>
-        )}
-        {step === 2 && (
-          <div className="form-section">
-            <label>
-              Aparelho *
-              <input
-                value={form.device}
-                onChange={field('device')}
-                required
-                placeholder="Marca e modelo"
-              />
-            </label>
-            <label>
-              IMEI / série
-              <input value={form.imei} onChange={field('imei')} />
-            </label>
-            <label>
-              Senha numérica
-              <input value={form.password} onChange={field('password')} type="password" />
-            </label>
-            <label>Senha padrão desenhada</label>
-            <div className="pattern-lock">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((number) => (
-                <button
-                  type="button"
-                  className={pattern.includes(number) ? 'selected' : ''}
-                  onClick={() => toggle(number)}
-                  key={number}
+    <Dialog open onOpenChange={(open) => !open && close()}>
+      <DialogContent className="max-w-2xl p-0">
+        <form
+          className="grid max-h-[90dvh] gap-6 overflow-y-auto p-6"
+          onSubmit={(event) => event.preventDefault()}
+        >
+          <DialogHeader className="pr-8">
+            <DialogTitle>Nova ordem de serviço</DialogTitle>
+            <DialogDescription>
+              Etapa {step} de 4 · preencha os dados do atendimento.
+            </DialogDescription>
+          </DialogHeader>
+
+          <ol aria-label="Etapas da nova ordem" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {['Cliente', 'Aparelho', 'Diagnóstico', 'Valores'].map((label, index) => (
+              <li
+                aria-current={step === index + 1 ? 'step' : undefined}
+                className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs ${
+                  step === index + 1
+                    ? 'border-primary bg-primary/5 text-foreground'
+                    : step > index + 1
+                      ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300'
+                      : 'text-muted-foreground'
+                }`}
+                key={label}
+              >
+                <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted font-medium">
+                  {step > index + 1 ? '✓' : index + 1}
+                </span>
+                <span className="truncate">{label}</span>
+              </li>
+            ))}
+          </ol>
+
+          {step === 1 && (
+            <section aria-label="Dados do cliente" className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="order-create-customer">Cliente *</Label>
+                <Input
+                  autoComplete="name"
+                  id="order-create-customer"
+                  onChange={field('customer')}
+                  required
+                  value={form.customer}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="order-create-phone">WhatsApp</Label>
+                <Input
+                  autoComplete="tel"
+                  id="order-create-phone"
+                  onChange={field('phone')}
+                  placeholder="(DDD) número"
+                  value={form.phone}
+                />
+              </div>
+              <div className="flex items-start gap-3 rounded-lg border p-3">
+                <Input
+                  checked={whatsappConsent}
+                  className="mt-1 size-4 shrink-0"
+                  id="order-whatsapp-consent"
+                  onChange={(event) => setWhatsappConsent(event.target.checked)}
+                  type="checkbox"
+                />
+                <Label
+                  className="text-sm leading-relaxed text-muted-foreground"
+                  htmlFor="order-whatsapp-consent"
                 >
-                  {number}
-                </button>
-              ))}
-            </div>
-            <small className="pattern-help">Sequência: {pattern.join(' → ') || 'nenhuma'}</small>
-            <section className="new-order-photos" aria-labelledby="new-order-photos-title">
-              <div>
-                <h3 id="new-order-photos-title">Fotos de prova (opcional)</h3>
-                <small>Fotografe ou selecione imagens do aparelho. Até 5 fotos, 8 MB cada.</small>
+                  Cliente autorizou receber atualizações desta ordem pelo WhatsApp.
+                </Label>
               </div>
-              <label className="order-photos-add">
-                📷 Fotografar / selecionar fotos
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  multiple
-                  capture="environment"
-                  aria-label="Fotografar ou selecionar fotos de prova do aparelho"
-                  onChange={selectPhotos}
-                />
-              </label>
-              <small aria-live="polite">{photos.length} de 5 fotos selecionadas</small>
-              {photoError && (
-                <p className="photo-selection-error" role="alert">
-                  {photoError}
-                </p>
-              )}
-              {photos.length > 0 && (
-                <ul className="new-order-photo-list" aria-label="Fotos selecionadas">
-                  {photos.map((photo, index) => (
-                    <li key={`${photo.name}-${photo.lastModified}-${index}`}>
-                      <span>{photo.name}</span>
-                      <button
-                        type="button"
-                        aria-label={`Remover foto ${photo.name}`}
-                        onClick={() =>
-                          setPhotos((current) => current.filter((_, i) => i !== index))
-                        }
-                      >
-                        Remover
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
             </section>
-          </div>
-        )}
-        {step === 3 && (
-          <div className="form-section">
-            <label>
-              Problema relatado *
-              <textarea value={form.problem} onChange={field('problem')} required />
-            </label>
-            <label>
-              Prioridade
-              <select value={form.priority} onChange={field('priority')}>
-                <option>Normal</option>
-                <option>Urgente</option>
-                <option>Garantia</option>
-              </select>
-            </label>
-          </div>
-        )}
-        {step === 4 && (
-          <div className="form-section">
-            <div className="form-row">
-              <label>
-                Mão de obra
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={labor}
-                  onChange={(event) => setLabor(Number(event.target.value))}
-                />
-              </label>
-              <label>
-                Valor das peças
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={parts}
-                  onChange={(event) => setParts(Number(event.target.value))}
-                />
-              </label>
-            </div>
-            <label>
-              Custo total da assistência
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={cost}
-                onChange={(event) => setCost(Number(event.target.value))}
-              />
-            </label>
-            <label>
-              Garantia (dias)
-              <input
-                type="number"
-                min="1"
-                max="3650"
-                step="1"
-                value={warrantyDays}
-                onChange={(event) => setWarrantyDays(Number(event.target.value))}
-              />
-            </label>
-            <div className="estimate-grid">
-              <div>
-                <span>Total estimado</span>
-                <strong>{money(total)}</strong>
-              </div>
-              <div>
-                <span>Lucro estimado</span>
-                <strong className={total - cost < 0 ? 'negative' : ''}>
-                  {money(total - cost)}
-                </strong>
-              </div>
-            </div>
-            <small className="value-confirmation">
-              Revise os valores. A ordem só será criada ao clicar no botão abaixo.
-            </small>
-          </div>
-        )}
-        <div className="modal-actions">
-          <button
-            type="button"
-            onClick={() => (step === 1 ? close() : setStep((value) => value - 1))}
-          >
-            {step === 1 ? 'Cancelar' : '← Voltar'}
-          </button>
-          {step < 4 ? (
-            <button type="button" className="primary" onClick={next}>
-              Continuar →
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="primary"
-              disabled={saving}
-              onClick={() => void create()}
-            >
-              {saving ? 'Criando...' : 'Criar ordem'}
-            </button>
           )}
-        </div>
-      </form>
-    </div>
+
+          {step === 2 && (
+            <section aria-label="Dados do aparelho" className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2 sm:col-span-2">
+                <Label htmlFor="order-create-device">Aparelho *</Label>
+                <Input
+                  id="order-create-device"
+                  onChange={field('device')}
+                  placeholder="Marca e modelo"
+                  required
+                  value={form.device}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="order-create-imei">IMEI / série</Label>
+                <Input id="order-create-imei" onChange={field('imei')} value={form.imei} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="order-create-password">Senha numérica</Label>
+                <Input
+                  autoComplete="off"
+                  id="order-create-password"
+                  onChange={field('password')}
+                  type="password"
+                  value={form.password}
+                />
+              </div>
+              <fieldset className="grid gap-2 sm:col-span-2">
+                <legend className="text-sm font-medium">Senha padrão desenhada</legend>
+                <div
+                  className="grid w-fit grid-cols-3 gap-2"
+                  role="group"
+                  aria-label="Padrão de desbloqueio"
+                >
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((number) => (
+                    <Button
+                      aria-pressed={pattern.includes(number)}
+                      className="size-10 rounded-full p-0"
+                      key={number}
+                      onClick={() => toggle(number)}
+                      type="button"
+                      variant={pattern.includes(number) ? 'default' : 'outline'}
+                    >
+                      {number}
+                    </Button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Sequência: {pattern.join(' → ') || 'nenhuma'}
+                </p>
+              </fieldset>
+              <div className="grid gap-2 sm:col-span-2">
+                <Label htmlFor="order-create-photos">Fotos de prova (opcional)</Label>
+                <p className="text-xs text-muted-foreground">
+                  Fotografe ou selecione imagens do aparelho. Até 5 fotos, 8 MB cada.
+                </p>
+                <Button asChild size="sm" variant="outline" className="w-fit">
+                  <label htmlFor="order-create-photos" className="cursor-pointer">
+                    📷 Fotografar / selecionar fotos
+                    <input
+                      accept="image/jpeg,image/png,image/webp"
+                      aria-label="Fotografar ou selecionar fotos de prova do aparelho"
+                      capture="environment"
+                      className="sr-only"
+                      id="order-create-photos"
+                      multiple
+                      onChange={selectPhotos}
+                      type="file"
+                    />
+                  </label>
+                </Button>
+                <p aria-live="polite" className="text-xs text-muted-foreground">
+                  {photos.length} de 5 fotos selecionadas
+                </p>
+                {photoError && (
+                  <p className="text-sm text-destructive" role="alert">
+                    {photoError}
+                  </p>
+                )}
+                {photos.length > 0 && (
+                  <ul aria-label="Fotos selecionadas" className="grid gap-1">
+                    {photos.map((photo, index) => (
+                      <li
+                        className="flex items-center justify-between gap-2 rounded-md border px-3 py-1.5 text-sm"
+                        key={`${photo.name}-${photo.lastModified}-${index}`}
+                      >
+                        <span className="truncate">{photo.name}</span>
+                        <Button
+                          aria-label={`Remover foto ${photo.name}`}
+                          onClick={() =>
+                            setPhotos((current) => current.filter((_, i) => i !== index))
+                          }
+                          size="sm"
+                          type="button"
+                          variant="ghost"
+                        >
+                          Remover
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </section>
+          )}
+
+          {step === 3 && (
+            <section aria-label="Diagnóstico da ordem" className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="order-create-problem">Problema relatado *</Label>
+                <Textarea
+                  id="order-create-problem"
+                  onChange={field('problem')}
+                  required
+                  value={form.problem}
+                />
+              </div>
+              <div className="grid max-w-sm gap-2">
+                <Label htmlFor="order-create-priority">Prioridade</Label>
+                <Select
+                  onValueChange={(value) =>
+                    setForm((current) => ({ ...current, priority: value as OrderPriority }))
+                  }
+                  value={form.priority}
+                >
+                  <SelectTrigger id="order-create-priority">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {priorities.map((priority) => (
+                      <SelectItem key={priority} value={priority}>
+                        {priority}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </section>
+          )}
+
+          {step === 4 && (
+            <section aria-label="Valores da ordem" className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="order-create-labor">Mão de obra</Label>
+                <Input
+                  id="order-create-labor"
+                  min="0"
+                  onChange={(event) => setLabor(Number(event.target.value))}
+                  step="0.01"
+                  type="number"
+                  value={labor}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="order-create-parts">Valor das peças</Label>
+                <Input
+                  id="order-create-parts"
+                  min="0"
+                  onChange={(event) => setParts(Number(event.target.value))}
+                  step="0.01"
+                  type="number"
+                  value={parts}
+                />
+              </div>
+              <div className="grid gap-2 sm:col-span-2">
+                <Label htmlFor="order-create-cost">Custo total da assistência</Label>
+                <Input
+                  id="order-create-cost"
+                  min="0"
+                  onChange={(event) => setCost(Number(event.target.value))}
+                  step="0.01"
+                  type="number"
+                  value={cost}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="order-create-warranty">Garantia (dias)</Label>
+                <Input
+                  id="order-create-warranty"
+                  max="3650"
+                  min="1"
+                  onChange={(event) => setWarrantyDays(Number(event.target.value))}
+                  step="1"
+                  type="number"
+                  value={warrantyDays}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3 rounded-lg bg-muted/50 p-4 sm:col-span-2">
+                <div>
+                  <p className="text-sm text-muted-foreground">Total estimado</p>
+                  <p className="mt-1 font-semibold tabular-nums">{money(total)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Lucro estimado</p>
+                  <p
+                    className={`mt-1 font-semibold tabular-nums ${total - cost < 0 ? 'text-destructive' : ''}`}
+                  >
+                    {money(total - cost)}
+                  </p>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground sm:col-span-2">
+                Revise os valores. A ordem só será criada ao clicar no botão abaixo.
+              </p>
+            </section>
+          )}
+
+          <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-between">
+            <Button
+              onClick={() => (step === 1 ? close() : setStep((value) => value - 1))}
+              type="button"
+              variant="outline"
+            >
+              {step === 1 ? 'Cancelar' : 'Voltar'}
+            </Button>
+            {step < 4 ? (
+              <Button onClick={next} type="button">
+                Continuar
+              </Button>
+            ) : (
+              <Button disabled={saving} onClick={() => void create()} type="button">
+                {saving ? 'Criando…' : 'Criar ordem'}
+              </Button>
+            )}
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

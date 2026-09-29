@@ -10,8 +10,31 @@ import {
   type OrderRow,
   type SaveOrder,
 } from '@/components/order-modals';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import PageHeader from '@/components/ui/page-header';
 import type { Order } from '@/lib/types';
 import { uploadOrderPhotos } from '@/lib/order-photo-upload';
+
+const stages = [
+  'Todas',
+  'Recebido',
+  'Diagnóstico',
+  'Aguardando aprovação',
+  'Em reparo',
+  'Teste final',
+  'Retirada',
+];
+const priorities = ['Todas', 'Normal', 'Urgente', 'Garantia'];
 
 export default function OrdersRoute({
   initialOrders,
@@ -80,80 +103,91 @@ export default function OrdersRoute({
     setEditing(order);
     setModal('edit');
   };
+  const clearFilters = () => {
+    setQuery('');
+    setStage('Todas');
+    setPriority('Todas');
+  };
+
   return (
     <>
-      <header className="topbar">
-        <div>
-          <p>REPAROSM</p>
-          <h1>Ordens de serviço</h1>
-          <small>
-            Nova OS: adicione fotos na etapa Aparelho. Garantia: Editar OS. Impressão: botão
-            Imprimir OS.
-          </small>
-        </div>
-        <div className="top-actions">
-          <Link className="top-action-link" href="/">
-            ← Painel completo
-          </Link>
-          <button className="primary" type="button" onClick={create}>
-            + Nova ordem
-          </button>
-        </div>
-      </header>
-      <section className="panel order-filters" aria-label="Filtros de ordens">
-        <div className="order-filter-head">
-          <div>
-            <strong>{visible.length}</strong> de {orders.length} ordens visíveis
+      <PageHeader
+        title="Ordens de serviço"
+        description="Nova OS: adicione fotos na etapa Aparelho. Garantia: Editar OS. Impressão: botão Imprimir OS."
+        action={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Button asChild className="w-full sm:w-auto" variant="outline">
+              <Link href="/">Painel completo</Link>
+            </Button>
+            <Button className="w-full sm:w-auto" onClick={create}>
+              Nova ordem
+            </Button>
           </div>
-          {filtered && (
-            <button
-              className="filter-clear"
-              type="button"
-              onClick={() => {
-                setQuery('');
-                setStage('Todas');
-                setPriority('Todas');
-              }}
-            >
-              Limpar filtros
-            </button>
-          )}
-        </div>
-        <div className="order-filter-controls">
-          <label>
-            Buscar
-            <input
-              value={query}
+        }
+      />
+
+      <Card className="mb-4">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle>Encontre uma ordem</CardTitle>
+            <CardDescription>Busque por OS, cliente ou aparelho.</CardDescription>
+          </div>
+          <div className="flex items-center gap-3">
+            <p aria-live="polite" className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">{visible.length}</span> de{' '}
+              {orders.length} ordens
+            </p>
+            {filtered && (
+              <Button onClick={clearFilters} size="sm" variant="ghost">
+                Limpar filtros
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(16rem,1.5fr)_minmax(12rem,1fr)_minmax(12rem,1fr)]">
+          <div className="grid gap-2">
+            <Label htmlFor="orders-search">Buscar</Label>
+            <Input
+              autoComplete="off"
+              id="orders-search"
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="OS, cliente ou aparelho"
+              placeholder="Número, cliente ou aparelho"
+              value={query}
             />
-          </label>
-          <label>
-            Etapa
-            <select value={stage} onChange={(event) => setStage(event.target.value)}>
-              {[
-                'Todas',
-                'Recebido',
-                'Diagnóstico',
-                'Aguardando aprovação',
-                'Em reparo',
-                'Teste final',
-                'Retirada',
-              ].map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Prioridade
-            <select value={priority} onChange={(event) => setPriority(event.target.value)}>
-              {['Todas', 'Normal', 'Urgente', 'Garantia'].map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </section>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="orders-stage">Etapa</Label>
+            <Select onValueChange={setStage} value={stage}>
+              <SelectTrigger id="orders-stage">
+                <SelectValue placeholder="Todas as etapas" />
+              </SelectTrigger>
+              <SelectContent>
+                {stages.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="orders-priority">Prioridade</Label>
+            <Select onValueChange={setPriority} value={priority}>
+              <SelectTrigger id="orders-priority">
+                <SelectValue placeholder="Todas as prioridades" />
+              </SelectTrigger>
+              <SelectContent>
+                {priorities.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
       <OrdersTable
         orders={visible}
         emptyMessage={
