@@ -17,6 +17,18 @@ estado, fetch ou validação — só JSX e classes.
 **Spec:** `docs/superpowers/specs/2026-09-27-visual-redesign-design.md` (Fase 3,
 subconjunto: estoque, financeiro, orçamentos).
 
+## Pré-requisitos locais
+
+- Configure `DATABASE_URL` para um PostgreSQL local isolado antes de executar
+  `pnpm test`. Sem essa variável, os testes que usam banco são ignorados. O
+  usuário local do banco precisa poder criar/remover bancos temporários
+  `reparosm_test_*` e criar/conceder a role `reparosm_runtime` quando necessário
+  (permissões `CREATEDB` e `CREATEROLE`, ou superusuário).
+- Para `pnpm dev` e a checagem manual das telas, configure `DATABASE_URL` ou
+  `NETLIFY_DB_URL`, um `ADMIN_PASSWORD_HASH` local válido e uma base local
+  populada para percorrer os fluxos de cadastro, edição e exclusão. Não inclua
+  valores de credenciais neste plano.
+
 ## Global Constraints
 
 - Nenhuma prop, tipo exportado (`SavePart`, `SaveMoney`, `SaveQuote`, `PartRow`,
@@ -26,8 +38,9 @@ subconjunto: estoque, financeiro, orçamentos).
   `components/orders-table.tsx` (grade de métricas em `Card size="sm"`, `Card` +
   `CardHeader`/`CardTitle`/`CardDescription`/`CardContent` para a listagem
   principal, `Badge variant={...}` para status) — não inventar um padrão novo.
-- Ao final de cada task: `pnpm format:check`, `pnpm lint`, `pnpm typecheck`,
-  `pnpm test` e `pnpm build` devem passar.
+- Depois de cada task, execute `pnpm format:check`, `pnpm lint` e
+  `pnpm typecheck`; faça as verificações manuais descritas na própria task.
+- Execute `pnpm test` e `pnpm build` uma vez, na suíte completa da Task 7.
 - `pnpm exec graft build && pnpm exec graft check` ao final da fase.
 
 ## Review Focus
@@ -38,9 +51,9 @@ subconjunto: estoque, financeiro, orçamentos).
   componente shadcn `Checkbox` que não existe no projeto ainda (não introduzir).
 - O link da vitrine/orçamento copiado (`navigator.clipboard.writeText`)
   continua funcionando — não mexer nos handlers, só no botão que os dispara.
-- A visualização mobile de cada lista (cards) e desktop (tabela) continuam
-  as DUAS existindo — o padrão do projeto é renderizar ambas e esconder uma via
-  CSS responsivo do próprio shadcn `Table`/`Card`, não remover uma delas.
+- Nas listas de Inventário, Financeiro e Orçamentos, manter cards mobile e
+  tabela desktop no JSX, usando `md:hidden` e `hidden md:block` para alternar
+  a apresentação sem remover ações de nenhum dos formatos.
 - Trocar a categoria para "Outra" em `part-modal.tsx` continua revelando o
   campo de categoria customizada condicionalmente.
 - O rascunho do formulário em cada modal de edição continua vindo do `item`
@@ -210,7 +223,12 @@ export default function PartModal({
             </div>
             <div className="grid gap-2">
               <Label htmlFor="part-sku">Código / SKU</Label>
-              <Input id="part-sku" onChange={field('sku')} placeholder="Opcional" value={form.sku} />
+              <Input
+                id="part-sku"
+                onChange={field('sku')}
+                placeholder="Opcional"
+                value={form.sku}
+              />
             </div>
           </div>
           {form.category === 'Outra' && (
@@ -320,7 +338,7 @@ git commit -m "refactor: restyle part modal with shadcn"
   `Table`/`TableBody`/`TableCell`/`TableHead`/`TableHeader`/`TableRow`, `Badge`,
   `Button`, `EmptyState` (shadcn/local primitives).
 - Produces: nenhuma mudança de interface — `StockRoute({ accountId,
-  initialParts, initialView })` continua igual.
+initialParts, initialView })` continua igual.
 
 - [ ] **Step 1: Reescrever o componente**
 
@@ -335,6 +353,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import EmptyState from '@/components/ui/empty-state';
+import { Input } from '@/components/ui/input';
 import PageHeader from '@/components/ui/page-header';
 import {
   Table,
@@ -540,7 +559,12 @@ function Catalog({
                   </label>
                 </div>
                 <div className="flex gap-2">
-                  <Button className="flex-1" onClick={() => onEdit(part)} size="sm" variant="outline">
+                  <Button
+                    className="flex-1"
+                    onClick={() => onEdit(part)}
+                    size="sm"
+                    variant="outline"
+                  >
                     Editar
                   </Button>
                   <Button
@@ -614,48 +638,100 @@ function Inventory({
           <CardHeader>
             <CardTitle>Inventário</CardTitle>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Peça</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead>Quantidade</TableHead>
-                  <TableHead>Custo</TableHead>
-                  <TableHead>Venda</TableHead>
-                  <TableHead>Margem</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((part) => (
-                  <TableRow key={part.id}>
-                    <TableCell className="font-medium">{part.name}</TableCell>
-                    <TableCell>{part.category || '—'}</TableCell>
-                    <TableCell>{part.stock} un.</TableCell>
-                    <TableCell>{formatMoney(part.cost)}</TableCell>
-                    <TableCell>{formatMoney(part.price)}</TableCell>
-                    <TableCell>{formatMoney(Number(part.price) - Number(part.cost || 0))}</TableCell>
-                    <TableCell>
-                      <Badge variant={part.stock < 5 ? 'destructive' : 'success'}>
-                        {part.stock < 5 ? 'Estoque baixo' : 'Disponível'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button onClick={() => onEdit(part)} size="sm" variant="outline">
-                          Editar
-                        </Button>
-                        <Button onClick={() => onRemove(part)} size="sm" variant="destructive">
-                          Excluir
-                        </Button>
-                      </div>
-                    </TableCell>
+          <CardContent className="grid gap-4">
+            <div className="grid gap-3 md:hidden">
+              {items.map((part) => (
+                <article className="grid gap-3 rounded-lg border p-4" key={part.id}>
+                  <div>
+                    <h3 className="font-semibold">{part.name}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {part.category || 'Sem categoria'}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <p>
+                      Quantidade: <strong>{part.stock} un.</strong>
+                    </p>
+                    <p>
+                      Custo: <strong>{formatMoney(part.cost)}</strong>
+                    </p>
+                    <p>
+                      Venda: <strong>{formatMoney(part.price)}</strong>
+                    </p>
+                    <p>
+                      Margem:{' '}
+                      <strong>{formatMoney(Number(part.price) - Number(part.cost || 0))}</strong>
+                    </p>
+                  </div>
+                  <Badge className="w-fit" variant={part.stock < 5 ? 'destructive' : 'success'}>
+                    {part.stock < 5 ? 'Estoque baixo' : 'Disponível'}
+                  </Badge>
+                  <div className="flex gap-2">
+                    <Button
+                      className="flex-1"
+                      onClick={() => onEdit(part)}
+                      size="sm"
+                      variant="outline"
+                    >
+                      Editar
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      onClick={() => onRemove(part)}
+                      size="sm"
+                      variant="destructive"
+                    >
+                      Excluir
+                    </Button>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Peça</TableHead>
+                    <TableHead>Categoria</TableHead>
+                    <TableHead>Quantidade</TableHead>
+                    <TableHead>Custo</TableHead>
+                    <TableHead>Venda</TableHead>
+                    <TableHead>Margem</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Ações</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {items.map((part) => (
+                    <TableRow key={part.id}>
+                      <TableCell className="font-medium">{part.name}</TableCell>
+                      <TableCell>{part.category || '—'}</TableCell>
+                      <TableCell>{part.stock} un.</TableCell>
+                      <TableCell>{formatMoney(part.cost)}</TableCell>
+                      <TableCell>{formatMoney(part.price)}</TableCell>
+                      <TableCell>
+                        {formatMoney(Number(part.price) - Number(part.cost || 0))}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={part.stock < 5 ? 'destructive' : 'success'}>
+                          {part.stock < 5 ? 'Estoque baixo' : 'Disponível'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button onClick={() => onEdit(part)} size="sm" variant="outline">
+                            Editar
+                          </Button>
+                          <Button onClick={() => onRemove(part)} size="sm" variant="destructive">
+                            Excluir
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       ) : (
@@ -674,17 +750,17 @@ Note: `Input` usado como checkbox (`type="checkbox"`) segue o mesmo padrão já
 usado em `order-modals.tsx` (Fase 1/2) para o consentimento de WhatsApp — não é
 uma invenção nova desta task.
 
-- [ ] **Step 2: Verificar tipos e build**
+- [ ] **Step 2: Verificar tipos**
 
-Run: `pnpm typecheck && pnpm build`
+Run: `pnpm typecheck`
 
-Expected: ambos saem com código 0.
+Expected: saída com código 0.
 
 - [ ] **Step 3: Verificação manual**
 
 Run: `pnpm dev`. Abra `/estoque` (catálogo) e `/estoque?view=inventory`, nos
 dois temas e em mobile (~375px). Confirme: cartões de produto no catálogo,
-tabela no inventário, o toggle "Publicar na vitrine" continua funcionando
+cards de inventário em mobile e tabela em desktop, o toggle "Publicar na vitrine" continua funcionando
 (marque/desmarque e recarregue a página para confirmar persistência), os
 botões "Abrir vitrine"/"Copiar link" funcionam, e os modais de criar/editar
 produto abrem corretamente.
@@ -708,7 +784,7 @@ git commit -m "refactor: restyle stock route (catalog and inventory) with shadcn
 
 - Consumes: `Dialog`, `Input`, `Label`, `Select`, `Button` (shadcn).
 - Produces: nenhuma mudança de interface — `MoneyModal({ kind, item?, close,
-  save })` continua igual.
+save })` continua igual.
 
 - [ ] **Step 1: Reescrever o componente**
 
@@ -854,7 +930,13 @@ export default function MoneyModal({
             </div>
             <div className="grid gap-2">
               <Label htmlFor="money-date">Data</Label>
-              <Input id="money-date" onChange={field('date')} required type="date" value={form.date} />
+              <Input
+                id="money-date"
+                onChange={field('date')}
+                required
+                type="date"
+                value={form.date}
+              />
             </div>
           </div>
           <div className="grid gap-2">
@@ -911,7 +993,7 @@ git commit -m "refactor: restyle money modal with shadcn"
 - Consumes: `PageHeader`, `Card`/`CardContent`/`CardHeader`/`CardTitle`,
   `Table`/..., `Badge`, `Button`, `EmptyState`.
 - Produces: nenhuma mudança de interface — `FinanceRoute({ initialPayments,
-  initialExpenses })` continua igual.
+initialExpenses })` continua igual.
 
 - [ ] **Step 1: Reescrever o componente**
 
@@ -1063,58 +1145,109 @@ export default function FinanceRoute({
           <CardHeader>
             <CardTitle>Histórico financeiro</CardTitle>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Descrição</TableHead>
-                  <TableHead>Forma</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Valor</TableHead>
-                  <TableHead>Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sorted.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>
-                      <Badge variant={row.kind === 'payment' ? 'success' : 'destructive'}>
-                        {row.kind === 'payment' ? 'Receita' : 'Despesa'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <p className="font-medium">{row.description}</p>
-                      {row.reference && (
-                        <p className="text-xs text-muted-foreground">{row.reference}</p>
-                      )}
-                    </TableCell>
-                    <TableCell>{row.method}</TableCell>
-                    <TableCell>{row.date}</TableCell>
-                    <TableCell
+          <CardContent className="grid gap-4">
+            <div className="grid gap-3 md:hidden">
+              {sorted.map((row) => (
+                <article className="grid gap-3 rounded-lg border p-4" key={row.id}>
+                  <div className="flex items-center justify-between gap-3">
+                    <Badge variant={row.kind === 'payment' ? 'success' : 'destructive'}>
+                      {row.kind === 'payment' ? 'Receita' : 'Despesa'}
+                    </Badge>
+                    <strong
                       className={
                         row.kind === 'expense'
-                          ? 'font-medium text-destructive'
-                          : 'font-medium text-emerald-600 dark:text-emerald-400'
+                          ? 'text-destructive'
+                          : 'text-emerald-600 dark:text-emerald-400'
                       }
                     >
                       {row.kind === 'expense' ? '- ' : '+ '}
                       {formatMoney(row.value)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button onClick={() => edit(row)} size="sm" variant="outline">
-                          Editar
-                        </Button>
-                        <Button onClick={() => remove(row)} size="sm" variant="destructive">
-                          Excluir
-                        </Button>
-                      </div>
-                    </TableCell>
+                    </strong>
+                  </div>
+                  <div>
+                    <h3 className="font-medium">{row.description}</h3>
+                    {row.reference && (
+                      <p className="text-sm text-muted-foreground">{row.reference}</p>
+                    )}
+                  </div>
+                  <div className="flex justify-between gap-3 text-sm text-muted-foreground">
+                    <span>{row.method}</span>
+                    <span>{row.date}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      className="flex-1"
+                      onClick={() => edit(row)}
+                      size="sm"
+                      variant="outline"
+                    >
+                      Editar
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      onClick={() => remove(row)}
+                      size="sm"
+                      variant="destructive"
+                    >
+                      Excluir
+                    </Button>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead>Forma</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Valor</TableHead>
+                    <TableHead>Ações</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {sorted.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell>
+                        <Badge variant={row.kind === 'payment' ? 'success' : 'destructive'}>
+                          {row.kind === 'payment' ? 'Receita' : 'Despesa'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <p className="font-medium">{row.description}</p>
+                        {row.reference && (
+                          <p className="text-xs text-muted-foreground">{row.reference}</p>
+                        )}
+                      </TableCell>
+                      <TableCell>{row.method}</TableCell>
+                      <TableCell>{row.date}</TableCell>
+                      <TableCell
+                        className={
+                          row.kind === 'expense'
+                            ? 'font-medium text-destructive'
+                            : 'font-medium text-emerald-600 dark:text-emerald-400'
+                        }
+                      >
+                        {row.kind === 'expense' ? '- ' : '+ '}
+                        {formatMoney(row.value)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button onClick={() => edit(row)} size="sm" variant="outline">
+                            Editar
+                          </Button>
+                          <Button onClick={() => remove(row)} size="sm" variant="destructive">
+                            Excluir
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       ) : (
@@ -1136,16 +1269,16 @@ export default function FinanceRoute({
 }
 ```
 
-- [ ] **Step 2: Verificar tipos e build**
+- [ ] **Step 2: Verificar tipos**
 
-Run: `pnpm typecheck && pnpm build`
+Run: `pnpm typecheck`
 
-Expected: ambos saem com código 0.
+Expected: saída com código 0.
 
 - [ ] **Step 3: Verificação manual**
 
-Run: `pnpm dev`. Abra `/pagamentos` nos dois temas e em mobile. Confirme:
-métricas corretas, tabela com badges Receita/Despesa coloridos, criar um
+Run: `pnpm dev`. Abra `/pagamentos` nos dois temas e em mobile/desktop. Confirme:
+métricas corretas, cards mobile e tabela desktop com badges Receita/Despesa coloridos, criar um
 recebimento e uma despesa, editar e excluir um lançamento.
 
 - [ ] **Step 4: Commit**
@@ -1256,12 +1389,11 @@ export default function QuoteModal({
   return (
     <Dialog open onOpenChange={(open) => !open && close()}>
       <DialogContent className="max-w-xl p-0">
-        <form
-          className="grid max-h-[90dvh] gap-6 overflow-y-auto p-6"
-          onSubmit={submit}
-        >
+        <form className="grid max-h-[90dvh] gap-6 overflow-y-auto p-6" onSubmit={submit}>
           <DialogHeader>
-            <DialogTitle>{editing ? `Editar orçamento ${item?.code}` : 'Novo orçamento'}</DialogTitle>
+            <DialogTitle>
+              {editing ? `Editar orçamento ${item?.code}` : 'Novo orçamento'}
+            </DialogTitle>
             <DialogDescription>Gere um link para aprovação do cliente.</DialogDescription>
           </DialogHeader>
 
@@ -1361,7 +1493,9 @@ export default function QuoteModal({
           <div className="grid grid-cols-1 gap-3 rounded-lg bg-muted/50 p-4">
             <div>
               <p className="text-sm text-muted-foreground">Total do orçamento</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums">{formatMoney(labor + parts)}</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums">
+                {formatMoney(labor + parts)}
+              </p>
             </div>
           </div>
 
@@ -1557,37 +1691,66 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
           <CardHeader>
             <CardTitle>{quotes.length} orçamentos</CardTitle>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Código</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Celular</TableHead>
-                  <TableHead>Problema</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {quotes.map((quote) => (
-                  <TableRow key={quote.id}>
-                    <TableCell className="font-medium">{quote.code || '—'}</TableCell>
-                    <TableCell>{quote.customer}</TableCell>
-                    <TableCell>{quote.device}</TableCell>
-                    <TableCell>{quote.problem || quote.service || '—'}</TableCell>
-                    <TableCell>{formatMoney(quote.total)}</TableCell>
-                    <TableCell>
-                      <Badge variant={quoteStatusVariant(quote.status)}>
-                        {quote.status || 'Aguardando'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{actions(quote)}</TableCell>
+          <CardContent className="grid gap-4">
+            <div className="grid gap-3 md:hidden">
+              {quotes.map((quote) => (
+                <article className="grid gap-3 rounded-lg border p-4" key={quote.id}>
+                  <div className="flex items-center justify-between gap-3">
+                    <strong>{quote.code || 'Orçamento sem código'}</strong>
+                    <Badge variant={quoteStatusVariant(quote.status)}>
+                      {quote.status || 'Aguardando'}
+                    </Badge>
+                  </div>
+                  <div className="grid gap-1">
+                    <h3 className="font-medium">{quote.customer}</h3>
+                    <p className="text-sm text-muted-foreground">WhatsApp: {quote.phone || '—'}</p>
+                    <p className="text-sm text-muted-foreground">Aparelho: {quote.device || '—'}</p>
+                    <p className="text-sm">
+                      {quote.problem || quote.service || 'Sem descrição do serviço'}
+                    </p>
+                  </div>
+                  <div className="flex justify-between gap-3 border-t pt-3">
+                    <span className="text-sm text-muted-foreground">Total</span>
+                    <strong>{formatMoney(quote.total)}</strong>
+                  </div>
+                  {actions(quote)}
+                </article>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Código</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>WhatsApp</TableHead>
+                    <TableHead>Aparelho</TableHead>
+                    <TableHead>Problema</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Ações</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {quotes.map((quote) => (
+                    <TableRow key={quote.id}>
+                      <TableCell className="font-medium">{quote.code || '—'}</TableCell>
+                      <TableCell>{quote.customer}</TableCell>
+                      <TableCell>{quote.phone || '—'}</TableCell>
+                      <TableCell>{quote.device || '—'}</TableCell>
+                      <TableCell>{quote.problem || quote.service || '—'}</TableCell>
+                      <TableCell>{formatMoney(quote.total)}</TableCell>
+                      <TableCell>
+                        <Badge variant={quoteStatusVariant(quote.status)}>
+                          {quote.status || 'Aguardando'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{actions(quote)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       ) : (
@@ -1606,16 +1769,16 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
 }
 ```
 
-- [ ] **Step 2: Verificar tipos e build**
+- [ ] **Step 2: Verificar tipos**
 
-Run: `pnpm typecheck && pnpm build`
+Run: `pnpm typecheck`
 
-Expected: ambos saem com código 0.
+Expected: saída com código 0.
 
 - [ ] **Step 3: Verificação manual**
 
-Run: `pnpm dev`. Abra `/orcamentos` nos dois temas e em mobile. Confirme:
-badges de status coloridos, criar/editar orçamento, copiar link, abrir o link
+Run: `pnpm dev`. Abra `/orcamentos` nos dois temas e em mobile/desktop. Confirme:
+cards mobile e tabela desktop com telefone WhatsApp e aparelho corretos, badges de status coloridos, criar/editar orçamento, copiar link, abrir o link
 público (`/o/[id]`), enviar por WhatsApp (se telefone válido), excluir.
 
 - [ ] **Step 4: Commit**
@@ -1632,28 +1795,45 @@ git commit -m "refactor: restyle quotes route with shadcn"
 **Files:**
 
 - Inspect: todos os arquivos tocados nas Tasks 1-6
+- Inspect and modify: `app/globals.css` (somente seletores exclusivos das telas 3a)
 
-- [ ] **Step 1: Suíte completa**
+- [ ] **Step 1: Limpeza de CSS legado**
+
+Inspecione `app/globals.css` e procure, com `rg`, os seletores usados pelas telas
+migradas nas Tasks 1-6. Remova apenas regras exclusivas de Estoque, Financeiro e
+Orçamentos que deixaram de ter consumidores. Preserve seletores compartilhados
+(por exemplo, `.row-actions` e `.empty-state`) e regras usadas pelas telas das
+Fases 3b/3c; `app/globals.css` só será esvaziado ao final da Fase 4.
+
+- [ ] **Step 2: Suíte completa**
 
 Run: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build`
 
 Expected: tudo verde (nenhum teste de negócio deveria ter sido afetado — é
-refatoração puramente visual).
+refatoração puramente visual). Confirme que os pré-requisitos locais estão
+configurados para que os testes de banco não sejam ignorados.
 
-- [ ] **Step 2: Graft**
+- [ ] **Step 3: Graft**
 
 Run: `pnpm exec graft build && pnpm exec graft check`
 
 Expected: `graph check: OK`.
 
-- [ ] **Step 3: Checagem visual final**
+- [ ] **Step 4: Checagem visual final**
 
 Run: `pnpm dev`. Percorra `/estoque`, `/estoque?view=inventory`,
-`/pagamentos` e `/orcamentos` nos dois temas e em duas larguras, confirmando
-que não sobrou CSS legado (Arial, cores antigas) destoando do restante do
-painel já migrado.
+`/pagamentos` e `/orcamentos` nos dois temas e em mobile (~375px) e desktop
+(~1280px). Confirme cards em mobile, tabelas e ações em desktop e ausência de
+estilos legados destoando do restante do painel.
 
-- [ ] **Step 4: Push e PR**
+- [ ] **Step 5: Commit da limpeza de CSS**
+
+```bash
+git add app/globals.css
+git commit -m "refactor: remove migrated screen styles"
+```
+
+- [ ] **Step 6: Push e PR**
 
 ```bash
 git push -u origin "$(git branch --show-current)"
