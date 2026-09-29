@@ -77,8 +77,19 @@ const validateOrder = (value: unknown): ValidationResult<Order> => {
     )
   )
     return { ok: false, error: 'Ordem inválida.' };
+  // The UI sends 0 when the "Garantia (dias)" field is cleared; treat that the
+  // same as omitting it so the server can apply the shop's default instead of
+  // rejecting the whole order.
+  if (data.warrantyDays === 0) delete data.warrantyDays;
   if (!validateNumbers(data, ['labor', 'parts', 'cost', 'total', 'profit', 'warrantyDays'], []))
     return { ok: false, error: 'Valores da ordem inválidos.' };
+  if (
+    data.warrantyDays !== undefined &&
+    (!Number.isInteger(data.warrantyDays) ||
+      (data.warrantyDays as number) < 1 ||
+      (data.warrantyDays as number) > 3650)
+  )
+    return { ok: false, error: 'Prazo de garantia inválido.' };
   if (!validateBooleans(data, ['whatsappConsent'], []))
     return { ok: false, error: 'Consentimento inválido.' };
   if (

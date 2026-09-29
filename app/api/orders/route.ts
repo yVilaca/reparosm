@@ -1,12 +1,28 @@
 import { currentAccount, sameOrigin } from '@/lib/auth';
 import { saveOrder } from '@/lib/orders';
+import { orders } from '@/lib/repos';
 import { resourceRoute } from '@/lib/resource-route';
 import type { DataObject, Order } from '@/lib/types';
 import { validateRecord } from '@/lib/validation';
 
 const base = resourceRoute('order');
 
-export const { GET, DELETE } = base;
+export const { GET } = base;
+
+export async function DELETE(request: Request) {
+  if (!sameOrigin(request))
+    return Response.json({ error: 'Origem da solicitação inválida.' }, { status: 403 });
+  const account = await currentAccount(request);
+  if (!account) return Response.json({ error: 'Não autenticado' }, { status: 401 });
+  const id = new URL(request.url).searchParams.get('id');
+  if (!id) return Response.json({ error: 'ID obrigatório' }, { status: 400 });
+  if (!id.startsWith('order-')) return Response.json({ error: 'Acesso negado' }, { status: 403 });
+
+  // order_photos rows (and their bytes) cascade-delete with the order (FK ON DELETE CASCADE).
+  if (!(await orders.remove(account.id, id)))
+    return Response.json({ error: 'Acesso negado' }, { status: 403 });
+  return Response.json({ ok: true });
+}
 
 export async function POST(request: Request) {
   if (!sameOrigin(request))

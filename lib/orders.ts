@@ -1,7 +1,9 @@
 import { tenantTransaction } from '@/lib/db';
 import * as clients from '@/lib/repos/clients';
 import * as orders from '@/lib/repos/orders';
+import * as shops from '@/lib/repos/shops';
 import { notifyOrder } from '@/lib/whatsapp';
+import { resolveDeliveredAt, warrantyDaysFromSetting } from '@/lib/warranty';
 import type { Order, Quote } from '@/lib/types';
 
 export function orderFromQuote(
@@ -41,9 +43,18 @@ export async function saveOrder(accountId: string, id: string, order: Order) {
     // The display code is server-assigned and immutable: keep it on update,
     // generate the next one for the account on creation. Never trust the client.
     const code = previous ? previous.data.code : await orders.nextCode(accountId, run);
-    const record = await orders.save(accountId, id, { ...order, code }, run);
+    const stage = order.stage || 'Recebido';
+    // A missing/cleared warrantyDays (0, normalized away by validation) always means
+    // "use the shop's current default" — it never falls back to the order's own
+    // previous value, since the only way to get here is the field being cleared.
+    const warrantyDays = Number.isInteger(order.warrantyDays)
+      ? order.warrantyDays
+      : warrantyDaysFromSetting((await shops.get(accountId, 'shop-main', run))?.data.warranty);
+    const deliveredAt = resolveDeliveredAt(previous?.data.deliveredAt, previous?.data.stage, stage);
+    const savedOrder = { ...order, code, stage, warrantyDays, deliveredAt };
+    const record = await orders.save(accountId, id, savedOrder, run);
     if (!record) return null;
-    const clientId = await clients.upsertFromOrder(accountId, order, run);
+    const clientId = await clients.upsertFromOrder(accountId, savedOrder, run);
     await orders.linkClient(accountId, id, clientId, run);
     return { previous, record, client: await clients.get(accountId, clientId, run) };
   });
@@ -55,7 +66,7 @@ export async function saveOrder(accountId: string, id: string, order: Order) {
       notification = await notifyOrder(
         accountId,
         id,
-        order,
+        result.record.data,
         result.previous ? 'status' : 'created',
       );
     } catch {

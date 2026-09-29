@@ -2,6 +2,7 @@
 
 import { useState, type ChangeEvent } from 'react';
 import { useFeedback } from '@/components/feedback';
+import OrderPhotos from '@/components/order-photos';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -21,10 +22,11 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { formatMoney as money } from '@/lib/format';
+import { addOrderPhotoSelection } from '@/lib/order-photo-selection';
 import type { Order, OrderPriority } from '@/lib/types';
 
 export type OrderRow = Order & { id: string };
-export type SaveOrder = (data: Order, id?: string) => Promise<void>;
+export type SaveOrder = (data: Order, id?: string, photos?: File[]) => Promise<void>;
 type FieldChange = ChangeEvent<HTMLInputElement | HTMLTextAreaElement>;
 
 const stages = [
@@ -90,6 +92,8 @@ export function OrderEditModal({
             <DialogTitle>Editar ordem {item.code}</DialogTitle>
             <DialogDescription>Atualize os dados e salve as alterações.</DialogDescription>
           </DialogHeader>
+
+          <OrderPhotos orderId={item.id} />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
@@ -200,6 +204,18 @@ export function OrderEditModal({
                 value={form.technician || ''}
               />
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor="order-edit-warranty">Garantia (dias)</Label>
+              <Input
+                id="order-edit-warranty"
+                max="3650"
+                min="1"
+                onChange={field('warrantyDays')}
+                step="1"
+                type="number"
+                value={form.warrantyDays ?? ''}
+              />
+            </div>
             {[
               { label: 'Mão de obra', key: 'labor' as const },
               { label: 'Peças', key: 'parts' as const },
@@ -248,14 +264,25 @@ export function OrderEditModal({
   );
 }
 
-export function OrderCreateModal({ close, save }: { close: () => void; save: SaveOrder }) {
+export function OrderCreateModal({
+  close,
+  save,
+  defaultWarrantyDays = 90,
+}: {
+  close: () => void;
+  save: SaveOrder;
+  defaultWarrantyDays?: number;
+}) {
   const { notify } = useFeedback();
   const [step, setStep] = useState(1),
     [pattern, setPattern] = useState<number[]>([]),
     [labor, setLabor] = useState(0),
     [parts, setParts] = useState(0),
     [cost, setCost] = useState(0),
+    [warrantyDays, setWarrantyDays] = useState(defaultWarrantyDays),
     [saving, setSaving] = useState(false),
+    [photos, setPhotos] = useState<File[]>([]),
+    [photoError, setPhotoError] = useState(''),
     [whatsappConsent, setWhatsappConsent] = useState(false),
     [form, setForm] = useState({
       customer: '',
@@ -269,6 +296,16 @@ export function OrderCreateModal({ close, save }: { close: () => void; save: Sav
   const total = labor + parts;
   const field = (key: keyof typeof form) => (event: FieldChange) =>
     setForm((value) => ({ ...value, [key]: event.target.value }));
+  const selectPhotos = (event: ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(event.currentTarget.files || []);
+    event.currentTarget.value = '';
+    const result = addOrderPhotoSelection(photos, selected);
+    if (result.error) setPhotoError(result.error);
+    else {
+      setPhotos([...result.files]);
+      setPhotoError('');
+    }
+  };
   const toggle = (number: number) =>
     setPattern((value) =>
       value.includes(number) ? value.filter((item) => item !== number) : [...value, number],
@@ -286,21 +323,26 @@ export function OrderCreateModal({ close, save }: { close: () => void; save: Sav
     if (saving) return;
     setSaving(true);
     try {
-      await save({
-        // The server assigns the real, unique code; this placeholder is discarded.
-        code: '',
-        ...form,
-        whatsappConsent,
-        pattern,
-        labor,
-        parts,
-        cost,
-        total,
-        profit: total - cost,
-        stage: 'Recebido',
-        status: 'Aberto',
-        createdAt: new Date().toISOString(),
-      });
+      await save(
+        {
+          // The server assigns the real, unique code; this placeholder is discarded.
+          code: '',
+          ...form,
+          whatsappConsent,
+          pattern,
+          labor,
+          parts,
+          cost,
+          warrantyDays,
+          total,
+          profit: total - cost,
+          stage: 'Recebido',
+          status: 'Aberto',
+          createdAt: new Date().toISOString(),
+        },
+        undefined,
+        photos,
+      );
     } finally {
       setSaving(false);
     }
@@ -431,6 +473,58 @@ export function OrderCreateModal({ close, save }: { close: () => void; save: Sav
                   Sequência: {pattern.join(' → ') || 'nenhuma'}
                 </p>
               </fieldset>
+              <div className="grid gap-2 sm:col-span-2">
+                <Label htmlFor="order-create-photos">Fotos de prova (opcional)</Label>
+                <p className="text-xs text-muted-foreground">
+                  Fotografe ou selecione imagens do aparelho. Até 5 fotos, 8 MB cada.
+                </p>
+                <Button asChild size="sm" variant="outline" className="w-fit">
+                  <label htmlFor="order-create-photos" className="cursor-pointer">
+                    📷 Fotografar / selecionar fotos
+                    <input
+                      accept="image/jpeg,image/png,image/webp"
+                      aria-label="Fotografar ou selecionar fotos de prova do aparelho"
+                      capture="environment"
+                      className="sr-only"
+                      id="order-create-photos"
+                      multiple
+                      onChange={selectPhotos}
+                      type="file"
+                    />
+                  </label>
+                </Button>
+                <p aria-live="polite" className="text-xs text-muted-foreground">
+                  {photos.length} de 5 fotos selecionadas
+                </p>
+                {photoError && (
+                  <p className="text-sm text-destructive" role="alert">
+                    {photoError}
+                  </p>
+                )}
+                {photos.length > 0 && (
+                  <ul aria-label="Fotos selecionadas" className="grid gap-1">
+                    {photos.map((photo, index) => (
+                      <li
+                        className="flex items-center justify-between gap-2 rounded-md border px-3 py-1.5 text-sm"
+                        key={`${photo.name}-${photo.lastModified}-${index}`}
+                      >
+                        <span className="truncate">{photo.name}</span>
+                        <Button
+                          aria-label={`Remover foto ${photo.name}`}
+                          onClick={() =>
+                            setPhotos((current) => current.filter((_, i) => i !== index))
+                          }
+                          size="sm"
+                          type="button"
+                          variant="ghost"
+                        >
+                          Remover
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </section>
           )}
 
@@ -501,6 +595,18 @@ export function OrderCreateModal({ close, save }: { close: () => void; save: Sav
                   step="0.01"
                   type="number"
                   value={cost}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="order-create-warranty">Garantia (dias)</Label>
+                <Input
+                  id="order-create-warranty"
+                  max="3650"
+                  min="1"
+                  onChange={(event) => setWarrantyDays(Number(event.target.value))}
+                  step="1"
+                  type="number"
+                  value={warrantyDays}
                 />
               </div>
               <div className="grid grid-cols-2 gap-3 rounded-lg bg-muted/50 p-4 sm:col-span-2">

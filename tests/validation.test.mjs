@@ -39,6 +39,22 @@ test('accepts an order without a code (the server assigns it)', () => {
   );
 });
 
+test('warranty duration must be an integer from 1 to 3650 days when set', () => {
+  const valid = (warrantyDays) => validateRecord('order', { ...validRecords.order, warrantyDays });
+  assert.equal(valid(30).ok, true);
+  assert.equal(valid(1.5).ok, false);
+  assert.equal(valid(3651).ok, false);
+});
+
+test('treats warrantyDays 0 as unset instead of rejecting the whole order', () => {
+  // The UI sends 0 when the field is cleared (Number('') === 0); the server should
+  // treat that the same as omitting it (saveOrder then applies the shop's default),
+  // not reject every other edited field in the same request.
+  const result = validateRecord('order', { ...validRecords.order, warrantyDays: 0 });
+  assert.equal(result.ok, true);
+  assert.equal(result.ok && result.data.warrantyDays, undefined);
+});
+
 test('rejects missing required fields', () => {
   assert.equal(validateRecord('order', { code: 'OS-1', device: 'iPhone' }).ok, false);
   assert.equal(validateRecord('client', { name: 'Ana' }).ok, false);
