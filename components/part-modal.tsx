@@ -2,6 +2,23 @@
 
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { useFeedback } from '@/components/feedback';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type { Part } from '@/lib/types';
 
 export type PartRow = Part & { id: string };
@@ -22,7 +39,7 @@ const categories = [
   'Smartwatches',
 ];
 
-type FieldChange = ChangeEvent<HTMLInputElement | HTMLSelectElement>;
+type FieldChange = ChangeEvent<HTMLInputElement>;
 type PartForm = {
   name: string;
   category: string;
@@ -87,107 +104,127 @@ export default function PartModal({
   };
   const editing = Boolean(item);
   return (
-    <div className="modal-backdrop">
-      <form className="modal" onSubmit={submit}>
-        <div className="modal-title">
-          <div>
-            <span>◇</span>
-            <div>
-              <h2>{editing ? 'Editar produto' : 'Adicionar produto'}</h2>
-              <p>Estoque geral e vitrine online</p>
+    <Dialog open onOpenChange={(open) => !open && close()}>
+      <DialogContent className="max-w-lg p-0">
+        <form className="grid gap-6 p-6" onSubmit={submit}>
+          <DialogHeader>
+            <DialogTitle>{editing ? 'Editar produto' : 'Adicionar produto'}</DialogTitle>
+            <DialogDescription>Estoque geral e vitrine online.</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-2">
+            <Label htmlFor="part-name">Nome do produto *</Label>
+            <Input
+              id="part-name"
+              onChange={field('name')}
+              placeholder="Ex.: Carregador USB-C 20W"
+              required
+              value={form.name}
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="part-category">Categoria</Label>
+              <Select
+                onValueChange={(value) => setForm((current) => ({ ...current, category: value }))}
+                value={form.category}
+              >
+                <SelectTrigger id="part-category">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="Outra">Outra</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="part-sku">Código / SKU</Label>
+              <Input
+                id="part-sku"
+                onChange={field('sku')}
+                placeholder="Opcional"
+                value={form.sku}
+              />
             </div>
           </div>
-          <button type="button" onClick={close}>
-            ×
-          </button>
-        </div>
-        <label>
-          Nome do produto *
-          <input
-            value={form.name}
-            onChange={field('name')}
-            required
-            placeholder="Ex.: Carregador USB-C 20W"
-          />
-        </label>
-        <div className="form-row">
-          <label>
-            Categoria
-            <select value={form.category} onChange={field('category')}>
-              {categories.map((category) => (
-                <option key={category}>{category}</option>
-              ))}
-              <option>Outra</option>
-            </select>
-          </label>
-          <label>
-            Código / SKU
-            <input value={form.sku} onChange={field('sku')} placeholder="Opcional" />
-          </label>
-        </div>
-        {form.category === 'Outra' && (
-          <label>
-            Nome da categoria *
-            <input
-              value={form.customCategory}
-              onChange={field('customCategory')}
-              required
-              placeholder="Digite sua categoria"
-            />
-          </label>
-        )}
-        <div className="form-row">
-          <label>
-            Quantidade em estoque
-            <input
-              value={form.stock}
-              onChange={field('stock')}
-              type="number"
+          {form.category === 'Outra' && (
+            <div className="grid gap-2">
+              <Label htmlFor="part-custom-category">Nome da categoria *</Label>
+              <Input
+                id="part-custom-category"
+                onChange={field('customCategory')}
+                placeholder="Digite sua categoria"
+                required
+                value={form.customCategory}
+              />
+            </div>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="part-stock">Quantidade em estoque</Label>
+              <Input
+                id="part-stock"
+                min="0"
+                onChange={field('stock')}
+                required
+                step="1"
+                type="number"
+                value={form.stock}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="part-cost">Custo unitário</Label>
+              <Input
+                id="part-cost"
+                min="0"
+                onChange={field('cost')}
+                required
+                step="0.01"
+                type="number"
+                value={form.cost}
+              />
+            </div>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="part-price">Preço de venda</Label>
+            <Input
+              id="part-price"
               min="0"
-              step="1"
+              onChange={field('price')}
               required
-            />
-          </label>
-          <label>
-            Custo unitário
-            <input
-              value={form.cost}
-              onChange={field('cost')}
-              type="number"
-              min="0"
               step="0.01"
-              required
+              type="number"
+              value={form.price}
             />
-          </label>
-        </div>
-        <label>
-          Preço de venda
-          <input
-            value={form.price}
-            onChange={field('price')}
-            type="number"
-            min="0"
-            step="0.01"
-            required
-          />
-        </label>
-        <label className="check">
-          <input
-            checked={published}
-            onChange={(event) => setPublished(event.target.checked)}
-            type="checkbox"
-          />{' '}
-          Publicar na vitrine online
-        </label>
-        <div className="modal-actions">
-          <button type="button" onClick={close}>
-            Cancelar
-          </button>
-          <button className="primary" disabled={saving}>
-            {saving ? 'Salvando...' : editing ? 'Salvar alterações' : 'Salvar produto'}
-          </button>
-        </div>
-      </form>
-    </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              checked={published}
+              className="size-4 shrink-0"
+              id="part-published"
+              onChange={(event) => setPublished(event.target.checked)}
+              type="checkbox"
+            />
+            <Label className="font-normal" htmlFor="part-published">
+              Publicar na vitrine online
+            </Label>
+          </div>
+
+          <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
+            <Button onClick={close} type="button" variant="outline">
+              Cancelar
+            </Button>
+            <Button disabled={saving} type="submit">
+              {saving ? 'Salvando...' : editing ? 'Salvar alterações' : 'Salvar produto'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

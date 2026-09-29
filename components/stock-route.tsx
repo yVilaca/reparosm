@@ -4,6 +4,20 @@ import Link from 'next/link';
 import { useState } from 'react';
 import PartModal, { type PartRow, type SavePart } from '@/components/part-modal';
 import { useFeedback } from '@/components/feedback';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import EmptyState from '@/components/ui/empty-state';
+import { Input } from '@/components/ui/input';
+import PageHeader from '@/components/ui/page-header';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { formatMoney } from '@/lib/format';
 import type { Part } from '@/lib/types';
 
@@ -89,27 +103,29 @@ export default function StockRoute({
   const title = initialView === 'inventory' ? 'Estoque' : 'Peças & Vitrine';
   return (
     <>
-      <header className="topbar">
-        <div>
-          <p>REPAROSM</p>
-          <h1>{title}</h1>
-          <small>Produtos e estoque carregados no servidor para a conta atual.</small>
-        </div>
-        <div className="top-actions">
-          <Link className="top-action-link" href="/">
-            ← Painel completo
-          </Link>
-          <Link
-            className="top-action-link"
-            href={initialView === 'inventory' ? '/estoque?view=catalog' : '/estoque?view=inventory'}
-          >
-            {initialView === 'inventory' ? 'Peças & Vitrine' : 'Estoque'}
-          </Link>
-          <button className="primary" type="button" onClick={create}>
-            + Adicionar produto
-          </button>
-        </div>
-      </header>
+      <PageHeader
+        title={title}
+        description="Produtos e estoque carregados no servidor para a conta atual."
+        action={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Button asChild className="w-full sm:w-auto" variant="outline">
+              <Link href="/">Painel completo</Link>
+            </Button>
+            <Button asChild className="w-full sm:w-auto" variant="outline">
+              <Link
+                href={
+                  initialView === 'inventory' ? '/estoque?view=catalog' : '/estoque?view=inventory'
+                }
+              >
+                {initialView === 'inventory' ? 'Peças & Vitrine' : 'Estoque'}
+              </Link>
+            </Button>
+            <Button className="w-full sm:w-auto" onClick={create}>
+              Adicionar produto
+            </Button>
+          </div>
+        }
+      />
       {initialView === 'inventory' ? (
         <Inventory items={parts} onCreate={create} onEdit={edit} onRemove={remove} />
       ) : (
@@ -152,68 +168,77 @@ function Catalog({
   onTogglePublished: (part: PartRow, published: boolean) => void;
 }) {
   const published = items.filter((part) => part.published);
+  const storeUrl = `/vitrine?loja=${encodeURIComponent(accountId)}`;
   return (
     <>
-      <article className="showcase-banner">
-        <div>
-          <span>VITRINE ONLINE</span>
-          <h2>Minha vitrine de produtos</h2>
-          <p>{published.length} produtos publicados</p>
-          <code>{`/vitrine?loja=${encodeURIComponent(accountId)}`}</code>
-        </div>
-        <div className="showcase-actions">
-          <button type="button" onClick={onOpenStore}>
-            Abrir vitrine ↗
-          </button>
-          <button type="button" onClick={onCopyStore}>
-            Copiar link
-          </button>
-        </div>
-      </article>
+      <Card className="mb-4 gap-3 bg-primary text-primary-foreground">
+        <CardContent className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold tracking-wide uppercase opacity-80">
+              Vitrine online
+            </p>
+            <h2 className="text-lg font-semibold">Minha vitrine de produtos</h2>
+            <p className="text-sm opacity-90">{published.length} produtos publicados</p>
+            <code className="text-xs opacity-80">{storeUrl}</code>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={onOpenStore} size="sm" variant="secondary">
+              Abrir vitrine ↗
+            </Button>
+            <Button onClick={onCopyStore} size="sm" variant="secondary">
+              Copiar link
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
       {items.length ? (
-        <div className="catalog-grid">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((part) => (
-            <article key={part.id}>
-              <div className="part-art">
-                {part.category === 'Capinhas'
-                  ? '▣'
-                  : part.category === 'Carregadores'
-                    ? '⌁'
-                    : part.category === 'Acessórios'
-                      ? '◇'
-                      : '⚙'}
-              </div>
-              <span>{part.category}</span>
-              <h3>{part.name}</h3>
-              <p>{part.stock} unidades</p>
-              <strong>{formatMoney(part.price)}</strong>
-              <footer>
-                <label>
-                  <input
-                    type="checkbox"
+            <Card key={part.id}>
+              <CardContent className="grid gap-2">
+                <span className="text-xs font-medium text-muted-foreground">{part.category}</span>
+                <h3 className="font-semibold">{part.name}</h3>
+                <p className="text-sm text-muted-foreground">{part.stock} unidades</p>
+                <strong className="text-lg">{formatMoney(part.price)}</strong>
+                <div className="flex items-center gap-2 border-t pt-3">
+                  <Input
                     checked={part.published === true}
+                    className="size-4 shrink-0"
+                    id={`part-published-${part.id}`}
                     onChange={(event) => onTogglePublished(part, event.target.checked)}
-                  />{' '}
-                  Publicar na vitrine
-                </label>
-                <div className="row-actions">
-                  <button type="button" onClick={() => onEdit(part)}>
-                    Editar
-                  </button>
-                  <button type="button" onClick={() => onRemove(part)}>
-                    Excluir
-                  </button>
+                    type="checkbox"
+                  />
+                  <label className="text-sm" htmlFor={`part-published-${part.id}`}>
+                    Publicar na vitrine
+                  </label>
                 </div>
-              </footer>
-            </article>
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1"
+                    onClick={() => onEdit(part)}
+                    size="sm"
+                    variant="outline"
+                  >
+                    Editar
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    onClick={() => onRemove(part)}
+                    size="sm"
+                    variant="destructive"
+                  >
+                    Excluir
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       ) : (
         <EmptyState
           title="Nenhum produto cadastrado"
-          text="Adicione peças, carregadores, capinhas, acessórios ou qualquer produto da sua loja."
-          action="Adicionar produto"
-          onAction={onCreate}
+          description="Adicione peças, carregadores, capinhas, acessórios ou qualquer produto da sua loja."
+          action={<Button onClick={onCreate}>Adicionar produto</Button>}
         />
       )}
     </>
@@ -235,111 +260,141 @@ function Inventory({
     (sum, part) => sum + Number(part.stock || 0) * Number(part.cost || 0),
     0,
   );
+  const metrics = [
+    {
+      title: 'Itens em estoque',
+      value: String(items.reduce((sum, part) => sum + part.stock, 0)),
+      detail: 'Unidades disponíveis',
+    },
+    { title: 'Valor investido', value: formatMoney(total), detail: 'Baseado no custo' },
+    {
+      title: 'Estoque baixo',
+      value: String(items.filter((part) => part.stock < 5).length),
+      detail: 'Produtos com menos de 5',
+    },
+    { title: 'Produtos cadastrados', value: String(items.length), detail: 'Todos os tipos' },
+  ];
   return (
     <>
-      <div className="metrics">
-        <Metric
-          title="Itens em estoque"
-          value={String(items.reduce((sum, part) => sum + part.stock, 0))}
-          detail="Unidades disponíveis"
-        />
-        <Metric title="Valor investido" value={formatMoney(total)} detail="Baseado no custo" />
-        <Metric
-          title="Estoque baixo"
-          value={String(items.filter((part) => part.stock < 5).length)}
-          detail="Produtos com menos de 5"
-        />
-        <Metric title="Produtos cadastrados" value={String(items.length)} detail="Todos os tipos" />
-      </div>
+      <section aria-label="Resumo de estoque" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {metrics.map((metric) => (
+          <Card key={metric.title} size="sm">
+            <CardContent className="grid gap-1">
+              <p className="text-sm text-muted-foreground">{metric.title}</p>
+              <p className="text-2xl font-semibold tabular-nums">{metric.value}</p>
+              <p className="text-xs text-muted-foreground">{metric.detail}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </section>
       {items.length ? (
-        <article className="panel page-panel inventory-table">
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Peça</th>
-                  <th>Categoria</th>
-                  <th>Quantidade</th>
-                  <th>Custo</th>
-                  <th>Venda</th>
-                  <th>Margem</th>
-                  <th>Status</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((part) => (
-                  <tr key={part.id}>
-                    <td>
-                      <b>{part.name}</b>
-                    </td>
-                    <td>{part.category || '—'}</td>
-                    <td>{part.stock} un.</td>
-                    <td>{formatMoney(part.cost)}</td>
-                    <td>{formatMoney(part.price)}</td>
-                    <td>{formatMoney(Number(part.price) - Number(part.cost || 0))}</td>
-                    <td>
-                      <span className={`tag ${part.stock < 5 ? 'red' : 'ready'}`}>
-                        {part.stock < 5 ? 'Estoque baixo' : 'Disponível'}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="row-actions">
-                        <button type="button" onClick={() => onEdit(part)}>
-                          Editar
-                        </button>
-                        <button type="button" onClick={() => onRemove(part)}>
-                          Excluir
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </article>
+        <Card>
+          <CardHeader>
+            <CardTitle>Inventário</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="grid gap-3 md:hidden">
+              {items.map((part) => (
+                <article className="grid gap-3 rounded-lg border p-4" key={part.id}>
+                  <div>
+                    <h3 className="font-semibold">{part.name}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {part.category || 'Sem categoria'}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <p>
+                      Quantidade: <strong>{part.stock} un.</strong>
+                    </p>
+                    <p>
+                      Custo: <strong>{formatMoney(part.cost)}</strong>
+                    </p>
+                    <p>
+                      Venda: <strong>{formatMoney(part.price)}</strong>
+                    </p>
+                    <p>
+                      Margem:{' '}
+                      <strong>{formatMoney(Number(part.price) - Number(part.cost || 0))}</strong>
+                    </p>
+                  </div>
+                  <Badge className="w-fit" variant={part.stock < 5 ? 'destructive' : 'success'}>
+                    {part.stock < 5 ? 'Estoque baixo' : 'Disponível'}
+                  </Badge>
+                  <div className="flex gap-2">
+                    <Button
+                      className="flex-1"
+                      onClick={() => onEdit(part)}
+                      size="sm"
+                      variant="outline"
+                    >
+                      Editar
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      onClick={() => onRemove(part)}
+                      size="sm"
+                      variant="destructive"
+                    >
+                      Excluir
+                    </Button>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Peça</TableHead>
+                    <TableHead>Categoria</TableHead>
+                    <TableHead>Quantidade</TableHead>
+                    <TableHead>Custo</TableHead>
+                    <TableHead>Venda</TableHead>
+                    <TableHead>Margem</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {items.map((part) => (
+                    <TableRow key={part.id}>
+                      <TableCell className="font-medium">{part.name}</TableCell>
+                      <TableCell>{part.category || '—'}</TableCell>
+                      <TableCell>{part.stock} un.</TableCell>
+                      <TableCell>{formatMoney(part.cost)}</TableCell>
+                      <TableCell>{formatMoney(part.price)}</TableCell>
+                      <TableCell>
+                        {formatMoney(Number(part.price) - Number(part.cost || 0))}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={part.stock < 5 ? 'destructive' : 'success'}>
+                          {part.stock < 5 ? 'Estoque baixo' : 'Disponível'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button onClick={() => onEdit(part)} size="sm" variant="outline">
+                            Editar
+                          </Button>
+                          <Button onClick={() => onRemove(part)} size="sm" variant="destructive">
+                            Excluir
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
       ) : (
         <EmptyState
           title="Estoque vazio"
-          text="Cadastre sua primeira peça para controlar quantidade, custo, venda e margem."
-          action="Adicionar peça"
-          onAction={onCreate}
+          description="Cadastre sua primeira peça para controlar quantidade, custo, venda e margem."
+          action={<Button onClick={onCreate}>Adicionar peça</Button>}
         />
       )}
     </>
-  );
-}
-
-function Metric({ title, value, detail }: { title: string; value: string; detail: string }) {
-  return (
-    <div className="metric">
-      <span>{title}</span>
-      <strong>{value}</strong>
-      <small>{detail}</small>
-    </div>
-  );
-}
-
-function EmptyState({
-  title,
-  text,
-  action,
-  onAction,
-}: {
-  title: string;
-  text: string;
-  action: string;
-  onAction: () => void;
-}) {
-  return (
-    <article className="empty-state">
-      <div>✦</div>
-      <h2>{title}</h2>
-      <p>{text}</p>
-      <button className="primary" type="button" onClick={onAction}>
-        {action}
-      </button>
-    </article>
   );
 }

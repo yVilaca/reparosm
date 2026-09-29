@@ -37,11 +37,26 @@ function DialogOverlay({
   );
 }
 
+type DialogAutoFocusEvent = { defaultPrevented: boolean; preventDefault: () => void };
+
+function restoreDialogFocus(
+  event: DialogAutoFocusEvent,
+  target: Pick<HTMLElement, 'focus'> | null,
+) {
+  if (!target || event.defaultPrevented) return;
+  event.preventDefault();
+  target.focus();
+}
+
 function DialogContent({
   className,
   children,
+  onCloseAutoFocus,
+  onOpenAutoFocus,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content>) {
+  const returnFocusRef = React.useRef<HTMLElement | null>(null);
+
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -52,6 +67,18 @@ function DialogContent({
           className,
         )}
         {...props}
+        onOpenAutoFocus={(event) => {
+          const activeElement = typeof document === 'undefined' ? null : document.activeElement;
+          returnFocusRef.current =
+            typeof HTMLElement !== 'undefined' && activeElement instanceof HTMLElement
+              ? activeElement
+              : null;
+          onOpenAutoFocus?.(event);
+        }}
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event);
+          restoreDialogFocus(event, returnFocusRef.current);
+        }}
       >
         {children}
         <DialogPrimitive.Close
@@ -119,5 +146,6 @@ export {
   DialogOverlay,
   DialogPortal,
   DialogTitle,
+  restoreDialogFocus,
   DialogTrigger,
 };

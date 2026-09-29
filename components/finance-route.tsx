@@ -9,6 +9,19 @@ import MoneyModal, {
   type SaveMoney,
 } from '@/components/money-modal';
 import { useFeedback } from '@/components/feedback';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import EmptyState from '@/components/ui/empty-state';
+import PageHeader from '@/components/ui/page-header';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { formatMoney } from '@/lib/format';
 import type { Expense, Payment } from '@/lib/types';
 
@@ -84,113 +97,164 @@ export default function FinanceRoute({
   const income = payments.reduce((sum, row) => sum + Number(row.value || 0), 0);
   const out = expenses.reduce((sum, row) => sum + Number(row.value || 0), 0);
   const sorted = [...rows].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
-  const actions = (row: MoneyRow) => (
-    <div className="row-actions">
-      <button type="button" onClick={() => edit(row)}>
-        Editar
-      </button>
-      <button type="button" onClick={() => remove(row)}>
-        Excluir
-      </button>
-    </div>
-  );
+  const metrics = [
+    { title: 'Recebimentos', value: formatMoney(income), detail: 'Entradas registradas' },
+    { title: 'Despesas', value: formatMoney(out), detail: 'Saídas registradas' },
+    { title: 'Resultado', value: formatMoney(income - out), detail: 'Receita menos despesas' },
+    { title: 'Lançamentos', value: String(rows.length), detail: 'No histórico financeiro' },
+  ];
+
   return (
     <>
-      <header className="topbar">
-        <div>
-          <p>REPAROSM</p>
-          <h1>Pagamentos</h1>
-          <small>Recebimentos e despesas carregados no servidor.</small>
-        </div>
-        <div className="top-actions">
-          <Link className="top-action-link" href="/">
-            ← Painel completo
-          </Link>
-          <button type="button" onClick={() => create('expense')}>
-            + Despesa
-          </button>
-          <button className="primary" type="button" onClick={() => create('payment')}>
-            + Recebimento
-          </button>
-        </div>
-      </header>
-      <div className="metrics">
-        <Metric title="Recebimentos" value={formatMoney(income)} detail="Entradas registradas" />
-        <Metric title="Despesas" value={formatMoney(out)} detail="Saídas registradas" />
-        <Metric
-          title="Resultado"
-          value={formatMoney(income - out)}
-          detail="Receita menos despesas"
-        />
-        <Metric title="Lançamentos" value={String(rows.length)} detail="No histórico financeiro" />
-      </div>
-      {sorted.length ? (
-        <article className="panel page-panel finance-list">
-          <div className="finance-mobile-list">
-            {sorted.map((row) => (
-              <article className="finance-mobile-card" key={row.id}>
-                <div className="list-card-heading">
-                  <span className={`tag ${row.kind === 'payment' ? 'ready' : 'red'}`}>
-                    {row.kind === 'payment' ? 'Receita' : 'Despesa'}
-                  </span>
-                  <strong className={row.kind === 'expense' ? 'negative-money' : 'positive-money'}>
-                    {row.kind === 'expense' ? '- ' : '+ '}
-                    {formatMoney(row.value)}
-                  </strong>
-                </div>
-                <b>{row.description}</b>
-                {row.reference && <small className="list-card-muted">{row.reference}</small>}
-                <div className="list-card-meta">
-                  <span>{row.method}</span>
-                  <span>{row.date}</span>
-                </div>
-                {actions(row)}
-              </article>
-            ))}
+      <PageHeader
+        title="Pagamentos"
+        description="Recebimentos e despesas carregados no servidor."
+        action={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Button asChild className="w-full sm:w-auto" variant="outline">
+              <Link href="/">Painel completo</Link>
+            </Button>
+            <Button
+              className="w-full sm:w-auto"
+              onClick={() => create('expense')}
+              variant="outline"
+            >
+              Despesa
+            </Button>
+            <Button className="w-full sm:w-auto" onClick={() => create('payment')}>
+              Recebimento
+            </Button>
           </div>
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Tipo</th>
-                  <th>Descrição</th>
-                  <th>Forma</th>
-                  <th>Data</th>
-                  <th>Valor</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((row) => (
-                  <tr key={row.id}>
-                    <td>
-                      <span className={`tag ${row.kind === 'payment' ? 'ready' : 'red'}`}>
-                        {row.kind === 'payment' ? 'Receita' : 'Despesa'}
-                      </span>
-                    </td>
-                    <td>
-                      <b>{row.description}</b>
-                      <small>{row.reference || ''}</small>
-                    </td>
-                    <td>{row.method}</td>
-                    <td>{row.date}</td>
-                    <td className={row.kind === 'expense' ? 'negative-money' : 'positive-money'}>
+        }
+      />
+
+      <section aria-label="Resumo financeiro" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {metrics.map((metric) => (
+          <Card key={metric.title} size="sm">
+            <CardContent className="grid gap-1">
+              <p className="text-sm text-muted-foreground">{metric.title}</p>
+              <p className="text-2xl font-semibold tabular-nums">{metric.value}</p>
+              <p className="text-xs text-muted-foreground">{metric.detail}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </section>
+
+      {sorted.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Histórico financeiro</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="grid gap-3 md:hidden">
+              {sorted.map((row) => (
+                <article className="grid gap-3 rounded-lg border p-4" key={row.id}>
+                  <div className="flex items-center justify-between gap-3">
+                    <Badge variant={row.kind === 'payment' ? 'success' : 'destructive'}>
+                      {row.kind === 'payment' ? 'Receita' : 'Despesa'}
+                    </Badge>
+                    <strong
+                      className={
+                        row.kind === 'expense'
+                          ? 'text-destructive'
+                          : 'text-emerald-600 dark:text-emerald-400'
+                      }
+                    >
                       {row.kind === 'expense' ? '- ' : '+ '}
                       {formatMoney(row.value)}
-                    </td>
-                    <td>{actions(row)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </article>
+                    </strong>
+                  </div>
+                  <div>
+                    <h3 className="font-medium">{row.description}</h3>
+                    {row.reference && (
+                      <p className="text-sm text-muted-foreground">{row.reference}</p>
+                    )}
+                  </div>
+                  <div className="flex justify-between gap-3 text-sm text-muted-foreground">
+                    <span>{row.method}</span>
+                    <span>{row.date}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      className="flex-1"
+                      onClick={() => edit(row)}
+                      size="sm"
+                      variant="outline"
+                    >
+                      Editar
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      onClick={() => remove(row)}
+                      size="sm"
+                      variant="destructive"
+                    >
+                      Excluir
+                    </Button>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead>Forma</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Valor</TableHead>
+                    <TableHead>Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sorted.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell>
+                        <Badge variant={row.kind === 'payment' ? 'success' : 'destructive'}>
+                          {row.kind === 'payment' ? 'Receita' : 'Despesa'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <p className="font-medium">{row.description}</p>
+                        {row.reference && (
+                          <p className="text-xs text-muted-foreground">{row.reference}</p>
+                        )}
+                      </TableCell>
+                      <TableCell>{row.method}</TableCell>
+                      <TableCell>{row.date}</TableCell>
+                      <TableCell
+                        className={
+                          row.kind === 'expense'
+                            ? 'font-medium text-destructive'
+                            : 'font-medium text-emerald-600 dark:text-emerald-400'
+                        }
+                      >
+                        {row.kind === 'expense' ? '- ' : '+ '}
+                        {formatMoney(row.value)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button onClick={() => edit(row)} size="sm" variant="outline">
+                            Editar
+                          </Button>
+                          <Button onClick={() => remove(row)} size="sm" variant="destructive">
+                            Excluir
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
       ) : (
-        <article className="empty-state">
-          <div>✦</div>
-          <h2>Financeiro sem movimentações</h2>
-          <p>Registre um recebimento ou despesa para iniciar o controle do caixa.</p>
-        </article>
+        <EmptyState
+          title="Financeiro sem movimentações"
+          description="Registre um recebimento ou despesa para iniciar o controle do caixa."
+        />
       )}
       {modal && (
         <MoneyModal
@@ -201,15 +265,5 @@ export default function FinanceRoute({
         />
       )}
     </>
-  );
-}
-
-function Metric({ title, value, detail }: { title: string; value: string; detail: string }) {
-  return (
-    <div className="metric">
-      <span>{title}</span>
-      <strong>{value}</strong>
-      <small>{detail}</small>
-    </div>
   );
 }

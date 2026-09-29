@@ -1,6 +1,23 @@
 'use client';
 
 import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type { Expense, Payment } from '@/lib/types';
 
 export type MoneyKind = 'payment' | 'expense';
@@ -8,7 +25,9 @@ export type MoneyData = Payment | Expense;
 export type MoneyRow = MoneyData & { id: string; kind: MoneyKind };
 export type SaveMoney = (kind: MoneyKind, data: MoneyData, id?: string) => Promise<void>;
 
-type FieldChange = ChangeEvent<HTMLInputElement | HTMLSelectElement>;
+const methods = ['Pix', 'Dinheiro', 'Cartão de débito', 'Cartão de crédito', 'Boleto'];
+
+type FieldChange = ChangeEvent<HTMLInputElement>;
 type MoneyForm = {
   description: string;
   reference: string;
@@ -66,79 +85,92 @@ export default function MoneyModal({
   };
   const editing = Boolean(item);
   return (
-    <div className="modal-backdrop">
-      <form className="modal" onSubmit={submit}>
-        <div className="modal-title">
-          <div>
-            <span>{receive ? '↗' : '↘'}</span>
-            <div>
-              <h2>
-                {editing
-                  ? 'Editar lançamento'
-                  : receive
-                    ? 'Registrar recebimento'
-                    : 'Registrar despesa'}
-              </h2>
-              <p>Lançamento no controle financeiro</p>
+    <Dialog open onOpenChange={(open) => !open && close()}>
+      <DialogContent className="max-w-lg p-0">
+        <form className="grid gap-6 p-6" onSubmit={submit}>
+          <DialogHeader>
+            <DialogTitle>
+              {editing
+                ? 'Editar lançamento'
+                : receive
+                  ? 'Registrar recebimento'
+                  : 'Registrar despesa'}
+            </DialogTitle>
+            <DialogDescription>Lançamento no controle financeiro.</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-2">
+            <Label htmlFor="money-description">Descrição *</Label>
+            <Input
+              id="money-description"
+              onChange={field('description')}
+              placeholder={receive ? 'Ex.: Pagamento OS-1024' : 'Ex.: Compra de componentes'}
+              required
+              value={form.description}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="money-reference">Referência</Label>
+            <Input
+              id="money-reference"
+              onChange={field('reference')}
+              placeholder="OS, cliente, fornecedor ou documento"
+              value={form.reference}
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="money-method">Forma</Label>
+              <Select
+                onValueChange={(value) => setForm((current) => ({ ...current, method: value }))}
+                value={form.method}
+              >
+                <SelectTrigger id="money-method">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {methods.map((method) => (
+                    <SelectItem key={method} value={method}>
+                      {method}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="money-date">Data</Label>
+              <Input
+                id="money-date"
+                onChange={field('date')}
+                required
+                type="date"
+                value={form.date}
+              />
             </div>
           </div>
-          <button type="button" onClick={close}>
-            ×
-          </button>
-        </div>
-        <label>
-          Descrição *
-          <input
-            value={form.description}
-            onChange={field('description')}
-            required
-            placeholder={receive ? 'Ex.: Pagamento OS-1024' : 'Ex.: Compra de componentes'}
-          />
-        </label>
-        <label>
-          Referência
-          <input
-            value={form.reference}
-            onChange={field('reference')}
-            placeholder="OS, cliente, fornecedor ou documento"
-          />
-        </label>
-        <div className="form-row">
-          <label>
-            Forma
-            <select value={form.method} onChange={field('method')}>
-              <option>Pix</option>
-              <option>Dinheiro</option>
-              <option>Cartão de débito</option>
-              <option>Cartão de crédito</option>
-              <option>Boleto</option>
-            </select>
-          </label>
-          <label>
-            Data
-            <input value={form.date} onChange={field('date')} type="date" required />
-          </label>
-        </div>
-        <label>
-          Valor *
-          <input
-            value={form.value}
-            onChange={field('value')}
-            type="number"
-            min="0.01"
-            step="0.01"
-            required
-          />
-        </label>
-        <div className="modal-actions">
-          <button type="button" onClick={close}>
-            Cancelar
-          </button>
-          <button className="primary" disabled={saving}>
-            {saving ? 'Salvando...' : 'Salvar lançamento'}
-          </button>
-        </div>
-      </form>
-    </div>
+          <div className="grid gap-2">
+            <Label htmlFor="money-value">Valor *</Label>
+            <Input
+              id="money-value"
+              min="0.01"
+              onChange={field('value')}
+              required
+              step="0.01"
+              type="number"
+              value={form.value}
+            />
+          </div>
+
+          <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
+            <Button onClick={close} type="button" variant="outline">
+              Cancelar
+            </Button>
+            <Button disabled={saving} type="submit">
+              {saving ? 'Salvando...' : 'Salvar lançamento'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

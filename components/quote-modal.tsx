@@ -1,6 +1,17 @@
 'use client';
 
 import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { formatMoney } from '@/lib/format';
 import type { Quote } from '@/lib/types';
 
@@ -69,108 +80,128 @@ export default function QuoteModal({
   };
   const editing = Boolean(item);
   return (
-    <div className="modal-backdrop">
-      <form className="modal quote-modal" onSubmit={submit}>
-        <div className="modal-title">
-          <div>
-            <span>▤</span>
-            <div>
-              <h2>{editing ? `Editar orçamento ${item?.code}` : 'Novo orçamento'}</h2>
-              <p>Gere um link para aprovação do cliente</p>
+    <Dialog open onOpenChange={(open) => !open && close()}>
+      <DialogContent className="max-w-xl p-0">
+        <form className="grid max-h-[90dvh] gap-6 overflow-y-auto p-6" onSubmit={submit}>
+          <DialogHeader>
+            <DialogTitle>
+              {editing ? `Editar orçamento ${item?.code}` : 'Novo orçamento'}
+            </DialogTitle>
+            <DialogDescription>Gere um link para aprovação do cliente.</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="quote-customer">Cliente *</Label>
+              <Input
+                id="quote-customer"
+                onChange={field('customer')}
+                required
+                value={form.customer}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="quote-phone">WhatsApp *</Label>
+              <Input
+                id="quote-phone"
+                onChange={field('phone')}
+                placeholder="(DDD) número"
+                required
+                value={form.phone}
+              />
             </div>
           </div>
-          <button type="button" onClick={close}>
-            ×
-          </button>
-        </div>
-        <div className="form-row">
-          <label>
-            Cliente *<input value={form.customer} onChange={field('customer')} required />
-          </label>
-          <label>
-            WhatsApp *
-            <input
-              value={form.phone}
-              onChange={field('phone')}
+          <div className="grid gap-2">
+            <Label htmlFor="quote-device">Celular *</Label>
+            <Input
+              id="quote-device"
+              onChange={field('device')}
+              placeholder="Marca e modelo"
               required
-              placeholder="(DDD) número"
+              value={form.device}
             />
-          </label>
-        </div>
-        <label>
-          Celular *
-          <input
-            value={form.device}
-            onChange={field('device')}
-            required
-            placeholder="Marca e modelo"
-          />
-        </label>
-        <label>
-          Problema relatado *
-          <textarea
-            value={form.problem}
-            onChange={field('problem')}
-            required
-            placeholder="Ex.: Aparelho não liga e não carrega"
-          />
-        </label>
-        <label>
-          Serviço proposto *
-          <textarea
-            value={form.service}
-            onChange={field('service')}
-            required
-            placeholder="Descreva o diagnóstico e o que será realizado"
-          />
-        </label>
-        <label>
-          Observações para o cliente
-          <textarea
-            value={form.notes}
-            onChange={field('notes')}
-            placeholder="Condições, prazo, qualidade da peça, garantia ou recomendações"
-          />
-        </label>
-        <div className="form-row">
-          <label>
-            Mão de obra
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={labor}
-              onChange={(event) => setLabor(Number(event.target.value))}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="quote-problem">Problema relatado *</Label>
+            <Textarea
+              id="quote-problem"
+              onChange={field('problem')}
+              placeholder="Ex.: Aparelho não liga e não carrega"
+              required
+              value={form.problem}
             />
-          </label>
-          <label>
-            Peças
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={parts}
-              onChange={(event) => setParts(Number(event.target.value))}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="quote-service">Serviço proposto *</Label>
+            <Textarea
+              id="quote-service"
+              onChange={field('service')}
+              placeholder="Descreva o diagnóstico e o que será realizado"
+              required
+              value={form.service}
             />
-          </label>
-        </div>
-        <label>
-          Válido até
-          <input value={form.validUntil} onChange={field('validUntil')} type="date" />
-        </label>
-        <div className="order-total">
-          <span>Total do orçamento</span>
-          <strong>{formatMoney(labor + parts)}</strong>
-        </div>
-        <div className="modal-actions">
-          <button type="button" onClick={close}>
-            Cancelar
-          </button>
-          <button className="primary" disabled={saving}>
-            {saving ? 'Salvando...' : editing ? 'Salvar alterações' : 'Criar e gerar link'}
-          </button>
-        </div>
-      </form>
-    </div>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="quote-notes">Observações para o cliente</Label>
+            <Textarea
+              id="quote-notes"
+              onChange={field('notes')}
+              placeholder="Condições, prazo, qualidade da peça, garantia ou recomendações"
+              value={form.notes}
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="quote-labor">Mão de obra</Label>
+              <Input
+                id="quote-labor"
+                min="0"
+                onChange={(event) => setLabor(Number(event.target.value))}
+                step="0.01"
+                type="number"
+                value={labor}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="quote-parts">Peças</Label>
+              <Input
+                id="quote-parts"
+                min="0"
+                onChange={(event) => setParts(Number(event.target.value))}
+                step="0.01"
+                type="number"
+                value={parts}
+              />
+            </div>
+          </div>
+          <div className="grid gap-2 sm:max-w-xs">
+            <Label htmlFor="quote-valid-until">Válido até</Label>
+            <Input
+              id="quote-valid-until"
+              onChange={field('validUntil')}
+              type="date"
+              value={form.validUntil}
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-3 rounded-lg bg-muted/50 p-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Total do orçamento</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums">
+                {formatMoney(labor + parts)}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
+            <Button onClick={close} type="button" variant="outline">
+              Cancelar
+            </Button>
+            <Button disabled={saving} type="submit">
+              {saving ? 'Salvando...' : editing ? 'Salvar alterações' : 'Criar e gerar link'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

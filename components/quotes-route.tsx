@@ -4,8 +4,27 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useFeedback } from '@/components/feedback';
 import QuoteModal, { type QuoteRow, type SaveQuote } from '@/components/quote-modal';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import EmptyState from '@/components/ui/empty-state';
+import PageHeader from '@/components/ui/page-header';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { formatMoney, hasValidWhatsapp, whatsappUrl } from '@/lib/format';
 import type { Quote } from '@/lib/types';
+
+function quoteStatusVariant(status: string | undefined): 'success' | 'destructive' | 'secondary' {
+  if (status === 'Aprovado') return 'success';
+  if (status === 'Recusado') return 'destructive';
+  return 'secondary';
+}
 
 export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow[] }) {
   const { notify, confirm } = useFeedback();
@@ -81,115 +100,120 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
     window.open(whatsappUrl(quote.phone, message), '_blank', 'noopener,noreferrer');
   };
   const actions = (quote: QuoteRow) => (
-    <div className="row-actions">
-      <button
-        type="button"
+    <div className="flex flex-wrap gap-2">
+      <Button
         onClick={() => window.open(link(quote), '_blank', 'noopener,noreferrer')}
+        size="sm"
+        variant="outline"
       >
         Abrir
-      </button>
-      <button type="button" onClick={() => edit(quote)}>
+      </Button>
+      <Button onClick={() => edit(quote)} size="sm" variant="outline">
         Editar
-      </button>
-      <button type="button" onClick={() => copy(quote)}>
+      </Button>
+      <Button onClick={() => copy(quote)} size="sm" variant="outline">
         Copiar link
-      </button>
-      <button className="whatsapp-btn small" type="button" onClick={() => send(quote)}>
+      </Button>
+      <Button onClick={() => send(quote)} size="sm" variant="outline">
         WhatsApp
-      </button>
-      <button type="button" onClick={() => remove(quote)}>
+      </Button>
+      <Button onClick={() => remove(quote)} size="sm" variant="destructive">
         Excluir
-      </button>
+      </Button>
     </div>
   );
 
   return (
     <>
-      <header className="topbar">
-        <div>
-          <p>REPAROSM</p>
-          <h1>Orçamentos</h1>
-          <small>Crie propostas e acompanhe a decisão do cliente.</small>
-        </div>
-        <div className="top-actions">
-          <Link className="top-action-link" href="/">
-            ← Painel completo
-          </Link>
-          <button className="primary" type="button" onClick={create}>
-            + Novo orçamento
-          </button>
-        </div>
-      </header>
+      <PageHeader
+        title="Orçamentos"
+        description="Crie propostas e acompanhe a decisão do cliente."
+        action={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Button asChild className="w-full sm:w-auto" variant="outline">
+              <Link href="/">Painel completo</Link>
+            </Button>
+            <Button className="w-full sm:w-auto" onClick={create}>
+              Novo orçamento
+            </Button>
+          </div>
+        }
+      />
       {quotes.length ? (
-        <article className="panel page-panel quote-management">
-          <div className="quotes-mobile-list">
-            {quotes.map((quote) => (
-              <article className="quote-mobile-card" key={quote.id}>
-                <div className="list-card-heading">
-                  <b>{quote.code || 'Orçamento sem código'}</b>
-                  <span
-                    className={`tag ${quote.status === 'Aprovado' ? 'ready' : quote.status === 'Recusado' ? 'red' : 'progress'}`}
-                  >
-                    {quote.status || 'Aguardando'}
-                  </span>
-                </div>
-                <strong>{quote.customer}</strong>
-                <span>{quote.device}</span>
-                <p>{quote.problem || quote.service || 'Sem descrição do serviço'}</p>
-                <div className="list-card-meta">
-                  <span>Total</span>
-                  <b>{formatMoney(quote.total)}</b>
-                </div>
-                {actions(quote)}
-              </article>
-            ))}
-          </div>
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Código</th>
-                  <th>Cliente</th>
-                  <th>Celular</th>
-                  <th>Problema</th>
-                  <th>Total</th>
-                  <th>Status</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {quotes.map((quote) => (
-                  <tr key={quote.id}>
-                    <td>
-                      <b>{quote.code || '—'}</b>
-                    </td>
-                    <td>{quote.customer}</td>
-                    <td>{quote.device}</td>
-                    <td>{quote.problem || quote.service || '—'}</td>
-                    <td>{formatMoney(quote.total)}</td>
-                    <td>
-                      <span
-                        className={`tag ${quote.status === 'Aprovado' ? 'ready' : quote.status === 'Recusado' ? 'red' : 'progress'}`}
-                      >
-                        {quote.status || 'Aguardando'}
-                      </span>
-                    </td>
-                    <td>{actions(quote)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </article>
+        <Card>
+          <CardHeader>
+            <CardTitle>{quotes.length} orçamentos</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="grid gap-3 md:hidden">
+              {quotes.map((quote) => (
+                <article className="grid gap-3 rounded-lg border p-4" key={quote.id}>
+                  <div className="flex items-center justify-between gap-3">
+                    <strong>{quote.code || 'Orçamento sem código'}</strong>
+                    <Badge variant={quoteStatusVariant(quote.status)}>
+                      {quote.status || 'Aguardando'}
+                    </Badge>
+                  </div>
+                  <div className="grid gap-1">
+                    <h3 className="font-medium">{quote.customer}</h3>
+                    <p className="text-sm text-muted-foreground">WhatsApp: {quote.phone || '—'}</p>
+                    <p className="text-sm text-muted-foreground">Aparelho: {quote.device || '—'}</p>
+                    <p className="text-sm">
+                      {quote.problem || quote.service || 'Sem descrição do serviço'}
+                    </p>
+                  </div>
+                  <div className="flex justify-between gap-3 border-t pt-3">
+                    <span className="text-sm text-muted-foreground">Total</span>
+                    <strong>{formatMoney(quote.total)}</strong>
+                  </div>
+                  {actions(quote)}
+                </article>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Código</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>WhatsApp</TableHead>
+                    <TableHead>Aparelho</TableHead>
+                    <TableHead>Problema</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {quotes.map((quote) => (
+                    <TableRow key={quote.id}>
+                      <TableCell className="font-medium">{quote.code || '—'}</TableCell>
+                      <TableCell>{quote.customer}</TableCell>
+                      <TableCell>{quote.phone || '—'}</TableCell>
+                      <TableCell>{quote.device || '—'}</TableCell>
+                      <TableCell className="max-w-[190px] whitespace-normal break-words">
+                        {quote.problem || quote.service || '—'}
+                      </TableCell>
+                      <TableCell>{formatMoney(quote.total)}</TableCell>
+                      <TableCell>
+                        <Badge variant={quoteStatusVariant(quote.status)}>
+                          {quote.status || 'Aguardando'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{actions(quote)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
       ) : (
-        <article className="empty-state">
-          <div>✦</div>
-          <h2>Nenhum orçamento</h2>
-          <p>Crie um orçamento detalhado e compartilhe o link com o cliente.</p>
-          <button className="primary" type="button" onClick={create}>
-            Criar orçamento
-          </button>
-        </article>
+        <EmptyState
+          title="Nenhum orçamento"
+          description="Crie um orçamento detalhado e compartilhe o link com o cliente."
+          action={<Button onClick={create}>Criar orçamento</Button>}
+        />
       )}
       {modal === 'create' && <QuoteModal close={() => setModal(null)} save={save} />}
       {modal === 'edit' && editing && (
