@@ -2141,7 +2141,7 @@ git commit -m "refactor: restyle support route with shadcn"
 - Inspect and modify: `app/globals.css` (somente seletores exclusivos das
   telas 3c)
 
-- [ ] **Step 1: Limpeza de CSS legado**
+- [x] **Step 1: Limpeza de CSS legado**
 
 Inspecione `app/globals.css` e procure, com `rg`, os seletores usados pelas
 telas migradas nas Tasks 1-5 (`.shop-v2`, `.shop-cover`, `.shop-avatar`,
@@ -2161,7 +2161,7 @@ visual. Preserve também qualquer seletor genérico ainda usado por outras
 telas (`.badge`, `.panel`, `.modal-backdrop`, etc., se ainda restar algum
 consumidor fora do painel).
 
-- [ ] **Step 2: Suíte completa**
+- [x] **Step 2: Suíte completa**
 
 Run: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build`
 
@@ -2169,7 +2169,7 @@ Expected: tudo verde (nenhum teste de negócio deveria ter sido afetado — é
 refatoração puramente visual). Confirme que os pré-requisitos locais estão
 configurados para que os testes de banco não sejam ignorados.
 
-- [ ] **Step 3: Graft**
+- [x] **Step 3: Graft**
 
 Run: `pnpm exec graft build && pnpm exec graft check`
 
@@ -2183,14 +2183,14 @@ mobile (~375px) e desktop (~1280px). Confirme ausência de estilos legados
 destoando do restante do painel, e que `/relatorio` continua intacto
 (sem sidebar, sem tema, formatado para impressão).
 
-- [ ] **Step 5: Commit da limpeza de CSS**
+- [x] **Step 5: Commit da limpeza de CSS**
 
 ```bash
 git add app/globals.css
 git commit -m "refactor: remove migrated screen styles (phase 3c)"
 ```
 
-- [ ] **Step 6: Push e PR**
+- [x] **Step 6: Push e PR**
 
 ```bash
 git push -u origin "$(git branch --show-current)"
