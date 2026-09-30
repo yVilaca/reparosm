@@ -1844,7 +1844,7 @@ git commit -m "refactor: restyle business assistant route with shadcn"
 initialTutorials })` continua igual; `TutorialModal` continua um
   componente interno não exportado.
 
-- [ ] **Step 1: Reescrever o componente**
+- [x] **Step 1: Reescrever o componente**
 
 ```tsx
 'use client';
@@ -2109,7 +2109,7 @@ Note: `category` segue controlado pelo mesmo motivo do `Select`/`FormData`
 descrito nos Global Constraints; o `submit` usa a variável `category`,
 nunca `form.get('category')`.
 
-- [ ] **Step 2: Verificar tipos**
+- [x] **Step 2: Verificar tipos**
 
 Run: `pnpm typecheck`
 
@@ -2124,7 +2124,7 @@ YouTube mostra o placeholder `▶` em vez de tentar montar um iframe vazio,
 e a categoria escolhida no modal é a que aparece salva no card (não fica
 sempre em "Começando").
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add components/support-route.tsx

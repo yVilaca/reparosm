@@ -1,8 +1,28 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
+import { useState } from 'react';
 import { useFeedback } from '@/components/feedback';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import PageHeader from '@/components/ui/page-header';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import type { Tutorial } from '@/lib/types';
 
 type TutorialRow = Tutorial & { id: string };
@@ -15,6 +35,16 @@ const guides = [
   ['Orçamentos', 'Envie propostas e registre a decisão do cliente.'],
   ['Garantias', 'Acompanhe aparelhos entregues e retornos.'],
 ] as const;
+
+const categories = [
+  'Começando',
+  'Ordens de serviço',
+  'Estoque',
+  'Financeiro',
+  'Orçamentos',
+  'Garantias',
+  'Outros',
+];
 
 export default function SupportRoute({ initialTutorials }: { initialTutorials: TutorialRow[] }) {
   const { notify } = useFeedback();
@@ -52,74 +82,91 @@ export default function SupportRoute({ initialTutorials }: { initialTutorials: T
   };
   return (
     <>
-      <header className="topbar">
-        <div>
-          <p>REPAROSM</p>
-          <h1>Tutoriais &amp; suporte</h1>
-          <small>Guias e vídeos carregados no servidor para a conta atual.</small>
-        </div>
-        <Link className="top-action-link" href="/">
-          ← Painel completo
-        </Link>
-      </header>
-      <div className="support-hero">
-        <span>CENTRAL DE AJUDA</span>
-        <h2>Aprenda a usar o ReparoSM</h2>
-        <button className="support-add" type="button" onClick={open}>
-          + Adicionar vídeo
-        </button>
-      </div>
+      <PageHeader
+        title="Tutoriais & suporte"
+        description="Guias e vídeos carregados no servidor para a conta atual."
+        action={
+          <Button asChild variant="outline">
+            <Link href="/">Painel completo</Link>
+          </Button>
+        }
+      />
+      <Card className="mb-4 gap-3 bg-primary text-primary-foreground">
+        <CardContent className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold tracking-wide uppercase opacity-80">
+              Central de ajuda
+            </p>
+            <h2 className="text-lg font-semibold">Aprenda a usar o ReparoSM</h2>
+          </div>
+          <Button onClick={open} size="sm" variant="secondary">
+            Adicionar vídeo
+          </Button>
+        </CardContent>
+      </Card>
       {tutorials.length > 0 && (
         <>
-          <h2 className="section-title">Vídeos da assistência</h2>
-          <div className="tutorial-grid">
+          <h2 className="mb-3 text-lg font-semibold">Vídeos da assistência</h2>
+          <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {tutorials.map((tutorial) => (
-              <article className="panel" key={tutorial.id}>
-                {youtube(tutorial.url) ? (
-                  <iframe
-                    src={`https://www.youtube.com/embed/${youtube(tutorial.url)}`}
-                    title={tutorial.title}
-                    allowFullScreen
-                  />
-                ) : (
-                  <div className="video-link">▶</div>
-                )}
-                <small>{tutorial.category || 'Tutorial'}</small>
-                <h3>{tutorial.title}</h3>
-                <p>{tutorial.description}</p>
-                <a href={tutorial.url} target="_blank" rel="noreferrer">
-                  Assistir vídeo →
-                </a>
-              </article>
+              <Card key={tutorial.id}>
+                <CardContent className="grid gap-2">
+                  {youtube(tutorial.url) ? (
+                    <iframe
+                      allowFullScreen
+                      className="aspect-video w-full rounded-lg"
+                      src={`https://www.youtube.com/embed/${youtube(tutorial.url)}`}
+                      title={tutorial.title}
+                    />
+                  ) : (
+                    <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-muted text-2xl">
+                      ▶
+                    </div>
+                  )}
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {tutorial.category || 'Tutorial'}
+                  </span>
+                  <h3 className="font-semibold">{tutorial.title}</h3>
+                  <p className="text-sm text-muted-foreground">{tutorial.description}</p>
+                  <Button asChild className="w-fit" size="sm" variant="outline">
+                    <a href={tutorial.url} rel="noreferrer" target="_blank">
+                      Assistir vídeo →
+                    </a>
+                  </Button>
+                </CardContent>
+              </Card>
             ))}
           </div>
         </>
       )}
-      <h2 className="section-title">Guias rápidos</h2>
-      <div className="lesson-grid">
+      <h2 className="mb-3 text-lg font-semibold">Guias rápidos</h2>
+      <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {guides.map((guide, index) => (
-          <article className="panel" key={guide[0]}>
-            <div>
-              <span>{index + 1}</span>▶
-            </div>
-            <small>GUIA RÁPIDO</small>
-            <h3>{guide[0]}</h3>
-            <p>{guide[1]}</p>
-          </article>
+          <Card key={guide[0]}>
+            <CardContent className="grid gap-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                GUIA RÁPIDO · {index + 1}
+              </span>
+              <h3 className="font-semibold">{guide[0]}</h3>
+              <p className="text-sm text-muted-foreground">{guide[1]}</p>
+            </CardContent>
+          </Card>
         ))}
       </div>
-      <div className="support-contact">
-        <div>
-          <strong>Como adicionar um vídeo?</strong>
-          <span>
-            Clique em “Adicionar vídeo”, cole o link do YouTube e preencha o título. Ele aparecerá
-            nesta página automaticamente.
-          </span>
-        </div>
-        <button type="button" onClick={open}>
-          Adicionar vídeo
-        </button>
-      </div>
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <strong>Como adicionar um vídeo?</strong>
+            <p className="text-sm text-muted-foreground">
+              Clique em &quot;Adicionar vídeo&quot;, cole o link do YouTube e preencha o título. Ele
+              aparecerá nesta página automaticamente.
+            </p>
+          </div>
+          <Button onClick={open} variant="outline">
+            Adicionar vídeo
+          </Button>
+        </CardContent>
+      </Card>
       {modal && <TutorialModal close={() => setModal(false)} save={save} />}
     </>
   );
@@ -132,68 +179,78 @@ function TutorialModal({
   close: () => void;
   save: (data: Tutorial) => Promise<void>;
 }) {
+  const [category, setCategory] = useState(categories[0]);
   return (
-    <div className="modal-backdrop">
-      <form
-        className="modal"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const form = new FormData(event.currentTarget);
-          void save({
-            title: String(form.get('title') || ''),
-            url: String(form.get('url') || ''),
-            category: String(form.get('category') || ''),
-            description: String(form.get('description') || ''),
-            createdAt: new Date().toISOString(),
-          });
-        }}
-      >
-        <div className="modal-title">
-          <div>
-            <span>▶</span>
-            <div>
-              <h2>Adicionar vídeo</h2>
-              <p>Publique um tutorial na central de ajuda</p>
-            </div>
+    <Dialog open onOpenChange={(open) => !open && close()}>
+      <DialogContent className="max-w-lg p-0">
+        <form
+          className="grid gap-6 p-6"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            void save({
+              title: String(form.get('title') || ''),
+              url: String(form.get('url') || ''),
+              category,
+              description: String(form.get('description') || ''),
+              createdAt: new Date().toISOString(),
+            });
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Adicionar vídeo</DialogTitle>
+            <DialogDescription>Publique um tutorial na central de ajuda.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Label htmlFor="tutorial-title">Título do vídeo *</Label>
+            <Input
+              id="tutorial-title"
+              name="title"
+              placeholder="Ex.: Como criar uma ordem de serviço"
+              required
+            />
           </div>
-          <button type="button" onClick={close}>
-            ×
-          </button>
-        </div>
-        <label>
-          Título do vídeo *
-          <input name="title" required placeholder="Ex.: Como criar uma ordem de serviço" />
-        </label>
-        <label>
-          Link do YouTube *
-          <input name="url" type="url" required placeholder="https://youtube.com/watch?v=..." />
-        </label>
-        <label>
-          Categoria
-          <select name="category">
-            <option>Começando</option>
-            <option>Ordens de serviço</option>
-            <option>Estoque</option>
-            <option>Financeiro</option>
-            <option>Orçamentos</option>
-            <option>Garantias</option>
-            <option>Outros</option>
-          </select>
-        </label>
-        <label>
-          Descrição
-          <textarea
-            name="description"
-            placeholder="Explique rapidamente o que o usuário aprenderá."
-          />
-        </label>
-        <div className="modal-actions">
-          <button type="button" onClick={close}>
-            Cancelar
-          </button>
-          <button className="primary">Adicionar vídeo</button>
-        </div>
-      </form>
-    </div>
+          <div className="grid gap-2">
+            <Label htmlFor="tutorial-url">Link do YouTube *</Label>
+            <Input
+              id="tutorial-url"
+              name="url"
+              placeholder="https://youtube.com/watch?v=..."
+              required
+              type="url"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="tutorial-category">Categoria</Label>
+            <Select onValueChange={setCategory} value={category}>
+              <SelectTrigger className="w-full" id="tutorial-category">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="tutorial-description">Descrição</Label>
+            <Textarea
+              id="tutorial-description"
+              name="description"
+              placeholder="Explique rapidamente o que o usuário aprenderá."
+            />
+          </div>
+          <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
+            <Button onClick={close} type="button" variant="outline">
+              Cancelar
+            </Button>
+            <Button type="submit">Adicionar vídeo</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
