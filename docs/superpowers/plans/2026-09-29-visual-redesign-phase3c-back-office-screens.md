@@ -128,7 +128,7 @@ className="sr-only">`) — não inventar um padrão novo.
   continua igual; `WhatsAppConnection` continua um componente interno não
   exportado.
 
-- [ ] **Step 1: Reescrever o componente**
+- [x] **Step 1: Reescrever o componente**
 
 ```tsx
 'use client';
@@ -698,13 +698,13 @@ de `FormData`) pelo motivo descrito nos Global Constraints — o `Select` do
 shadcn não é um campo de formulário nativo. `saveShop`/`saveConfig`
 continuam recebendo esses valores explicitamente no payload.
 
-- [ ] **Step 2: Verificar tipos**
+- [x] **Step 2: Verificar tipos**
 
 Run: `pnpm typecheck`
 
 Expected: código 0.
 
-- [ ] **Step 3: Verificação manual**
+- [x] **Step 3: Verificação manual**
 
 Run: `pnpm dev`. Abra `/minha-assistencia` nos dois temas e em
 mobile/desktop. Confirme: trocar de aba mantém os dados já digitados nas
@@ -716,7 +716,7 @@ salve — confirme que a garantia continua "180 dias" e não voltou ao
 padrão), e o card do WhatsApp mostra status/edição/teste/desconexão
 corretamente.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add components/my-shop-route.tsx
@@ -738,7 +738,7 @@ git commit -m "refactor: restyle my-shop route with shadcn"
 - Produces: nenhuma mudança de interface — `DataToolsRoute({ records })`
   continua igual.
 
-- [ ] **Step 1: Reescrever o componente**
+- [x] **Step 1: Reescrever o componente**
 
 ```tsx
 'use client';
@@ -939,7 +939,7 @@ export default function DataToolsRoute({ records }: { records: StoredRecord[] })
 }
 ```
 
-- [ ] **Step 2: Verificar tipos**
+- [x] **Step 2: Verificar tipos**
 
 Run: `pnpm typecheck`
 
