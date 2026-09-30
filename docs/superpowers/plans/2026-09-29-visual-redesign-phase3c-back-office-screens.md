@@ -59,9 +59,9 @@ suporte).
   e nos arquivos das Fases 3a/3b (grade de métricas em `Card size="sm"`,
   `Card` + `CardHeader`/`CardTitle`/`CardDescription`/`CardContent`,
   `Badge variant={...}`, cards mobile + tabela desktop, abas em `Button
-  variant={ativo ? 'default' : 'outline'}`, seletor de arquivo como
+variant={ativo ? 'default' : 'outline'}`, seletor de arquivo como
   `Button asChild` envolvendo um `<label>` com `<input type="file"
-  className="sr-only">`) — não inventar um padrão novo.
+className="sr-only">`) — não inventar um padrão novo.
 - **Armadilha recorrente nesta fase — `Select` do shadcn não participa de
   `FormData`:** os componentes originais usam formulários não controlados
   (leem tudo via `new FormData(event.currentTarget)` no `submit`), com
@@ -368,11 +368,7 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="shop-financial">Responsável financeiro</Label>
-                <Input
-                  defaultValue={shop?.financial || ''}
-                  id="shop-financial"
-                  name="financial"
-                />
+                <Input defaultValue={shop?.financial || ''} id="shop-financial" name="financial" />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="shop-internal-phone">Contato interno</Label>
@@ -622,9 +618,7 @@ function WhatsAppConnection() {
                 id="wa-token"
                 name="token"
                 placeholder={
-                  status?.configured
-                    ? 'Deixe vazio para manter o atual'
-                    : 'Cole o token permanente'
+                  status?.configured ? 'Deixe vazio para manter o atual' : 'Cole o token permanente'
                 }
                 required={!status?.configured}
                 type="password"
@@ -678,8 +672,8 @@ function WhatsAppConnection() {
               </Select>
             </div>
             <p className="text-xs text-muted-foreground">
-              Os dois modelos precisam estar aprovados na Meta e possuir quatro variáveis:
-              cliente, código da OS, aparelho e etapa.
+              Os dois modelos precisam estar aprovados na Meta e possuir quatro variáveis: cliente,
+              código da OS, aparelho e etapa.
             </p>
             <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
               {status?.configured && (
@@ -1091,8 +1085,7 @@ export default function AccountsRoute({
     }
   };
   const remove = async (account: PublicAccount) => {
-    if (!(await confirm(`Excluir a conta de ${account.name} e todos os dados dessa loja?`)))
-      return;
+    if (!(await confirm(`Excluir a conta de ${account.name} e todos os dados dessa loja?`))) return;
     try {
       const response = await fetch(`/api/accounts?id=${encodeURIComponent(account.id)}`, {
         method: 'DELETE',
@@ -2014,8 +2007,8 @@ export default function SupportRoute({ initialTutorials }: { initialTutorials: T
           <div>
             <strong>Como adicionar um vídeo?</strong>
             <p className="text-sm text-muted-foreground">
-              Clique em &quot;Adicionar vídeo&quot;, cole o link do YouTube e preencha o título.
-              Ele aparecerá nesta página automaticamente.
+              Clique em &quot;Adicionar vídeo&quot;, cole o link do YouTube e preencha o título. Ele
+              aparecerá nesta página automaticamente.
             </p>
           </div>
           <Button onClick={open} variant="outline">
