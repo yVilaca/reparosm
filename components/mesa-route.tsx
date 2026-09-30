@@ -1,9 +1,15 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
+import { useState } from 'react';
 import { useFeedback } from '@/components/feedback';
 import { OrderCreateModal, type SaveOrder } from '@/components/order-modals';
+import { orderPriorityVariant } from '@/components/orders-table';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import EmptyState from '@/components/ui/empty-state';
+import PageHeader from '@/components/ui/page-header';
 import { formatMoney } from '@/lib/format';
 import type { Order, OrderStage } from '@/lib/types';
 import { uploadOrderPhotos } from '@/lib/order-photo-upload';
@@ -71,76 +77,86 @@ export default function MesaRoute({
   };
   return (
     <>
-      <header className="topbar">
-        <div>
-          <p>REPAROSM</p>
-          <h1>Mesa</h1>
-          <small>Fluxo de atendimento carregado no servidor para a conta atual.</small>
-        </div>
-        <div className="top-actions">
-          <button className="primary" type="button" onClick={() => setModal(true)}>
-            + Nova ordem
-          </button>
-          <Link className="top-action-link" href="/">
-            ← Painel completo
-          </Link>
-        </div>
-      </header>
+      <PageHeader
+        title="Mesa"
+        description="Fluxo de atendimento carregado no servidor para a conta atual."
+        action={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Button asChild className="w-full sm:w-auto" variant="outline">
+              <Link href="/">Painel completo</Link>
+            </Button>
+            <Button className="w-full sm:w-auto" onClick={() => setModal(true)}>
+              Nova ordem
+            </Button>
+          </div>
+        }
+      />
       {!orders.length ? (
-        <article className="empty-state">
-          <div>✦</div>
-          <h2>A Mesa está vazia</h2>
-          <p>Crie uma ordem para ela aparecer automaticamente no fluxo.</p>
-          <button className="primary" type="button" onClick={() => setModal(true)}>
-            Criar primeira ordem
-          </button>
-        </article>
+        <EmptyState
+          action={<Button onClick={() => setModal(true)}>Criar primeira ordem</Button>}
+          description="Crie uma ordem para ela aparecer automaticamente no fluxo."
+          title="A Mesa está vazia"
+        />
       ) : (
-        <div className="kanban kanban-enhanced">
-          {stages.map((stage) => (
-            <section key={stage}>
-              <header>
-                <span>
-                  <i className="flow-dot" />
-                  {stage}
-                </span>
-                <b>{orders.filter((order) => (order.stage || 'Recebido') === stage).length}</b>
-              </header>
-              {orders
-                .filter((order) => (order.stage || 'Recebido') === stage)
-                .map((order) => (
-                  <article key={`${order.id}-${stage}`}>
-                    <div>
-                      <b>{order.code}</b>
-                      <small>{order.priority}</small>
-                    </div>
-                    <h4>{order.device}</h4>
-                    <p>{order.customer}</p>
-                    <footer>
-                      <button
-                        type="button"
-                        disabled={stage === stages[0]}
-                        aria-label={`Voltar etapa de ${order.code}`}
-                        title="Voltar etapa"
-                        onClick={() => move(order, -1)}
-                      >
-                        ←
-                      </button>
-                      <span>{formatMoney(Number(order.total || 0))}</span>
-                      <button
-                        type="button"
-                        disabled={stage === stages.at(-1)}
-                        aria-label={`Avançar etapa de ${order.code}`}
-                        title="Avançar etapa"
-                        onClick={() => move(order, 1)}
-                      >
-                        →
-                      </button>
-                    </footer>
-                  </article>
-                ))}
-            </section>
-          ))}
+        <div className="flex gap-4 overflow-x-auto pb-2">
+          {stages.map((stage) => {
+            const inStage = orders.filter((order) => (order.stage || 'Recebido') === stage);
+            return (
+              <Card className="w-72 shrink-0 gap-3" key={stage}>
+                <CardHeader className="flex flex-row items-center justify-between gap-2">
+                  <CardTitle className="text-sm">{stage}</CardTitle>
+                  <Badge variant="secondary">{inStage.length}</Badge>
+                </CardHeader>
+                <CardContent className="grid gap-3">
+                  {inStage.length ? (
+                    inStage.map((order) => (
+                      <article className="grid gap-2 rounded-lg border p-3" key={order.id}>
+                        <div className="flex items-center justify-between gap-2">
+                          <strong className="text-sm">{order.code}</strong>
+                          <Badge variant={orderPriorityVariant(order.priority)}>
+                            {order.priority || 'Normal'}
+                          </Badge>
+                        </div>
+                        <p className="text-sm font-medium">{order.device}</p>
+                        <p className="text-sm text-muted-foreground">{order.customer}</p>
+                        <div className="flex items-center justify-between gap-2 border-t pt-2">
+                          <Button
+                            aria-label={`Voltar etapa de ${order.code}`}
+                            disabled={stage === stages[0]}
+                            onClick={() => move(order, -1)}
+                            size="icon"
+                            title="Voltar etapa"
+                            type="button"
+                            variant="outline"
+                          >
+                            ←
+                          </Button>
+                          <span className="text-sm font-medium tabular-nums">
+                            {formatMoney(Number(order.total || 0))}
+                          </span>
+                          <Button
+                            aria-label={`Avançar etapa de ${order.code}`}
+                            disabled={stage === stages.at(-1)}
+                            onClick={() => move(order, 1)}
+                            size="icon"
+                            title="Avançar etapa"
+                            type="button"
+                            variant="outline"
+                          >
+                            →
+                          </Button>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
+                      Nenhuma ordem
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
       {modal && (

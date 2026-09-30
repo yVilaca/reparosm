@@ -5,7 +5,6 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { env } from '@/lib/env';
 import './accounts.css';
 import './globals.css';
-import './mesa.css';
 import './recovery.css';
 import './whatsapp.css';
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });

@@ -3,6 +3,28 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useFeedback } from '@/components/feedback';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import PageHeader from '@/components/ui/page-header';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
 import { hasValidWhatsapp, whatsappUrl } from '@/lib/format';
 import type { Automation, Client, Message, Order, Shop } from '@/lib/types';
 
@@ -151,135 +173,196 @@ export default function AfterSalesRoute({
   };
   return (
     <>
-      <header className="topbar">
-        <div>
-          <p>REPAROSM</p>
-          <h1>Pós-venda</h1>
-          <small>Mensagens e automações carregadas no servidor para a conta atual.</small>
-        </div>
-        <Link className="top-action-link" href="/">
-          ← Painel completo
-        </Link>
-      </header>
-      <article className="after-hero">
-        <div>
-          <span>✉</span>
+      <PageHeader
+        title="Pós-venda"
+        description="Mensagens e automações carregadas no servidor para a conta atual."
+        action={
+          <Button asChild variant="outline">
+            <Link href="/">Painel completo</Link>
+          </Button>
+        }
+      />
+      <Card className="mb-4 gap-3 bg-primary text-primary-foreground">
+        <CardContent className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h2>Central do WhatsApp</h2>
-            <p>Prepare, envie e acompanhe mensagens para seus clientes.</p>
+            <p className="text-xs font-semibold tracking-wide uppercase opacity-80">
+              Central do WhatsApp
+            </p>
+            <h2 className="text-lg font-semibold">Prepare, envie e acompanhe mensagens</h2>
+            <p className="text-sm opacity-90">Envio manual com um clique, direto pelo WhatsApp.</p>
           </div>
-        </div>
-        <div>
-          <b>{messages.length}</b>
-          <small>contatos registrados</small>
-        </div>
-      </article>
-      <section className="whatsapp-compose panel">
-        <div className="wa-title">
-          <span>WA</span>
-          <div>
-            <h3>Nova mensagem</h3>
-            <p>A mensagem abre pronta no WhatsApp para você confirmar o envio.</p>
+          <div className="text-right">
+            <strong className="text-2xl">{messages.length}</strong>
+            <p className="text-sm opacity-90">contatos registrados</p>
           </div>
-        </div>
-        <div className="form-row">
-          <label>
-            Cliente ou ordem
-            <select value={target} onChange={(event) => setTarget(event.target.value)}>
-              <option value="">Selecione...</option>
-              {contacts.map((contact) => (
-                <option value={contact.id} key={contact.id}>
-                  {contact.name} · {contact.device}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Modelo de mensagem
-            <select
-              value={template}
-              onChange={(event) => {
-                setTemplate(event.target.value);
-                setCustom('');
-              }}
-            >
-              {templates.map((item) => (
-                <option key={item[0]}>{item[0]}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <label>
-          Mensagem
-          <textarea value={custom || text} onChange={(event) => setCustom(event.target.value)} />
-        </label>
-        <div className="wa-preview">
-          <div>
-            <b>{selected?.name || 'Escolha um contato'}</b>
-            <small>{selected?.phone || 'O número aparecerá aqui'}</small>
+        </CardContent>
+      </Card>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Nova mensagem</CardTitle>
+          <CardDescription>
+            A mensagem abre pronta no WhatsApp para você confirmar o envio.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="after-sales-target">Cliente ou ordem</Label>
+              <div className="flex gap-2">
+                <Select onValueChange={setTarget} value={target}>
+                  <SelectTrigger className="min-w-0 flex-1" id="after-sales-target">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {contacts.map((contact) => (
+                      <SelectItem key={contact.id} value={contact.id}>
+                        {contact.name} · {contact.device}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  aria-label="Limpar contato selecionado"
+                  disabled={!target}
+                  onClick={() => setTarget('')}
+                  type="button"
+                  variant="outline"
+                >
+                  Limpar
+                </Button>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="after-sales-template">Modelo de mensagem</Label>
+              <Select
+                onValueChange={(value) => {
+                  setTemplate(value);
+                  setCustom('');
+                }}
+                value={template}
+              >
+                <SelectTrigger className="w-full" id="after-sales-template">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((item) => (
+                    <SelectItem key={item[0]} value={item[0]}>
+                      {item[0]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <button className="whatsapp-btn" type="button" onClick={send}>
-            Abrir no WhatsApp →
-          </button>
-        </div>
-      </section>
-      <h2 className="section-title">Automações preparadas</h2>
-      <div className="automation-grid">
-        {templates.map((item) => (
-          <article className="panel" key={item[0]}>
-            <header>
-              <i>✉</i>
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  checked={!!existing(item[0])?.enabled}
-                  onChange={() => toggle(item)}
-                />
-                <span />
-              </label>
-            </header>
-            <small>{item[1]}</small>
-            <h3>{item[0]}</h3>
-            <p>{item[2]}</p>
-            <footer>
-              <span>{existing(item[0])?.enabled ? 'Ativa para a API' : 'Ativar lembrete'}</span>
-            </footer>
-          </article>
-        ))}
+          <div className="grid gap-2">
+            <Label htmlFor="after-sales-message">Mensagem</Label>
+            <Textarea
+              id="after-sales-message"
+              onChange={(event) => setCustom(event.target.value)}
+              value={custom || text}
+            />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/50 p-4">
+            <div>
+              <p className="font-medium">{selected?.name || 'Escolha um contato'}</p>
+              <p className="text-sm text-muted-foreground">
+                {selected?.phone || 'O número aparecerá aqui'}
+              </p>
+            </div>
+            <Button onClick={send} type="button">
+              Abrir no WhatsApp →
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      <h2 className="mb-3 text-lg font-semibold">Automações preparadas</h2>
+      <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {templates.map((item, index) => {
+          const enabled = !!existing(item[0])?.enabled;
+          const toggleId = `automation-toggle-${index}`;
+          return (
+            <Card key={item[0]}>
+              <CardContent className="grid gap-2">
+                <p className="text-xs text-muted-foreground">{item[1]}</p>
+                <h3 className="font-semibold">{item[0]}</h3>
+                <p className="text-sm text-muted-foreground">{item[2]}</p>
+                <div className="flex items-center gap-2 border-t pt-3">
+                  <Input
+                    checked={enabled}
+                    className="size-4 shrink-0"
+                    id={toggleId}
+                    onChange={() => toggle(item)}
+                    type="checkbox"
+                  />
+                  <Label className="font-normal" htmlFor={toggleId}>
+                    {enabled ? 'Ativa para a API' : 'Ativar lembrete'}
+                  </Label>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
       {messages.length > 0 && (
-        <article className="panel page-panel wa-history">
-          <h2>Histórico de mensagens</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Tipo</th>
-                <th>Data</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
+        <Card>
+          <CardHeader>
+            <CardTitle>Histórico de mensagens</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="grid gap-3 md:hidden">
               {messages
                 .slice()
                 .reverse()
                 .slice(0, 10)
                 .map((message) => (
-                  <tr key={message.id}>
-                    <td>
-                      <b>{message.customer}</b>
-                      <small>{message.phone}</small>
-                    </td>
-                    <td>{message.kind}</td>
-                    <td>{new Date(message.sentAt || '').toLocaleString('pt-BR')}</td>
-                    <td>
-                      <span className="badge">{message.status}</span>
-                    </td>
-                  </tr>
+                  <article className="grid gap-1 rounded-lg border p-4" key={message.id}>
+                    <div className="flex items-center justify-between gap-2">
+                      <strong>{message.customer}</strong>
+                      <Badge variant="secondary">{message.status}</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{message.phone}</p>
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>{message.kind}</span>
+                      <span>{new Date(message.sentAt || '').toLocaleString('pt-BR')}</span>
+                    </div>
+                  </article>
                 ))}
-            </tbody>
-          </table>
-        </article>
+            </div>
+            <div className="hidden overflow-x-auto md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {messages
+                    .slice()
+                    .reverse()
+                    .slice(0, 10)
+                    .map((message) => (
+                      <TableRow key={message.id}>
+                        <TableCell>
+                          <p className="font-medium">{message.customer}</p>
+                          <p className="text-xs text-muted-foreground">{message.phone}</p>
+                        </TableCell>
+                        <TableCell>{message.kind}</TableCell>
+                        <TableCell>
+                          {new Date(message.sentAt || '').toLocaleString('pt-BR')}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{message.status}</Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </>
   );
