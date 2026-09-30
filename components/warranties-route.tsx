@@ -1,8 +1,29 @@
 import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import EmptyState from '@/components/ui/empty-state';
+import PageHeader from '@/components/ui/page-header';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import type { Order } from '@/lib/types';
 import { todayInSaoPaulo, warrantyPeriod } from '@/lib/warranty';
 
 type OrderRow = Order & { id: string };
+type WarrantyBadgeVariant = 'success' | 'warning' | 'destructive' | 'outline';
+
+function warrantyBadgeVariant(status: string): WarrantyBadgeVariant {
+  if (status === 'active') return 'success';
+  if (status === 'expiring') return 'warning';
+  if (status === 'expired') return 'destructive';
+  return 'outline';
+}
 
 export default function WarrantiesRoute({
   orders,
@@ -29,86 +50,137 @@ export default function WarrantiesRoute({
   // compute a warranty from; surfacing them separately explains why they are not
   // counted as active instead of silently under-reporting "Garantias ativas".
   const unknown = covered.filter((order) => order.period.status === 'unknown').length;
+  const metrics = [
+    { title: 'Garantias ativas', value: String(active), detail: 'Dentro do prazo' },
+    { title: 'Vencem em breve', value: String(expiring), detail: 'Até 15 dias' },
+    {
+      title: 'Garantia desconhecida',
+      value: String(unknown),
+      detail: 'Sem data de entrega registrada',
+    },
+    {
+      title: 'Retornos',
+      value: String(orders.filter((order) => order.priority === 'Garantia').length),
+      detail: 'Em atendimento',
+    },
+    {
+      title: 'Prazo padrão',
+      value: `${defaultWarrantyDays} dias`,
+      detail: 'Novas ordens desta loja',
+    },
+  ];
 
   return (
     <>
-      <header className="topbar">
-        <div>
-          <p>REPAROSM</p>
-          <h1>Garantias</h1>
-          <small>
-            Prazo por OS: <Link href="/ordens">Editar ordem</Link>. Padrão da loja:{' '}
-            <Link href="/minha-assistencia">Minha assistência</Link>.
-          </small>
-        </div>
-        <Link className="top-action-link" href="/">
-          ← Painel completo
-        </Link>
-      </header>
-      <div className="metrics">
-        <Metric title="Garantias ativas" value={String(active)} detail="Dentro do prazo" />
-        <Metric title="Vencem em breve" value={String(expiring)} detail="Até 15 dias" />
-        <Metric
-          title="Garantia desconhecida"
-          value={String(unknown)}
-          detail="Sem data de entrega registrada"
-        />
-        <Metric
-          title="Retornos"
-          value={String(orders.filter((order) => order.priority === 'Garantia').length)}
-          detail="Em atendimento"
-        />
-        <Metric
-          title="Prazo padrão"
-          value={`${defaultWarrantyDays} dias`}
-          detail="Novas ordens desta loja"
-        />
-      </div>
+      <PageHeader
+        title="Garantias"
+        description="Acompanhe o prazo de garantia das ordens já entregues."
+        action={
+          <Button asChild variant="outline">
+            <Link href="/">Painel completo</Link>
+          </Button>
+        }
+      />
+      <p className="mb-4 text-sm text-muted-foreground">
+        Prazo por OS: <Link href="/ordens">Editar ordem</Link>. Padrão da loja:{' '}
+        <Link href="/minha-assistencia">Minha assistência</Link>.
+      </p>
+      <section
+        aria-label="Resumo de garantias"
+        className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5"
+      >
+        {metrics.map((metric) => (
+          <Card key={metric.title} size="sm">
+            <CardContent className="grid gap-1">
+              <p className="text-sm text-muted-foreground">{metric.title}</p>
+              {/* Value stays in a <strong> tag: tests/warranties-route.test.mjs
+                  regexes for "<strong>(\d+)</strong>" right after the metric title. */}
+              <p className="text-2xl font-semibold tabular-nums">
+                <strong>{metric.value}</strong>
+              </p>
+              <p className="text-xs text-muted-foreground">{metric.detail}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </section>
       {covered.length ? (
-        <article className="panel page-panel">
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>OS</th>
-                  <th>Cliente</th>
-                  <th>Aparelho</th>
-                  <th>Serviço</th>
-                  <th>Entrega</th>
-                  <th>Prazo</th>
-                  <th>Vencimento</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {covered.map((order) => (
-                  <tr key={order.id}>
-                    <td>
-                      <b>{order.code}</b>
-                    </td>
-                    <td>{order.customer}</td>
-                    <td>{order.device}</td>
-                    <td>{order.problem || order.service || '—'}</td>
-                    <td>{dateLabel(order.deliveredAt)}</td>
-                    <td>{order.warrantyDays ? `${order.warrantyDays} dias` : 'Pendente'}</td>
-                    <td>{dateLabel(order.period.expiresAt)}</td>
-                    <td>
-                      <span className="badge">
-                        {statusLabel(order.period.status, order.deliveredAt)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </article>
+        <Card>
+          <CardHeader>
+            <CardTitle>Ordens entregues</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="grid gap-3 md:hidden">
+              {covered.map((order) => (
+                <article className="grid gap-2 rounded-lg border p-4" key={order.id}>
+                  <div className="flex items-center justify-between gap-2">
+                    <strong>{order.code}</strong>
+                    <Badge variant={warrantyBadgeVariant(order.period.status)}>
+                      {statusLabel(order.period.status, order.deliveredAt)}
+                    </Badge>
+                  </div>
+                  <p className="text-sm font-medium">{order.customer}</p>
+                  <p className="text-sm text-muted-foreground">{order.device}</p>
+                  <p className="text-sm">{order.problem || order.service || '—'}</p>
+                  <div className="grid grid-cols-2 gap-2 border-t pt-2 text-sm">
+                    <p>
+                      Entrega: <strong>{dateLabel(order.deliveredAt)}</strong>
+                    </p>
+                    <p>
+                      Prazo:{' '}
+                      <strong>
+                        {order.warrantyDays ? `${order.warrantyDays} dias` : 'Pendente'}
+                      </strong>
+                    </p>
+                    <p className="col-span-2">
+                      Vencimento: <strong>{dateLabel(order.period.expiresAt)}</strong>
+                    </p>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>OS</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Aparelho</TableHead>
+                    <TableHead>Serviço</TableHead>
+                    <TableHead>Entrega</TableHead>
+                    <TableHead>Prazo</TableHead>
+                    <TableHead>Vencimento</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {covered.map((order) => (
+                    <TableRow key={order.id}>
+                      <TableCell className="font-medium">{order.code}</TableCell>
+                      <TableCell>{order.customer}</TableCell>
+                      <TableCell>{order.device}</TableCell>
+                      <TableCell>{order.problem || order.service || '—'}</TableCell>
+                      <TableCell>{dateLabel(order.deliveredAt)}</TableCell>
+                      <TableCell>
+                        {order.warrantyDays ? `${order.warrantyDays} dias` : 'Pendente'}
+                      </TableCell>
+                      <TableCell>{dateLabel(order.period.expiresAt)}</TableCell>
+                      <TableCell>
+                        <Badge variant={warrantyBadgeVariant(order.period.status)}>
+                          {statusLabel(order.period.status, order.deliveredAt)}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
       ) : (
-        <article className="empty-state">
-          <div>✦</div>
-          <h2>Nenhuma ordem entregue</h2>
-          <p>Ao marcar a OS como retirada, o prazo de garantia aparecerá aqui.</p>
-        </article>
+        <EmptyState
+          description="Ao marcar a OS como retirada, o prazo de garantia aparecerá aqui."
+          title="Nenhuma ordem entregue"
+        />
       )}
     </>
   );
@@ -125,14 +197,4 @@ function statusLabel(status: string, deliveredAt?: string) {
   if (status === 'expiring') return 'Vencendo';
   if (status === 'expired') return 'Vencida';
   return deliveredAt ? 'Prazo pendente' : 'Data pendente';
-}
-
-function Metric({ title, value, detail }: { title: string; value: string; detail: string }) {
-  return (
-    <div className="metric">
-      <span>{title}</span>
-      <strong>{value}</strong>
-      <small>{detail}</small>
-    </div>
-  );
 }
