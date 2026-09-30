@@ -954,7 +954,7 @@ no seletor de importação muda o destino da importação, escolher um arquivo
 CSV importa os registros, e "Gerar relatório PDF" abre `/relatorio` numa
 aba nova (essa página não muda nesta fase).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add components/data-tools-route.tsx
@@ -977,7 +977,7 @@ git commit -m "refactor: restyle data tools route with shadcn"
 initialAccounts, initialRequests })` continua igual; `PasswordRequests` e
   `AccountModal` continuam componentes internos não exportados.
 
-- [ ] **Step 1: Reescrever o componente**
+- [x] **Step 1: Reescrever o componente**
 
 ```tsx
 'use client';
@@ -1601,7 +1601,7 @@ Note: `plan` (em `AccountModal`) segue controlado pelo mesmo motivo do
 `Select`/`FormData` descrito nos Global Constraints; `submit` monta o
 payload com a variável `plan`, nunca com `form.get('plan')`.
 
-- [ ] **Step 2: Verificar tipos**
+- [x] **Step 2: Verificar tipos**
 
 Run: `pnpm typecheck`
 
@@ -1617,7 +1617,7 @@ conta nova com um plano diferente de "Mensal" e conferir que o plano salvo
 uma conta que não seja a do administrador, e redefinir a senha de um
 lojista pelo seletor "Redefinir acesso de um lojista".
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add components/accounts-route.tsx

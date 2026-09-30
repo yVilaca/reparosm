@@ -3,7 +3,49 @@
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useFeedback } from '@/components/feedback';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import PageHeader from '@/components/ui/page-header';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import type { PasswordRequest, PublicAccount } from '@/lib/types';
+
+type AccountStatusVariant = 'success' | 'warning' | 'destructive';
+
+function accountStatusVariant(status: string): AccountStatusVariant {
+  if (status === 'active') return 'success';
+  if (status === 'suspended') return 'warning';
+  return 'destructive';
+}
+
+function accountStatusLabel(status: string) {
+  if (status === 'active') return 'Ativa';
+  if (status === 'suspended') return 'Suspensa';
+  return 'Cancelada';
+}
 
 export default function AccountsRoute({
   initialAccounts,
@@ -73,114 +115,188 @@ export default function AccountsRoute({
       notify(error instanceof Error ? error.message : 'Não foi possível excluir.', 'error');
     }
   };
+  const metrics = [
+    { title: 'Total de contas', value: String(accounts.length), detail: 'Incluindo administrador' },
+    { title: 'Contas ativas', value: String(active), detail: 'Com acesso liberado' },
+    {
+      title: 'Suspensas ou canceladas',
+      value: String(suspended),
+      detail: 'Sem acesso ao sistema',
+    },
+  ];
   return (
     <>
-      <header className="topbar">
-        <div>
-          <p>REPAROSM</p>
-          <h1>Contas de lojistas</h1>
-          <small>Gestão administrativa dos ambientes multiempresa.</small>
-        </div>
-        <Link className="top-action-link" href="/">
-          ← Painel completo
-        </Link>
-      </header>
-      <article className="accounts-hero">
-        <div>
-          <span>GESTÃO MULTILOJAS</span>
-          <h2>Contas dos lojistas</h2>
-          <p>
-            Crie acessos individuais, acompanhe planos e bloqueie contas com pagamento pendente.
-          </p>
-        </div>
-        <button className="primary" type="button" onClick={() => setModal(true)}>
-          + Nova conta
-        </button>
-      </article>
-      <div className="metrics account-metrics">
-        <Metric
-          title="Total de contas"
-          value={String(accounts.length)}
-          detail="Incluindo administrador"
-        />
-        <Metric title="Contas ativas" value={String(active)} detail="Com acesso liberado" />
-        <Metric
-          title="Suspensas ou canceladas"
-          value={String(suspended)}
-          detail="Sem acesso ao sistema"
-        />
-      </div>
-      <PasswordRequests accounts={accounts} requests={requests} onChanged={load} />
-      <article className="panel accounts-table">
-        <div className="panel-head">
-          <div>
-            <h3>Lojistas cadastrados</h3>
-            <p>Cada conta visualiza somente os dados da própria assistência.</p>
+      <PageHeader
+        title="Contas de lojistas"
+        description="Gestão administrativa dos ambientes multiempresa."
+        action={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Button asChild className="w-full sm:w-auto" variant="outline">
+              <Link href="/">Painel completo</Link>
+            </Button>
+            <Button className="w-full sm:w-auto" onClick={() => setModal(true)}>
+              Nova conta
+            </Button>
           </div>
-          <button type="button" disabled={loading} onClick={() => void load()}>
+        }
+      />
+      <section
+        aria-label="Resumo de contas"
+        className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+      >
+        {metrics.map((metric) => (
+          <Card key={metric.title} size="sm">
+            <CardContent className="grid gap-1">
+              <p className="text-sm text-muted-foreground">{metric.title}</p>
+              <p className="text-2xl font-semibold tabular-nums">{metric.value}</p>
+              <p className="text-xs text-muted-foreground">{metric.detail}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </section>
+      <PasswordRequests accounts={accounts} requests={requests} onChanged={load} />
+      <Card className="mt-4">
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <div>
+            <CardTitle>Lojistas cadastrados</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Cada conta visualiza somente os dados da própria assistência.
+            </p>
+          </div>
+          <Button disabled={loading} onClick={() => void load()} size="sm" variant="outline">
             {loading ? 'Atualizando...' : 'Atualizar'}
-          </button>
-        </div>
-        {notice && <p className="account-notice">✓ {notice}</p>}
-        <table>
-          <thead>
-            <tr>
-              <th>Loja</th>
-              <th>Usuário</th>
-              <th>Plano</th>
-              <th>Vencimento</th>
-              <th>Status</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody>
+          </Button>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          {notice && <p className="text-sm text-emerald-600 dark:text-emerald-400">✓ {notice}</p>}
+          <div className="grid gap-3 md:hidden">
             {accounts.map((account) => (
-              <tr key={account.id}>
-                <td>
-                  <b>{account.name}</b>
-                  <small>{account.role === 'admin' ? 'Administrador' : 'Lojista'}</small>
-                </td>
-                <td>{account.username}</td>
-                <td>{account.plan || 'Mensal'}</td>
-                <td>
-                  {account.dueDate
-                    ? new Date(`${account.dueDate}T12:00:00`).toLocaleDateString('pt-BR')
-                    : '—'}
-                </td>
-                <td>
-                  <span className={`tag ${account.status === 'active' ? 'ready' : 'red'}`}>
-                    {account.status === 'active'
-                      ? 'Ativa'
-                      : account.status === 'suspended'
-                        ? 'Suspensa'
-                        : 'Cancelada'}
-                  </span>
-                </td>
-                <td>
-                  {account.role !== 'admin' && (
-                    <div className="row-actions">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void update(account, account.status === 'active' ? 'suspended' : 'active')
-                        }
-                      >
-                        {account.status === 'active' ? 'Suspender' : 'Ativar'}
-                      </button>
-                      <button type="button" onClick={() => void update(account, 'cancelled')}>
-                        Cancelar
-                      </button>
-                      <button type="button" className="danger" onClick={() => void remove(account)}>
-                        Excluir
-                      </button>
-                    </div>
-                  )}
-                </td>
-              </tr>
+              <article className="grid gap-2 rounded-lg border p-4" key={account.id}>
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <strong>{account.name}</strong>
+                    <p className="text-xs text-muted-foreground">
+                      {account.role === 'admin' ? 'Administrador' : 'Lojista'}
+                    </p>
+                  </div>
+                  <Badge variant={accountStatusVariant(account.status)}>
+                    {accountStatusLabel(account.status)}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <p>
+                    Usuário: <strong>{account.username}</strong>
+                  </p>
+                  <p>
+                    Plano: <strong>{account.plan || 'Mensal'}</strong>
+                  </p>
+                  <p className="col-span-2">
+                    Vencimento:{' '}
+                    <strong>
+                      {account.dueDate
+                        ? new Date(`${account.dueDate}T12:00:00`).toLocaleDateString('pt-BR')
+                        : '—'}
+                    </strong>
+                  </p>
+                </div>
+                {account.role !== 'admin' && (
+                  <div className="flex flex-wrap gap-2 border-t pt-2">
+                    <Button
+                      onClick={() =>
+                        void update(account, account.status === 'active' ? 'suspended' : 'active')
+                      }
+                      size="sm"
+                      variant="outline"
+                    >
+                      {account.status === 'active' ? 'Suspender' : 'Ativar'}
+                    </Button>
+                    <Button
+                      onClick={() => void update(account, 'cancelled')}
+                      size="sm"
+                      variant="outline"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button onClick={() => void remove(account)} size="sm" variant="destructive">
+                      Excluir
+                    </Button>
+                  </div>
+                )}
+              </article>
             ))}
-          </tbody>
-        </table>
-      </article>
+          </div>
+          <div className="hidden overflow-x-auto md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Loja</TableHead>
+                  <TableHead>Usuário</TableHead>
+                  <TableHead>Plano</TableHead>
+                  <TableHead>Vencimento</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {accounts.map((account) => (
+                  <TableRow key={account.id}>
+                    <TableCell>
+                      <p className="font-medium">{account.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {account.role === 'admin' ? 'Administrador' : 'Lojista'}
+                      </p>
+                    </TableCell>
+                    <TableCell>{account.username}</TableCell>
+                    <TableCell>{account.plan || 'Mensal'}</TableCell>
+                    <TableCell>
+                      {account.dueDate
+                        ? new Date(`${account.dueDate}T12:00:00`).toLocaleDateString('pt-BR')
+                        : '—'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={accountStatusVariant(account.status)}>
+                        {accountStatusLabel(account.status)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {account.role !== 'admin' && (
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            onClick={() =>
+                              void update(
+                                account,
+                                account.status === 'active' ? 'suspended' : 'active',
+                              )
+                            }
+                            size="sm"
+                            variant="outline"
+                          >
+                            {account.status === 'active' ? 'Suspender' : 'Ativar'}
+                          </Button>
+                          <Button
+                            onClick={() => void update(account, 'cancelled')}
+                            size="sm"
+                            variant="outline"
+                          >
+                            Cancelar
+                          </Button>
+                          <Button
+                            onClick={() => void remove(account)}
+                            size="sm"
+                            variant="destructive"
+                          >
+                            Excluir
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
       {modal && (
         <AccountModal
           close={() => setModal(false)}
@@ -241,123 +357,157 @@ function PasswordRequests({
     }
   };
   return (
-    <article className="panel recovery-panel">
-      <div className="panel-head">
-        <div>
-          <h3>Solicitações de senha ({requests.length})</h3>
-          <p>Confirme a identidade pelo contato já cadastrado antes de liberar o acesso.</p>
+    <Card>
+      <CardHeader>
+        <CardTitle>Solicitações de senha ({requests.length})</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Confirme a identidade pelo contato já cadastrado antes de liberar o acesso.
+        </p>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        {notice && (
+          <p className="text-sm text-emerald-600 dark:text-emerald-400" role="status">
+            {notice}
+          </p>
+        )}
+        {error && (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        )}
+        {requests.length ? (
+          <div className="grid gap-2">
+            {requests.map((request) => {
+              const account = accounts.find((item) => item.id === request.accountId);
+              return (
+                <div
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"
+                  key={request.id}
+                >
+                  <div>
+                    <strong>{account?.name || request.username}</strong>
+                    <p className="text-sm text-muted-foreground">
+                      Usuário: {request.username} ·{' '}
+                      {new Date(request.createdAt).toLocaleString('pt-BR')}
+                    </p>
+                  </div>
+                  <Button
+                    disabled={!account}
+                    onClick={() => {
+                      setSelected(account || null);
+                      setError('');
+                    }}
+                    size="sm"
+                    variant="outline"
+                  >
+                    Definir nova senha
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Nenhuma solicitação pendente.</p>
+        )}
+        <div className="grid gap-2 sm:max-w-sm">
+          <Label htmlFor="accounts-reset-select">Redefinir acesso de um lojista</Label>
+          <Select
+            onValueChange={(value) => {
+              setSelected(accounts.find((account) => account.id === value) || null);
+              setError('');
+            }}
+            value={selected?.id ?? ''}
+          >
+            <SelectTrigger className="w-full" id="accounts-reset-select">
+              <SelectValue placeholder="Selecione uma conta" />
+            </SelectTrigger>
+            <SelectContent>
+              {accounts
+                .filter((account) => account.role !== 'admin')
+                .map((account) => (
+                  <SelectItem key={account.id} value={account.id}>
+                    {account.name} ({account.username})
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
         </div>
-      </div>
-      {notice && (
-        <p className="account-notice" role="status">
-          {notice}
-        </p>
-      )}
-      {error && (
-        <p className="login-error" role="alert">
-          {error}
-        </p>
-      )}
-      {requests.length ? (
-        requests.map((request) => {
-          const account = accounts.find((item) => item.id === request.accountId);
-          return (
-            <div className="recovery-row" key={request.id}>
-              <div>
-                <strong>{account?.name || request.username}</strong>
-                <p>
-                  Usuário: {request.username} ·{' '}
-                  {new Date(request.createdAt).toLocaleString('pt-BR')}
-                </p>
-              </div>
-              <button
-                type="button"
-                disabled={!account}
-                onClick={() => {
-                  setSelected(account || null);
-                  setError('');
-                }}
-              >
-                Definir nova senha
-              </button>
-            </div>
-          );
-        })
-      ) : (
-        <p>Nenhuma solicitação pendente.</p>
-      )}
-      <label>
-        Redefinir acesso de um lojista
-        <select
-          value=""
-          onChange={(event) => {
-            setSelected(accounts.find((account) => account.id === event.target.value) || null);
-            setError('');
-          }}
-        >
-          <option value="">Selecione uma conta</option>
-          {accounts
-            .filter((account) => account.role !== 'admin')
-            .map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.name} ({account.username})
-              </option>
-            ))}
-        </select>
-      </label>
+      </CardContent>
       {selected && (
-        <div className="modal-backdrop">
-          <form className="modal" onSubmit={reset}>
-            <h2>Nova senha de {selected.name}</h2>
-            <p>Usuário: {selected.username}</p>
-            <label>
-              Nova senha
-              <input
-                name="password"
-                type="password"
-                minLength={10}
-                required
-                autoComplete="new-password"
-              />
-            </label>
-            <label>
-              Confirmar senha
-              <input
-                name="confirmPassword"
-                type="password"
-                minLength={10}
-                required
-                autoComplete="new-password"
-              />
-            </label>
-            <small>Use pelo menos 10 caracteres, com letras e números.</small>
-            <label className="check">
-              <input name="identityConfirmed" type="checkbox" required /> Confirmei a identidade do
-              lojista pelo contato já conhecido.
-            </label>
-            {error && (
-              <p className="login-error" role="alert">
-                {error}
+        <Dialog open onOpenChange={(open) => !open && setSelected(null)}>
+          <DialogContent className="max-w-md p-0">
+            <form className="grid gap-6 p-6" onSubmit={reset}>
+              <DialogHeader>
+                <DialogTitle>Nova senha de {selected.name}</DialogTitle>
+                <DialogDescription>Usuário: {selected.username}</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-2">
+                <Label htmlFor="accounts-reset-password">Nova senha</Label>
+                <Input
+                  autoComplete="new-password"
+                  id="accounts-reset-password"
+                  minLength={10}
+                  name="password"
+                  required
+                  type="password"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="accounts-reset-confirm">Confirmar senha</Label>
+                <Input
+                  autoComplete="new-password"
+                  id="accounts-reset-confirm"
+                  minLength={10}
+                  name="confirmPassword"
+                  required
+                  type="password"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Use pelo menos 10 caracteres, com letras e números.
               </p>
-            )}
-            <div className="modal-actions">
-              <button type="button" disabled={busy} onClick={() => setSelected(null)}>
-                Cancelar
-              </button>
-              <button className="primary" disabled={busy}>
-                {busy ? 'Salvando...' : 'Salvar nova senha'}
-              </button>
-            </div>
-          </form>
-        </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  className="size-4 shrink-0"
+                  id="accounts-reset-confirmed"
+                  name="identityConfirmed"
+                  required
+                  type="checkbox"
+                />
+                <Label className="font-normal" htmlFor="accounts-reset-confirmed">
+                  Confirmei a identidade do lojista pelo contato já conhecido.
+                </Label>
+              </div>
+              {error && (
+                <p className="text-sm text-destructive" role="alert">
+                  {error}
+                </p>
+              )}
+              <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
+                <Button
+                  disabled={busy}
+                  onClick={() => setSelected(null)}
+                  type="button"
+                  variant="outline"
+                >
+                  Cancelar
+                </Button>
+                <Button disabled={busy} type="submit">
+                  {busy ? 'Salvando...' : 'Salvar nova senha'}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       )}
-    </article>
+    </Card>
   );
 }
 
 function AccountModal({ close, saved }: { close: () => void; saved: () => Promise<void> }) {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [plan, setPlan] = useState('Mensal');
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSaving(true);
@@ -371,7 +521,7 @@ function AccountModal({ close, saved }: { close: () => void; saved: () => Promis
           name: form.get('name'),
           username: form.get('username'),
           password: form.get('password'),
-          plan: form.get('plan'),
+          plan,
           dueDate: form.get('dueDate'),
           status: 'active',
         }),
@@ -386,78 +536,80 @@ function AccountModal({ close, saved }: { close: () => void; saved: () => Promis
     }
   };
   return (
-    <div className="modal-backdrop">
-      <form className="modal" onSubmit={submit}>
-        <div className="modal-title">
-          <div>
-            <span>♙</span>
-            <div>
-              <h2>Nova conta de lojista</h2>
-              <p>Crie um ambiente separado para a nova assistência</p>
+    <Dialog open onOpenChange={(open) => !open && close()}>
+      <DialogContent className="max-w-lg p-0">
+        <form className="grid gap-6 p-6" onSubmit={submit}>
+          <DialogHeader>
+            <DialogTitle>Nova conta de lojista</DialogTitle>
+            <DialogDescription>
+              Crie um ambiente separado para a nova assistência.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Label htmlFor="account-name">Nome da loja ou responsável *</Label>
+            <Input id="account-name" name="name" required />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="account-username">Usuário de acesso *</Label>
+              <Input
+                autoComplete="off"
+                id="account-username"
+                minLength={3}
+                name="username"
+                required
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="account-password">Senha inicial *</Label>
+              <Input
+                autoComplete="new-password"
+                id="account-password"
+                minLength={10}
+                name="password"
+                required
+                type="password"
+              />
+              <p className="text-xs text-muted-foreground">
+                Use no mínimo 10 caracteres, com letras e números.
+              </p>
             </div>
           </div>
-          <button type="button" onClick={close}>
-            ×
-          </button>
-        </div>
-        <label>
-          Nome da loja ou responsável *<input name="name" required />
-        </label>
-        <div className="form-row">
-          <label>
-            Usuário de acesso *<input name="username" minLength={3} required autoComplete="off" />
-          </label>
-          <label>
-            Senha inicial *
-            <input
-              name="password"
-              type="password"
-              minLength={10}
-              required
-              autoComplete="new-password"
-            />
-            <small>Use no mínimo 10 caracteres, com letras e números.</small>
-          </label>
-        </div>
-        <div className="form-row">
-          <label>
-            Plano
-            <select name="plan">
-              <option>Mensal</option>
-              <option>Trimestral</option>
-              <option>Anual</option>
-              <option>Cortesia</option>
-            </select>
-          </label>
-          <label>
-            Próximo vencimento
-            <input name="dueDate" type="date" />
-          </label>
-        </div>
-        {error && (
-          <p className="login-error" role="alert">
-            {error}
-          </p>
-        )}
-        <div className="modal-actions">
-          <button type="button" onClick={close}>
-            Cancelar
-          </button>
-          <button className="primary" disabled={saving}>
-            {saving ? 'Criando...' : 'Criar conta'}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-function Metric({ title, value, detail }: { title: string; value: string; detail: string }) {
-  return (
-    <div className="metric">
-      <span>{title}</span>
-      <strong>{value}</strong>
-      <small>{detail}</small>
-    </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="account-plan">Plano</Label>
+              <Select onValueChange={setPlan} value={plan}>
+                <SelectTrigger className="w-full" id="account-plan">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Mensal">Mensal</SelectItem>
+                  <SelectItem value="Trimestral">Trimestral</SelectItem>
+                  <SelectItem value="Anual">Anual</SelectItem>
+                  <SelectItem value="Cortesia">Cortesia</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="account-due-date">Próximo vencimento</Label>
+              <Input id="account-due-date" name="dueDate" type="date" />
+            </div>
+          </div>
+          {error && (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
+            <Button onClick={close} type="button" variant="outline">
+              Cancelar
+            </Button>
+            <Button disabled={saving} type="submit">
+              {saving ? 'Criando...' : 'Criar conta'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
