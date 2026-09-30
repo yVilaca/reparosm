@@ -1639,7 +1639,7 @@ git commit -m "refactor: restyle accounts route with shadcn"
 - Produces: nenhuma mudança de interface —
   `BusinessAssistantRoute({ orders, parts, payments })` continua igual.
 
-- [ ] **Step 1: Reescrever o componente**
+- [x] **Step 1: Reescrever o componente**
 
 ```tsx
 'use client';
@@ -1807,7 +1807,7 @@ export default function BusinessAssistantRoute({
 }
 ```
 
-- [ ] **Step 2: Verificar tipos**
+- [x] **Step 2: Verificar tipos**
 
 Run: `pnpm typecheck`
 
@@ -1821,7 +1821,7 @@ automaticamente, Enter no campo envia a mensagem e adiciona a resposta da
 IA, e as mensagens "me"/"ai" ficam visualmente distintas (alinhamento e
 cor).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add components/business-assistant-route.tsx

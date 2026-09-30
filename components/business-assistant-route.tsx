@@ -2,10 +2,16 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import PageHeader from '@/components/ui/page-header';
 import { formatMoney as money } from '@/lib/format';
 import type { Order, Part, Payment } from '@/lib/types';
 
 type ChatMessage = { role: 'ai' | 'me'; text: string };
+
+const suggestions = ['Como está meu estoque?', 'Qual minha receita?', 'O que devo priorizar?'];
 
 export default function BusinessAssistantRoute({
   orders,
@@ -59,85 +65,98 @@ export default function BusinessAssistantRoute({
     setInput('');
   };
   const insights = [
-    orders.length
-      ? `${orders.length} ordens cadastradas, sendo ${orders.filter((order) => order.stage !== 'Retirada').length} ainda em fluxo.`
-      : 'Crie ordens para receber análises de desempenho.',
-    low.length
-      ? `${low.length} itens estão com estoque abaixo de 5 unidades.`
-      : 'Nenhum item está em nível crítico.',
-    revenue
-      ? `A receita registrada é ${money(revenue)}.`
-      : 'Registre recebimentos para acompanhar receita e margem.',
+    {
+      title: 'Serviços',
+      text: orders.length
+        ? `${orders.length} ordens cadastradas, sendo ${orders.filter((order) => order.stage !== 'Retirada').length} ainda em fluxo.`
+        : 'Crie ordens para receber análises de desempenho.',
+    },
+    {
+      title: 'Estoque',
+      text: low.length
+        ? `${low.length} itens estão com estoque abaixo de 5 unidades.`
+        : 'Nenhum item está em nível crítico.',
+    },
+    {
+      title: 'Financeiro',
+      text: revenue
+        ? `A receita registrada é ${money(revenue)}.`
+        : 'Registre recebimentos para acompanhar receita e margem.',
+    },
   ];
   return (
     <>
-      <header className="topbar">
-        <div>
-          <p>REPAROSM</p>
-          <h1>Assistente IA</h1>
-          <small>Resumo local baseado nos dados da sua assistência.</small>
-        </div>
-        <Link className="top-action-link" href="/">
-          ← Painel completo
-        </Link>
-      </header>
-      <div className="assistant-layout">
-        <section className="insights">
-          <div className="ai-heading">
-            <div>✦</div>
-            <span>
-              Reparo IA<small>Assistente atual baseada nos seus dados</small>
-            </span>
-          </div>
-          <h2>Resumo do negócio</h2>
-          {insights.map((insight, index) => (
-            <article className="insight" key={insight}>
-              <i>{['⚒', '!', '↗'][index]}</i>
-              <div>
-                <strong>{['Serviços', 'Estoque', 'Financeiro'][index]}</strong>
-                <p>{insight}</p>
-              </div>
-            </article>
-          ))}
-        </section>
-        <section className="chat panel">
-          <div className="chat-head">
-            <span>✦</span>
-            <div>
-              <strong>Converse com a Reparo IA</strong>
-              <small>Online · versão local em preparação</small>
-            </div>
-          </div>
-          <div className="messages">
-            {chat.map((message, index) => (
-              <div className={`message ${message.role}`} key={index}>
-                {message.text}
-              </div>
+      <PageHeader
+        title="Assistente IA"
+        description="Resumo local baseado nos dados da sua assistência."
+        action={
+          <Button asChild variant="outline">
+            <Link href="/">Painel completo</Link>
+          </Button>
+        }
+      />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Resumo do negócio</CardTitle>
+            <p className="text-sm text-muted-foreground">Reparo IA · baseada nos seus dados</p>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {insights.map((insight) => (
+              <article className="grid gap-1 rounded-lg border p-3" key={insight.title}>
+                <strong className="text-sm">{insight.title}</strong>
+                <p className="text-sm text-muted-foreground">{insight.text}</p>
+              </article>
             ))}
-          </div>
-          <div className="suggestions">
-            {['Como está meu estoque?', 'Qual minha receita?', 'O que devo priorizar?'].map(
-              (suggestion) => (
-                <button type="button" onClick={() => setInput(suggestion)} key={suggestion}>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Converse com a Reparo IA</CardTitle>
+            <p className="text-sm text-muted-foreground">Online · versão local em preparação</p>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="grid max-h-[360px] gap-2 overflow-y-auto rounded-lg border p-3">
+              {chat.map((message, index) => (
+                <div
+                  className={
+                    message.role === 'me'
+                      ? 'ml-auto max-w-[80%] rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground'
+                      : 'mr-auto max-w-[80%] rounded-lg bg-muted px-3 py-2 text-sm'
+                  }
+                  key={index}
+                >
+                  {message.text}
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {suggestions.map((suggestion) => (
+                <Button
+                  key={suggestion}
+                  onClick={() => setInput(suggestion)}
+                  size="sm"
+                  variant="outline"
+                >
                   {suggestion}
-                </button>
-              ),
-            )}
-          </div>
-          <div className="composer">
-            <input
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') send();
-              }}
-              placeholder="Pergunte sobre sua assistência..."
-            />
-            <button type="button" onClick={send}>
-              ➤
-            </button>
-          </div>
-        </section>
+                </Button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Input
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') send();
+                }}
+                placeholder="Pergunte sobre sua assistência..."
+                value={input}
+              />
+              <Button onClick={send} size="icon" type="button">
+                ➤
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </>
   );
