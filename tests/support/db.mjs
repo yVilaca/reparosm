@@ -1,5 +1,5 @@
 // Gives each test file its own throwaway database with every migration applied.
-import { getDatabase } from '@netlify/database';
+import pg from 'pg';
 
 export const hasDatabase = Boolean(process.env.DATABASE_URL);
 export const skipWithoutDatabase = hasDatabase
@@ -9,8 +9,8 @@ export const skipWithoutDatabase = hasDatabase
 export async function createTestDatabase({ migrate: runMigrations = true } = {}) {
   const base = process.env.DATABASE_URL;
   const name = `reparosm_test_${process.pid}_${Date.now()}`;
-  const admin = getDatabase({ connectionString: base });
-  await admin.pool.query(`CREATE DATABASE ${name}`);
+  const admin = new pg.Pool({ connectionString: base });
+  await admin.query(`CREATE DATABASE ${name}`);
   const url = new URL(base);
   url.pathname = `/${name}`;
   process.env.DATABASE_URL = url.toString();
@@ -35,8 +35,8 @@ export async function createTestDatabase({ migrate: runMigrations = true } = {})
     async drop() {
       await db.closeDatabase();
       await migrationDb.closeMigrationDatabase();
-      await admin.pool.query(`DROP DATABASE ${name} WITH (FORCE)`);
-      await admin.pool.end();
+      await admin.query(`DROP DATABASE ${name} WITH (FORCE)`);
+      await admin.end();
       process.env.DATABASE_URL = base;
     },
   };

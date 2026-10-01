@@ -48,11 +48,7 @@ export function requiredEnv(name: string, value: string | undefined, pattern?: R
 }
 
 export function validateEnv() {
-  requiredEnv(
-    'DATABASE_URL ou NETLIFY_DB_URL',
-    env.databaseUrl || read('NETLIFY_DB_URL'),
-    /^postgres(?:ql)?:\/\//i,
-  );
+  requiredEnv('DATABASE_URL', env.databaseUrl, /^postgres(?:ql)?:\/\//i);
   requiredEnv('URL', env.siteUrl);
   requiredEnv('ADMIN_PASSWORD_HASH', env.adminPasswordHash, /^pbkdf2\$/);
   if (env.whatsappConfigKey)
