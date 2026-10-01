@@ -6,7 +6,7 @@ Sistema de gestão para assistências técnicas e lojas de celulares.
 
 Código-fonte atual preparado para armazenamento privado no GitHub. Não inclui o histórico anterior, bancos de dados locais, sessões, credenciais ou dados de clientes. A versão publicada atualmente não foi alterada.
 
-Esta versão usa **Next.js e Netlify Database (Postgres)**. A estrutura do banco é criada pelas migrações em `netlify/database/migrations`. A implantação só está concluída após configurar o administrador, importar os registros e validar a aplicação publicada. Não publique somente arquivos estáticos: autenticação, cadastros e WhatsApp dependem do servidor e do banco.
+Esta versão usa **Next.js e Postgres** (qualquer provedor, via `DATABASE_URL`). A estrutura do banco é criada pelas migrações em `netlify/database/migrations`. A implantação só está concluída após configurar o administrador, importar os registros e validar a aplicação publicada. Não publique somente arquivos estáticos: autenticação, cadastros e WhatsApp dependem do servidor e do banco.
 
 ## Desenvolvimento
 
@@ -14,7 +14,7 @@ Esta versão usa **Next.js e Netlify Database (Postgres)**. A estrutura do banco
 - Instalação: `pnpm install --frozen-lockfile`.
 - Desenvolvimento: `pnpm dev`.
 - Verificações: `pnpm lint`, `pnpm typecheck` e `pnpm test` (também rodam no CI a cada push/PR).
-- Build para Netlify: `pnpm build`.
+- Build de produção: `pnpm build`.
 
 ### Banco local
 
@@ -27,10 +27,10 @@ pnpm test          # testes, incluindo os de banco
 pnpm db:migrate    # aplica as migrações no banco de DATABASE_URL (desenvolvimento)
 ```
 
-Em produção as migrações de `netlify/database/migrations` são aplicadas pela Netlify no deploy; `pnpm db:migrate` é só para desenvolvimento e CI.
+Em produção as migrações de `netlify/database/migrations` precisam ser aplicadas manualmente contra o banco de produção (`pnpm db:migrate` com `DATABASE_URL` apontando para ele); não há aplicação automática no deploy.
 
-- Configuração de publicação: `netlify.toml`, saída `.next`.
-- O banco pode ser substituído por outro Postgres com `DATABASE_URL`; mantenha esta variável somente no servidor.
+- Hospedagem: Vercel (Next.js detectado automaticamente), banco Postgres gratuito via integração Neon.
+- `DATABASE_URL` é obrigatória e deve ser configurada somente no servidor (variável de ambiente do projeto na hospedagem), nunca no repositório.
 
 O ambiente local não contém os dados de produção. As configurações em `.env.example` são exemplos, não credenciais utilizáveis.
 
@@ -45,8 +45,8 @@ Não envie arquivos `.env`, backups do banco, tokens nem chaves ao GitHub. Não 
 
 ## Antes de mudar a hospedagem
 
-1. Criar o projeto na Netlify importando este repositório privado e confirmar o provisionamento do banco.
-2. Migrar registros preservando os identificadores e a separação por lojista.
-3. Configurar segredos fora do repositório.
+1. Criar o projeto na hospedagem importando este repositório privado e provisionar o banco Postgres (ex.: integração Neon no Vercel).
+2. Aplicar as migrações (`pnpm db:migrate`) e, se houver dados existentes, migrá-los preservando os identificadores e a separação por lojista.
+3. Configurar segredos fora do repositório (variáveis de ambiente do projeto na hospedagem).
 4. Validar login, isolamento entre contas, OS, estoque, pagamentos, links públicos e WhatsApp.
 5. Trocar o endereço somente após a validação, mantendo a versão atual disponível.

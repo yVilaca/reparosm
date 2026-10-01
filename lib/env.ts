@@ -2,7 +2,11 @@ const read = (name: string) => process.env[name]?.trim() || undefined;
 
 export const env = {
   get databaseUrl() {
-    return read('DATABASE_URL');
+    // Every query runs SET LOCAL ROLE for RLS tenant isolation (see lib/db.ts), which
+    // transaction-mode pgbouncer-style poolers (e.g. a pooled Neon/Vercel Postgres
+    // DATABASE_URL) reject with "permission denied to set role". Prefer the direct,
+    // unpooled connection whenever one is available.
+    return read('DATABASE_URL_UNPOOLED') || read('DATABASE_URL');
   },
   get siteUrl() {
     const value = read('URL') || 'http://localhost:3000';
@@ -48,11 +52,7 @@ export function requiredEnv(name: string, value: string | undefined, pattern?: R
 }
 
 export function validateEnv() {
-  requiredEnv(
-    'DATABASE_URL ou NETLIFY_DB_URL',
-    env.databaseUrl || read('NETLIFY_DB_URL'),
-    /^postgres(?:ql)?:\/\//i,
-  );
+  requiredEnv('DATABASE_URL', env.databaseUrl, /^postgres(?:ql)?:\/\//i);
   requiredEnv('URL', env.siteUrl);
   requiredEnv('ADMIN_PASSWORD_HASH', env.adminPasswordHash, /^pbkdf2\$/);
   if (env.whatsappConfigKey)

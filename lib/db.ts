@@ -1,4 +1,4 @@
-import { getDatabase, type DatabaseConnection } from '@netlify/database';
+import pg from 'pg';
 import { env } from '@/lib/env';
 
 export type Row = Record<string, unknown>;
@@ -12,14 +12,14 @@ type TenantQuery = <R extends Row = Row>(
   params?: unknown[],
 ) => Promise<R[]>;
 
-// getDatabase() builds a new pool on every call, so keep one connection per server instance.
 // Connect lazily: Next.js imports this module while collecting build metadata.
-let connection: DatabaseConnection | undefined;
+let connection: pg.Pool | undefined;
 const database = () => {
   if (connection) return connection;
-  connection = env.databaseUrl ? getDatabase({ connectionString: env.databaseUrl }) : getDatabase();
+  if (!env.databaseUrl) throw new Error('DATABASE_URL não está configurada.');
+  connection = new pg.Pool({ connectionString: env.databaseUrl });
   // An idle pooled client can drop (e.g. a frozen function); don't let that crash the process.
-  connection.pool.on('error', (error: Error) => console.error('Database pool error', error));
+  connection.on('error', (error: Error) => console.error('Database pool error', error));
   return connection;
 };
 
@@ -27,9 +27,9 @@ async function runAsRuntime<T>(
   fn: (query: Query) => Promise<T>,
   setting?: readonly [string, string],
 ) {
-  let client: Awaited<ReturnType<DatabaseConnection['pool']['connect']>> | undefined;
+  let client: pg.PoolClient | undefined;
   try {
-    client = await database().pool.connect();
+    client = await database().connect();
     const activeClient = client;
     const run: Query = async <R extends Row>(text: string, params: unknown[] = []) =>
       (await activeClient.query(text, params)).rows as R[];
@@ -173,5 +173,5 @@ export function tenantQueryFor(accountId: string, run?: Query): Query {
 export async function closeDatabase() {
   const current = connection;
   connection = undefined;
-  await current?.pool.end();
+  await current?.end();
 }
