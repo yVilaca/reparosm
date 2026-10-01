@@ -65,6 +65,7 @@ export default function SupportRoute({ initialTutorials }: { initialTutorials: T
         throw new Error(result.error || 'Não foi possível adicionar o tutorial.');
       setTutorials((current) => [{ id: result.record!.id, ...result.record!.data }, ...current]);
       setModal(false);
+      notify('Tutorial adicionado.', 'success');
     } catch (error) {
       notify(
         error instanceof Error ? error.message : 'Não foi possível adicionar o tutorial.',

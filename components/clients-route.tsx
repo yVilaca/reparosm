@@ -64,6 +64,7 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
       );
       setEditing(null);
       setModal(null);
+      notify(id ? 'Cliente atualizado.' : 'Cliente cadastrado.', 'success');
     } catch (error) {
       notify(
         error instanceof Error ? error.message : 'Não foi possível salvar o cliente.',
@@ -89,6 +90,7 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
       const result = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(result.error || 'Não foi possível excluir o cliente.');
       setClients((current) => current.filter((item) => item.id !== client.id));
+      notify('Cliente excluído.', 'success');
     } catch (error) {
       notify(
         error instanceof Error ? error.message : 'Não foi possível excluir o cliente.',

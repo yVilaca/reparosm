@@ -70,6 +70,7 @@ export default function FilmsRoute({ initialFilms }: { initialFilms: FilmRow[] }
       setModal(false);
       setEditing(null);
       setDraft(null);
+      notify(id ? 'Compatibilidade atualizada.' : 'Compatibilidade adicionada.', 'success');
     } catch (error) {
       notify(
         error instanceof Error ? error.message : 'Não foi possível salvar a compatibilidade.',

@@ -81,6 +81,7 @@ export default function OrderPhotos({ orderId }: { orderId: string }) {
       const result = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(result.error || 'Não foi possível excluir a foto.');
       setPhotos((current) => current.filter((item) => item.id !== photo.id));
+      notify('Foto excluída da ordem.', 'success');
     } catch (error) {
       notify(error instanceof Error ? error.message : 'Não foi possível excluir a foto.', 'error');
     }

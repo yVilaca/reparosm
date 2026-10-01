@@ -50,6 +50,7 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
       );
       setEditing(null);
       setModal(null);
+      notify(id ? 'Orçamento atualizado.' : 'Orçamento criado.', 'success');
     } catch (error) {
       notify(
         error instanceof Error ? error.message : 'Não foi possível salvar o orçamento.',
@@ -75,6 +76,7 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
       const result = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(result.error || 'Não foi possível excluir o orçamento.');
       setQuotes((current) => current.filter((item) => item.id !== quote.id));
+      notify('Orçamento excluído.', 'success');
     } catch (error) {
       notify(
         error instanceof Error ? error.message : 'Não foi possível excluir o orçamento.',

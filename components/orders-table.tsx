@@ -83,6 +83,7 @@ export default function OrdersTable({
       });
       if (!response.ok) throw new Error('Não foi possível excluir a ordem.');
       onRemoved?.(order.id);
+      notify('Ordem excluída.', 'success');
       router.refresh();
     } catch (error) {
       notify(error instanceof Error ? error.message : 'Não foi possível excluir a ordem.', 'error');

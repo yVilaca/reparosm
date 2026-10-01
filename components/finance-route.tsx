@@ -59,6 +59,16 @@ export default function FinanceRoute({
       );
       setEditing(null);
       setModal(null);
+      notify(
+        id
+          ? kind === 'payment'
+            ? 'Recebimento atualizado.'
+            : 'Despesa atualizada.'
+          : kind === 'payment'
+            ? 'Recebimento salvo.'
+            : 'Despesa salva.',
+        'success',
+      );
     } catch (error) {
       notify(
         error instanceof Error ? error.message : 'Não foi possível salvar o lançamento.',
@@ -85,6 +95,7 @@ export default function FinanceRoute({
       const result = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(result.error || 'Não foi possível excluir o lançamento.');
       setRows((current) => current.filter((item) => item.id !== row.id));
+      notify('Lançamento excluído.', 'success');
     } catch (error) {
       notify(
         error instanceof Error ? error.message : 'Não foi possível excluir o lançamento.',

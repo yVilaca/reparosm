@@ -111,6 +111,14 @@ export default function AfterSalesRoute({
           ...current,
         ]);
       }
+      notify(
+        type === 'automation'
+          ? id
+            ? 'Automação atualizada.'
+            : 'Automação ativada.'
+          : 'Mensagem registrada no histórico.',
+        'success',
+      );
     } catch (error) {
       notify(error instanceof Error ? error.message : 'Não foi possível salvar.', 'error');
       throw error;
