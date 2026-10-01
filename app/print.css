@@ -2,3 +2,15 @@
   size: A4;
   margin: 12mm;
 }
+
+/* Printing from a dark-themed session otherwise leaves the browser's default
+   canvas (the page area beyond the laid-out content, and any native UI the
+   print pipeline paints) dark: color-scheme, not an element's background,
+   governs that. next-themes sets color-scheme as an inline style on <html>
+   (enableColorScheme, on by default) to match native controls on screen, so
+   only an !important override here can beat it for print specifically. */
+@media print {
+  html {
+    color-scheme: light only !important;
+  }
+}
