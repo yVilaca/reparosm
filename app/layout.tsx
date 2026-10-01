@@ -3,10 +3,8 @@ import { Inter } from 'next/font/google';
 import { FeedbackProvider } from '@/components/feedback';
 import { ThemeProvider } from '@/components/theme-provider';
 import { env } from '@/lib/env';
-import './accounts.css';
 import './globals.css';
-import './recovery.css';
-import './whatsapp.css';
+import './print.css';
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {

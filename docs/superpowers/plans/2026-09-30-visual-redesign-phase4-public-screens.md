@@ -223,8 +223,7 @@ export default function PublicStoreRoute({
     ],
     [items],
   );
-  const visible =
-    category === 'Todos' ? items : items.filter((part) => part.category === category);
+  const visible = category === 'Todos' ? items : items.filter((part) => part.category === category);
   const ask = (part: Part) => {
     if (!hasValidWhatsapp(shop.phone))
       return notify('A assistência ainda não cadastrou o WhatsApp.', 'error');
@@ -790,9 +789,7 @@ export default async function PrintOrderPage({ params }: { params: Promise<{ id:
           {shop?.data.terms && (
             <section className="break-inside-avoid">
               <h2 className="mb-2 font-semibold">Termos da assistência</h2>
-              <p className="text-sm whitespace-pre-line text-muted-foreground">
-                {shop.data.terms}
-              </p>
+              <p className="text-sm whitespace-pre-line text-muted-foreground">{shop.data.terms}</p>
             </section>
           )}
 

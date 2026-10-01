@@ -1,5 +1,15 @@
 'use client';
 
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { formatMoney as money } from '@/lib/format';
 import type { DataObject, StoredRecord } from '@/lib/types';
 
@@ -15,44 +25,43 @@ export default function ReportRoute({ initialRecords }: { initialRecords: Stored
   const quotes = by('quote');
   const income = payments.reduce((sum, payment) => sum + Number(payment.value || 0), 0);
   const out = expenses.reduce((sum, expense) => sum + Number(expense.value || 0), 0);
+  const metrics = [
+    { title: 'Receita', value: money(income) },
+    { title: 'Despesas', value: money(out) },
+    { title: 'Resultado', value: money(income - out) },
+    { title: 'Ordens', value: String(orders.length) },
+    { title: 'Clientes', value: String(clients.length) },
+    {
+      title: 'Itens em estoque',
+      value: String(parts.reduce((sum, part) => sum + Number(part.stock || 0), 0)),
+    },
+  ];
 
   return (
-    <main className="report-page">
-      <header>
+    <main className="mx-auto max-w-5xl p-4 sm:p-6 print:max-w-none print:bg-white print:p-0 print:text-black print:[--background:white] print:[--foreground:black] print:[--card:white] print:[--card-foreground:black] print:[--muted-foreground:#404040] print:[--border:#bdbdbd] print:[--ui-muted:#f5f5f5]">
+      <header className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b pb-4">
         <div>
-          <span>REPAROSM</span>
-          <h1>Relatório geral da assistência</h1>
-          <p>Gerado em {new Date().toLocaleString('pt-BR')}</p>
+          <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            ReparoSM
+          </p>
+          <h1 className="text-xl font-semibold">Relatório geral da assistência</h1>
+          <p className="text-sm text-muted-foreground">
+            Gerado em {new Date().toLocaleString('pt-BR')}
+          </p>
         </div>
-        <button type="button" onClick={() => window.print()}>
+        <Button className="print:hidden" onClick={() => window.print()} type="button">
           Salvar como PDF
-        </button>
+        </Button>
       </header>
-      <section className="report-metrics">
-        <div>
-          <span>Receita</span>
-          <b>{money(income)}</b>
-        </div>
-        <div>
-          <span>Despesas</span>
-          <b>{money(out)}</b>
-        </div>
-        <div>
-          <span>Resultado</span>
-          <b>{money(income - out)}</b>
-        </div>
-        <div>
-          <span>Ordens</span>
-          <b>{orders.length}</b>
-        </div>
-        <div>
-          <span>Clientes</span>
-          <b>{clients.length}</b>
-        </div>
-        <div>
-          <span>Itens em estoque</span>
-          <b>{parts.reduce((sum, part) => sum + Number(part.stock || 0), 0)}</b>
-        </div>
+      <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        {metrics.map((metric) => (
+          <Card key={metric.title} size="sm">
+            <CardContent className="grid gap-1">
+              <p className="text-sm text-muted-foreground">{metric.title}</p>
+              <p className="text-lg font-semibold tabular-nums">{metric.value}</p>
+            </CardContent>
+          </Card>
+        ))}
       </section>
       <Report
         title="Ordens de serviço"
@@ -131,31 +140,37 @@ function Report({
   columns: Array<[string, string]>;
 }) {
   return (
-    <section className="report-section">
-      <h2>
-        {title} <small>{rows.length}</small>
+    <section className="mb-6 break-inside-avoid">
+      <h2 className="mb-2 font-semibold">
+        {title} <span className="text-sm font-normal text-muted-foreground">{rows.length}</span>
       </h2>
       {rows.length ? (
-        <table>
-          <thead>
-            <tr>
-              {columns.map((column) => (
-                <th key={column[1]}>{column[0]}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, index) => (
-              <tr key={index}>
-                {columns.map(([, key]) => (
-                  <td key={key}>{row[key] == null ? '—' : String(row[key])}</td>
+        <div className="overflow-x-auto rounded-lg border print:overflow-visible print:rounded-none print:border-0">
+          <Table className="print:table-fixed" containerClassName="print:overflow-visible">
+            <TableHeader>
+              <TableRow>
+                {columns.map((column) => (
+                  <TableHead className="print:whitespace-normal" key={column[1]}>
+                    {column[0]}
+                  </TableHead>
                 ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row, index) => (
+                <TableRow key={index}>
+                  {columns.map(([, key]) => (
+                    <TableCell className="print:break-words print:whitespace-normal" key={key}>
+                      {row[key] == null ? '—' : String(row[key])}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       ) : (
-        <p>Nenhum registro.</p>
+        <p className="text-sm text-muted-foreground">Nenhum registro.</p>
       )}
     </section>
   );
