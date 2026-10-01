@@ -38,8 +38,8 @@ export default function ReportRoute({ initialRecords }: { initialRecords: Stored
   ];
 
   return (
-    <main className="mx-auto max-w-5xl p-4 sm:p-6 print:max-w-none print:p-0">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b pb-4 print:hidden">
+    <main className="mx-auto max-w-5xl p-4 sm:p-6 print:max-w-none print:bg-white print:p-0 print:text-black print:[--background:white] print:[--foreground:black] print:[--card:white] print:[--card-foreground:black] print:[--muted-foreground:#404040] print:[--border:#bdbdbd] print:[--ui-muted:#f5f5f5]">
+      <header className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b pb-4">
         <div>
           <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             ReparoSM
@@ -49,7 +49,7 @@ export default function ReportRoute({ initialRecords }: { initialRecords: Stored
             Gerado em {new Date().toLocaleString('pt-BR')}
           </p>
         </div>
-        <Button onClick={() => window.print()} type="button">
+        <Button className="print:hidden" onClick={() => window.print()} type="button">
           Salvar como PDF
         </Button>
       </header>
@@ -145,12 +145,14 @@ function Report({
         {title} <span className="text-sm font-normal text-muted-foreground">{rows.length}</span>
       </h2>
       {rows.length ? (
-        <div className="overflow-x-auto rounded-lg border">
-          <Table>
+        <div className="overflow-x-auto rounded-lg border print:overflow-visible print:rounded-none print:border-0">
+          <Table className="print:table-fixed" containerClassName="print:overflow-visible">
             <TableHeader>
               <TableRow>
                 {columns.map((column) => (
-                  <TableHead key={column[1]}>{column[0]}</TableHead>
+                  <TableHead className="print:whitespace-normal" key={column[1]}>
+                    {column[0]}
+                  </TableHead>
                 ))}
               </TableRow>
             </TableHeader>
@@ -158,7 +160,9 @@ function Report({
               {rows.map((row, index) => (
                 <TableRow key={index}>
                   {columns.map(([, key]) => (
-                    <TableCell key={key}>{row[key] == null ? '—' : String(row[key])}</TableCell>
+                    <TableCell className="print:break-words print:whitespace-normal" key={key}>
+                      {row[key] == null ? '—' : String(row[key])}
+                    </TableCell>
                   ))}
                 </TableRow>
               ))}

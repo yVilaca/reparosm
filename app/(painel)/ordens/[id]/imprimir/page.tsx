@@ -22,12 +22,12 @@ export default async function PrintOrderPage({ params }: { params: Promise<{ id:
   const expiresAt = warrantyPeriod(data.deliveredAt, warrantyDays).expiresAt;
 
   return (
-    <div className="mx-auto max-w-3xl p-4 sm:p-6 print:max-w-none print:p-0">
+    <div className="mx-auto max-w-3xl p-4 sm:p-6 print:max-w-none print:bg-white print:p-0 print:text-black print:[--background:white] print:[--foreground:black] print:[--card:white] print:[--card-foreground:black] print:[--muted-foreground:#404040] print:[--border:#bdbdbd] print:[--ui-muted:#f5f5f5]">
       <div className="mb-4 flex items-center justify-between gap-3 print:hidden">
         <span className="text-sm text-muted-foreground">Visualização para impressão</span>
         <PrintOrderButton />
       </div>
-      <Card className="print:rounded-none print:border-0 print:shadow-none">
+      <Card className="print:rounded-none print:border-0 print:shadow-none print:ring-0">
         <CardContent className="grid gap-6 p-6 sm:p-8 print:p-0">
           <header className="flex flex-wrap items-start justify-between gap-4 border-b pb-4">
             <div>

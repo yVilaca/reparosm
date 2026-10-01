@@ -11,8 +11,8 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     .toUpperCase();
 
   return (
-    <div className="flex min-h-svh bg-background text-foreground">
-      <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r bg-background p-4 md:flex">
+    <div className="flex min-h-svh bg-background text-foreground print:block print:min-h-0 print:bg-white print:text-black">
+      <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r bg-background p-4 md:flex print:hidden">
         <div className="flex items-center gap-3 px-2 pb-4">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground">
             R
@@ -43,10 +43,10 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         </div>
         <LogoutButton />
       </aside>
-      <section className="min-w-0 flex-1 overflow-y-auto p-4 pb-24 sm:p-6 md:p-8 md:pb-8">
+      <section className="min-w-0 flex-1 overflow-y-auto p-4 pb-24 sm:p-6 md:p-8 md:pb-8 print:min-h-0 print:w-full print:overflow-visible print:p-0">
         {children}
       </section>
-      <div className="md:hidden">
+      <div className="md:hidden print:hidden">
         <SidebarNav isAdmin={account.role === 'admin'} />
       </div>
     </div>

@@ -4,6 +4,7 @@ import { FeedbackProvider } from '@/components/feedback';
 import { ThemeProvider } from '@/components/theme-provider';
 import { env } from '@/lib/env';
 import './globals.css';
+import './print.css';
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
