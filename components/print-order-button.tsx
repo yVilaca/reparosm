@@ -1,9 +1,11 @@
 'use client';
 
+import { Button } from '@/components/ui/button';
+
 export default function PrintOrderButton() {
   return (
-    <button className="primary" type="button" onClick={() => window.print()}>
+    <Button onClick={() => window.print()} type="button">
       Imprimir / salvar PDF
-    </button>
+    </Button>
   );
 }
