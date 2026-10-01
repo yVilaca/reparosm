@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
+import BrandLogo from '@/components/brand-logo';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -49,14 +50,8 @@ export default function Login({ onLogin }: { onLogin: (account: PublicAccount) =
       <Card className="w-full max-w-sm">
         <form onSubmit={submit}>
           <CardHeader className="gap-4">
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground">
-                R
-              </span>
-              <div>
-                <h1 className="text-lg font-semibold leading-none">ReparoSM</h1>
-                <p className="text-sm text-muted-foreground">Repair System Master</p>
-              </div>
+            <div className="flex items-center">
+              <BrandLogo className="w-[190px]" priority sizes="190px" />
             </div>
             <div>
               <h2 className="text-base font-medium">

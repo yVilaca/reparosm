@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { useFeedback } from '@/components/feedback';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import BrandLogo from '@/components/brand-logo';
 import { formatMoney as money } from '@/lib/format';
 import type { Quote, QuoteStatus } from '@/lib/types';
 
@@ -144,9 +145,11 @@ export default function PublicQuote() {
   return (
     <main className="flex min-h-dvh justify-center p-4 sm:p-6">
       <Card className="h-fit w-full max-w-lg">
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <strong>ReparoSM</strong>
-          <span className="text-sm text-muted-foreground">Orçamento {q.code || record.id}</span>
+        <CardHeader className="flex flex-wrap items-center justify-between gap-2">
+          <BrandLogo className="w-28 shrink-0 sm:w-32" sizes="128px" />
+          <span className="min-w-0 break-all text-right text-sm text-muted-foreground">
+            Orçamento {q.code || record.id}
+          </span>
         </CardHeader>
         <CardContent className="grid gap-4">
           <div>

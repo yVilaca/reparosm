@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
+import BrandLogo from '@/components/brand-logo';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
@@ -41,9 +42,7 @@ export default function ReportRoute({ initialRecords }: { initialRecords: Stored
     <main className="mx-auto max-w-5xl p-4 sm:p-6 print:max-w-none print:bg-white print:p-0 print:text-black print:[--background:white] print:[--foreground:black] print:[--card:white] print:[--card-foreground:black] print:[--muted-foreground:#404040] print:[--border:#bdbdbd] print:[--ui-muted:#f5f5f5]">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b pb-4">
         <div>
-          <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            ReparoSM
-          </p>
+          <BrandLogo className="mb-2 w-[118px]" sizes="118px" />
           <h1 className="text-xl font-semibold">Relatório geral da assistência</h1>
           <p className="text-sm text-muted-foreground">
             Gerado em {new Date().toLocaleString('pt-BR')}

@@ -1,4 +1,5 @@
 import LogoutButton from '@/components/logout-button';
+import BrandLogo from '@/components/brand-logo';
 import SidebarNav from '@/components/sidebar-nav';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Separator } from '@/components/ui/separator';
@@ -13,14 +14,8 @@ export default async function PanelLayout({ children }: { children: React.ReactN
   return (
     <div className="flex min-h-svh bg-background text-foreground print:block print:min-h-0 print:bg-white print:text-black">
       <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r bg-background p-4 md:flex print:hidden">
-        <div className="flex items-center gap-3 px-2 pb-4">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground">
-            R
-          </span>
-          <div>
-            <strong className="block text-sm font-semibold leading-none">ReparoSM</strong>
-            <small className="text-xs text-muted-foreground">Repair System Master</small>
-          </div>
+        <div className="flex items-center px-2 pb-4">
+          <BrandLogo className="w-[172px]" sizes="172px" />
         </div>
         <Separator className="mb-4" />
         <SidebarNav isAdmin={account.role === 'admin'} />
