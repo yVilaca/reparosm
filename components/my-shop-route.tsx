@@ -109,8 +109,17 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
           onSubmit={(event) => {
             event.preventDefault();
             const form = new FormData(event.currentTarget);
+            const formData = Object.fromEntries(form);
             void saveShop(
-              { ...shop, ...Object.fromEntries(form), warranty, taxRegime } as Shop,
+              {
+                ...shop,
+                ...formData,
+                warranty,
+                taxRegime,
+                ...(tab === 'Documentos'
+                  ? { showLaborOnPrint: form.get('showLaborOnPrint') === 'on' }
+                  : {}),
+              } as Shop,
               shop?.id || 'shop-main',
             );
           }}
@@ -177,6 +186,19 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
                   <Label htmlFor="shop-website">Site</Label>
                   <Input defaultValue={shop?.website || ''} id="shop-website" name="website" />
                 </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="shop-logo">Logo da loja (URL)</Label>
+                <Input
+                  defaultValue={shop?.logo || ''}
+                  id="shop-logo"
+                  name="logo"
+                  placeholder="https://exemplo.com/logo.png"
+                  type="url"
+                />
+                <p className="text-xs text-muted-foreground">
+                  A imagem será exibida no cabeçalho da OS impressa.
+                </p>
               </div>
             </>
           </fieldset>
@@ -328,6 +350,24 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
               <div className="grid gap-2">
                 <Label htmlFor="shop-google">Link para avaliação no Google</Label>
                 <Input defaultValue={shop?.google || ''} id="shop-google" name="google" />
+              </div>
+              <div className="flex items-start gap-3 rounded-lg border p-3">
+                <Input
+                  defaultChecked={shop?.showLaborOnPrint !== false}
+                  className="mt-1 size-4 shrink-0"
+                  id="shop-show-labor-on-print"
+                  name="showLaborOnPrint"
+                  type="checkbox"
+                />
+                <div className="grid gap-1">
+                  <Label htmlFor="shop-show-labor-on-print">
+                    Exibir mão de obra na OS impressa
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Desative para mostrar apenas peças e total ao cliente. O cálculo da OS permanece
+                    inalterado.
+                  </p>
+                </div>
               </div>
             </>
           </fieldset>

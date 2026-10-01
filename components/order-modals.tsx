@@ -136,6 +136,10 @@ export function OrderEditModal({
                 value={form.problem || ''}
               />
             </div>
+            <div className="grid gap-2 sm:col-span-2">
+              <Label htmlFor="order-edit-notes">Observações</Label>
+              <Textarea id="order-edit-notes" onChange={field('notes')} value={form.notes || ''} />
+            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -291,6 +295,7 @@ export function OrderCreateModal({
       imei: '',
       password: '',
       problem: '',
+      notes: '',
       priority: 'Normal' as OrderPriority,
     });
   const total = labor + parts;
@@ -537,6 +542,15 @@ export function OrderCreateModal({
                   onChange={field('problem')}
                   required
                   value={form.problem}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="order-create-notes">Observações do diagnóstico</Label>
+                <Textarea
+                  id="order-create-notes"
+                  onChange={field('notes')}
+                  placeholder="Anote testes, condições do aparelho ou orientações importantes."
+                  value={form.notes}
                 />
               </div>
               <div className="grid max-w-sm gap-2">

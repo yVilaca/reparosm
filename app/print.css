@@ -13,4 +13,9 @@
   html {
     color-scheme: light only !important;
   }
+
+  .print-copy-break {
+    break-after: page;
+    page-break-after: always;
+  }
 }

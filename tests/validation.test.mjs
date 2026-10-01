@@ -32,11 +32,31 @@ test('accepts numeric part costs', () => {
   assert.equal(validateRecord('part', { name: 'Tela', stock: 2, cost: 80, price: 150 }).ok, true);
 });
 
+test('accepts the optional shop print preference and rejects invalid values', () => {
+  assert.equal(
+    validateRecord('shop', { name: 'ReparoSM', phone: '11999999999', showLaborOnPrint: false }).ok,
+    true,
+  );
+  assert.equal(
+    validateRecord('shop', { name: 'ReparoSM', phone: '11999999999', showLaborOnPrint: 'false' })
+      .ok,
+    false,
+  );
+});
+
 test('accepts an order without a code (the server assigns it)', () => {
   assert.equal(
     validateRecord('order', { customer: 'Ana', device: 'iPhone', problem: 'Não liga' }).ok,
     true,
   );
+});
+
+test('validates optional order observations as text', () => {
+  assert.equal(
+    validateRecord('order', { ...validRecords.order, notes: 'Testado e higienizado' }).ok,
+    true,
+  );
+  assert.equal(validateRecord('order', { ...validRecords.order, notes: 123 }).ok, false);
 });
 
 test('warranty duration must be an integer from 1 to 3650 days when set', () => {

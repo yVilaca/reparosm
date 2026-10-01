@@ -72,7 +72,7 @@ const validateOrder = (value: unknown): ValidationResult<Order> => {
     !data ||
     !validateStrings(
       data,
-      ['code', 'customer', 'phone', 'device', 'problem'],
+      ['code', 'customer', 'phone', 'device', 'problem', 'notes'],
       ['customer', 'device'],
     )
   )
@@ -145,7 +145,7 @@ const validateFilm = (value: unknown): ValidationResult<Film> => {
 
 const validateClient = (value: unknown): ValidationResult<Client> => {
   const data = objectValue(value);
-  if (!data || !validateStrings(data, ['name', 'phone'], ['name', 'phone']))
+  if (!data || !validateStrings(data, ['name', 'phone', 'logo'], ['name', 'phone']))
     return { ok: false, error: 'Cliente inválido.' };
   if (!validateBooleans(data, ['vip', 'automatic'], []))
     return { ok: false, error: 'Preferências do cliente inválidas.' };
@@ -221,6 +221,8 @@ const validateShop = (value: unknown): ValidationResult<Shop> => {
   const data = objectValue(value);
   if (!data || !validateStrings(data, ['name', 'phone'], ['name', 'phone']))
     return { ok: false, error: 'Assistência inválida.' };
+  if (!validateBooleans(data, ['showLaborOnPrint'], []))
+    return { ok: false, error: 'Preferências de impressão inválidas.' };
   return { ok: true, data: data as Shop };
 };
 
