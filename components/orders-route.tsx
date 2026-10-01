@@ -85,6 +85,7 @@ export default function OrdersRoute({
           uploaded === photos.length ? 'success' : 'error',
         );
       }
+      if (id || !photos.length) notify(id ? 'OS atualizada.' : 'OS criada.', 'success');
       setOrders((current) =>
         id ? current.map((order) => (order.id === id ? saved : order)) : [saved, ...current],
       );

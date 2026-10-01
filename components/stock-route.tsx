@@ -55,6 +55,7 @@ export default function StockRoute({
       );
       setEditing(null);
       setModal(null);
+      notify(id ? 'Produto atualizado.' : 'Produto adicionado.', 'success');
     } catch (error) {
       notify(
         error instanceof Error ? error.message : 'Não foi possível salvar o produto.',
@@ -80,6 +81,7 @@ export default function StockRoute({
       const result = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(result.error || 'Não foi possível excluir o produto.');
       setParts((current) => current.filter((item) => item.id !== part.id));
+      notify('Produto excluído.', 'success');
     } catch (error) {
       notify(
         error instanceof Error ? error.message : 'Não foi possível excluir o produto.',

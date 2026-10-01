@@ -59,7 +59,6 @@ export default function AccountsRoute({
   const [requests, setRequests] = useState(initialRequests);
   const [modal, setModal] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [notice, setNotice] = useState('');
   const active = accounts.filter((account) => account.status === 'active').length;
   const suspended = accounts.length - active;
   const load = async () => {
@@ -92,7 +91,6 @@ export default function AccountsRoute({
       });
       const result = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(result.error || 'Não foi possível atualizar a conta.');
-      setNotice(status === 'active' ? 'Conta ativada.' : 'Conta atualizada.');
       notify(status === 'active' ? 'Conta ativada.' : 'Conta atualizada.', 'success');
       await load();
     } catch (error) {
@@ -110,6 +108,7 @@ export default function AccountsRoute({
       });
       const result = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(result.error || 'Não foi possível excluir.');
+      notify('Conta excluída.', 'success');
       await load();
     } catch (error) {
       notify(error instanceof Error ? error.message : 'Não foi possível excluir.', 'error');
@@ -168,7 +167,6 @@ export default function AccountsRoute({
           </Button>
         </CardHeader>
         <CardContent className="grid gap-4">
-          {notice && <p className="text-sm text-emerald-600 dark:text-emerald-400">✓ {notice}</p>}
           <div className="grid gap-3 md:hidden">
             {accounts.map((account) => (
               <article className="grid gap-2 rounded-lg border p-4" key={account.id}>
@@ -302,7 +300,7 @@ export default function AccountsRoute({
           close={() => setModal(false)}
           saved={async () => {
             setModal(false);
-            setNotice('Nova conta criada com sucesso.');
+            notify('Nova conta criada com sucesso.', 'success');
             await load();
           }}
         />

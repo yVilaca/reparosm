@@ -52,6 +52,7 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
       if (!response.ok || !result.record)
         throw new Error(result.error || 'Não foi possível salvar a assistência.');
       setShop({ id: result.record.id, ...result.record.data });
+      notify('Dados da assistência salvos.', 'success');
     } catch (error) {
       notify(
         error instanceof Error ? error.message : 'Não foi possível salvar a assistência.',
