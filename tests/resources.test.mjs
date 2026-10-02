@@ -69,6 +69,27 @@ test('resource route validates payloads and scopes ownership', { skip }, async (
   assert.equal((await clients.DELETE(request('DELETE', owner, null, id))).status, 200);
 });
 
+test('client phones are unique per tenant even with different formatting', { skip }, async () => {
+  const first = await clients.POST(
+    request('POST', owner, { data: { name: 'Cliente Um', phone: '(11) 98888-7777' } }),
+  );
+  assert.equal(first.status, 201);
+
+  const duplicate = await clients.POST(
+    request('POST', owner, { data: { name: 'Cliente Dois', phone: '11988887777' } }),
+  );
+  assert.equal(duplicate.status, 409);
+  assert.equal(
+    (await duplicate.json()).error,
+    'Já existe um cliente com este telefone nesta loja.',
+  );
+
+  const otherTenant = await clients.POST(
+    request('POST', other, { data: { name: 'Cliente Outra Loja', phone: '11988887777' } }),
+  );
+  assert.equal(otherTenant.status, 201);
+});
+
 test('film compatibility edits update the tenant-owned record only', { skip }, async () => {
   const id = 'film-edit-owned';
   const created = await filmRoute.POST(

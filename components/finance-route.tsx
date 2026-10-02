@@ -291,7 +291,7 @@ export default function FinanceRoute({
               <div className="grid gap-3 rounded-lg border p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-medium">Pronto para retirar</p>
+                    <p className="font-medium">Concluídas</p>
                     <p className="text-sm text-muted-foreground">
                       {summary.receivables.ready.orders} OS
                     </p>
@@ -334,7 +334,7 @@ export default function FinanceRoute({
               </div>
               <div className="grid gap-3 rounded-lg border p-4">
                 <div>
-                  <p className="font-medium">Em andamento</p>
+                  <p className="font-medium">Ainda não concluídas</p>
                   <p className="text-sm text-muted-foreground">
                     {summary.receivables.inProgress.orders} OS sem recebimento
                   </p>

@@ -9,6 +9,7 @@ import OrdersTable from '@/components/orders-table';
 import {
   OrderCreateModal,
   OrderEditModal,
+  type PartRow,
   type OrderRow,
   type SaveOrder,
 } from '@/components/order-modals';
@@ -44,11 +45,13 @@ const priorities = ['Todas', 'Normal', 'Urgente', 'Garantia'];
 
 export default function OrdersRoute({
   initialOrders,
+  initialParts = [],
   defaultWarrantyDays = 90,
   initialQuery = '',
   initialView = 'grid',
 }: {
   initialOrders: OrderRow[];
+  initialParts?: PartRow[];
   defaultWarrantyDays?: number;
   initialQuery?: string;
   initialView?: OrderView;
@@ -340,10 +343,16 @@ export default function OrdersRoute({
           close={() => setModal(null)}
           save={save}
           defaultWarrantyDays={defaultWarrantyDays}
+          parts={initialParts}
         />
       )}
       {modal === 'edit' && editing && (
-        <OrderEditModal item={editing} close={() => setModal(null)} save={save} />
+        <OrderEditModal
+          item={editing}
+          close={() => setModal(null)}
+          parts={initialParts}
+          save={save}
+        />
       )}
       {charging && (
         <OrderPaymentDialog

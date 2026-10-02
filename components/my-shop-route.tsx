@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useFeedback } from '@/components/feedback';
 import { Badge } from '@/components/ui/badge';
@@ -20,16 +20,6 @@ import { Textarea } from '@/components/ui/textarea';
 import type { Shop } from '@/lib/types';
 
 type ShopRow = Shop & { id: string };
-type WhatsAppStatus = {
-  configured: boolean;
-  phoneNumberId?: string;
-  displayPhone?: string;
-  verifiedName?: string;
-  orderTemplate?: string;
-  statusTemplate?: string;
-  language?: string;
-};
-
 const tabs = ['Perfil', 'Horários', 'Equipe', 'Fiscal', 'Documentos'];
 
 export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) {
@@ -65,7 +55,7 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
     <>
       <PageHeader
         title="Minha assistência"
-        description="Perfil e conexão do WhatsApp carregados no servidor."
+        description="Dados úteis da assistência organizados em um só lugar."
         action={
           <Button asChild variant="outline">
             <Link href="/">Painel completo</Link>
@@ -376,246 +366,6 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
           </div>
         </form>
       </Card>
-      <WhatsAppConnection />
     </>
-  );
-}
-
-function WhatsAppConnection() {
-  const { confirm } = useFeedback();
-  const [status, setStatus] = useState<WhatsAppStatus | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
-  const [testPhone, setTestPhone] = useState('');
-  const [language, setLanguage] = useState('pt_BR');
-  const refresh = () =>
-    fetch('/api/whatsapp')
-      .then((response) => response.json())
-      .then((data: WhatsAppStatus) => {
-        setStatus(data);
-        setLanguage(data.language || 'pt_BR');
-      })
-      .catch(() => setStatus({ configured: false }));
-  useEffect(() => {
-    void refresh();
-  }, []);
-  const saveConfig = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setBusy(true);
-    setError('');
-    setNotice('');
-    try {
-      const form = new FormData(event.currentTarget);
-      const response = await fetch('/api/whatsapp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'save',
-          token: form.get('token'),
-          phoneNumberId: form.get('phoneNumberId'),
-          wabaId: form.get('wabaId'),
-          orderTemplate: form.get('orderTemplate'),
-          statusTemplate: form.get('statusTemplate'),
-          language,
-          version: 'v25.0',
-        }),
-      });
-      const result = (await response.json()) as WhatsAppStatus & { error?: string };
-      if (!response.ok) {
-        setError(result.error || 'Não foi possível conectar.');
-        return;
-      }
-      setStatus(result);
-      setLanguage(result.language || 'pt_BR');
-      setEditing(false);
-      setNotice('Número validado e conectado com segurança.');
-    } catch {
-      setError('Não foi possível conectar.');
-    } finally {
-      setBusy(false);
-    }
-  };
-  const test = async () => {
-    setBusy(true);
-    setError('');
-    setNotice('');
-    try {
-      const response = await fetch('/api/whatsapp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'test', to: testPhone }),
-      });
-      const result = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        setError(result.error || 'Falha no teste.');
-        return;
-      }
-      setNotice('Mensagem aceita pela Meta. Confira o WhatsApp do destinatário.');
-    } catch {
-      setError('Falha no teste.');
-    } finally {
-      setBusy(false);
-    }
-  };
-  const disconnect = async () => {
-    if (!(await confirm('Desconectar o WhatsApp desta loja?'))) return;
-    try {
-      const response = await fetch('/api/whatsapp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'disconnect' }),
-      });
-      if (!response.ok) throw new Error();
-      setStatus({ configured: false });
-      setNotice('WhatsApp desconectado.');
-    } catch {
-      setError('Não foi possível desconectar.');
-    }
-  };
-  return (
-    <Card>
-      <CardContent className="grid gap-4">
-        <div className="flex flex-wrap items-start gap-4">
-          <div
-            className={
-              status?.configured
-                ? 'flex size-12 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 font-semibold text-emerald-700 dark:text-emerald-300'
-                : 'flex size-12 shrink-0 items-center justify-center rounded-full bg-muted font-semibold text-muted-foreground'
-            }
-          >
-            WA
-          </div>
-          <div className="flex-1">
-            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-              WhatsApp Business · conexão por loja
-            </p>
-            <h3 className="font-semibold">
-              {!status
-                ? 'Verificando configuração...'
-                : status.configured
-                  ? `${status.verifiedName || 'Número comercial'} conectado`
-                  : 'Conecte o número desta assistência'}
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              {status?.configured
-                ? `${status.displayPhone || status.phoneNumberId} · mensagens automáticas liberadas para OS autorizadas.`
-                : 'Use o token permanente e os identificadores exibidos no painel da Meta. Cada lojista conecta apenas o próprio número.'}
-            </p>
-          </div>
-        </div>
-        {notice && <p className="text-sm text-emerald-600 dark:text-emerald-400">✓ {notice}</p>}
-        {error && (
-          <p className="text-sm text-destructive" role="alert">
-            {error}
-          </p>
-        )}
-        {status?.configured && !editing ? (
-          <>
-            <p className="text-xs text-muted-foreground">
-              Nova OS: {status.orderTemplate} · Atualização: {status.statusTemplate} · Idioma:{' '}
-              {status.language}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Input
-                className="max-w-xs"
-                onChange={(event) => setTestPhone(event.target.value)}
-                placeholder="WhatsApp para teste com DDD"
-                value={testPhone}
-              />
-              <Button disabled={busy || !testPhone} onClick={() => void test()} variant="outline">
-                {busy ? 'Enviando...' : 'Enviar teste'}
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-2 border-t pt-4">
-              <Button onClick={() => setEditing(true)} variant="outline">
-                Atualizar configuração
-              </Button>
-              <Button onClick={() => void disconnect()} variant="destructive">
-                Desconectar
-              </Button>
-            </div>
-          </>
-        ) : (
-          <form className="grid gap-4" onSubmit={saveConfig}>
-            <div className="grid gap-2">
-              <Label htmlFor="wa-token">Token permanente da Meta</Label>
-              <Input
-                autoComplete="off"
-                id="wa-token"
-                name="token"
-                placeholder={
-                  status?.configured ? 'Deixe vazio para manter o atual' : 'Cole o token permanente'
-                }
-                required={!status?.configured}
-                type="password"
-              />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="wa-phone-number-id">ID do número de telefone</Label>
-                <Input
-                  id="wa-phone-number-id"
-                  name="phoneNumberId"
-                  placeholder={status?.phoneNumberId || 'Ex.: 1355087011013166'}
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="wa-waba-id">ID da conta WhatsApp Business</Label>
-                <Input id="wa-waba-id" name="wabaId" placeholder="WABA ID" />
-              </div>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="wa-order-template">Modelo para nova OS</Label>
-                <Input
-                  defaultValue={status?.orderTemplate || 'reparosm_nova_os'}
-                  id="wa-order-template"
-                  name="orderTemplate"
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="wa-status-template">Modelo para atualização</Label>
-                <Input
-                  defaultValue={status?.statusTemplate || 'reparosm_status_os'}
-                  id="wa-status-template"
-                  name="statusTemplate"
-                  required
-                />
-              </div>
-            </div>
-            <div className="grid gap-2 sm:max-w-xs">
-              <Label htmlFor="wa-language">Idioma do modelo</Label>
-              <Select onValueChange={setLanguage} value={language}>
-                <SelectTrigger className="w-full" id="wa-language">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pt_BR">Português (Brasil)</SelectItem>
-                  <SelectItem value="en_US">Inglês (EUA)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Os dois modelos precisam estar aprovados na Meta e possuir quatro variáveis: cliente,
-              código da OS, aparelho e etapa.
-            </p>
-            <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
-              {status?.configured && (
-                <Button onClick={() => setEditing(false)} type="button" variant="outline">
-                  Cancelar
-                </Button>
-              )}
-              <Button disabled={busy} type="submit">
-                {busy ? 'Validando com a Meta...' : 'Validar e conectar'}
-              </Button>
-            </div>
-          </form>
-        )}
-      </CardContent>
-    </Card>
   );
 }

@@ -45,6 +45,14 @@ export interface PublicAccount extends DataObject {
 
 export type OrderPayment = { id: string; value: number; method: string; date: string };
 
+export interface OrderItem extends DataObject {
+  partId: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  unitCost?: number;
+}
+
 export interface PasswordRequest {
   id: string;
   accountId: string;
@@ -80,6 +88,7 @@ export interface Order extends DataObject {
   warrantyDays?: number;
   deliveredAt?: string;
   payment?: OrderPayment | null;
+  items?: OrderItem[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -154,6 +163,23 @@ export interface Expense extends DataObject {
   method?: string;
   date?: string;
   createdAt?: string;
+}
+
+export type PayableStatus = 'pending' | 'paid';
+
+export interface Payable extends DataObject {
+  description: string;
+  supplier?: string;
+  category?: string;
+  source?: 'purchase' | 'fixed' | 'other';
+  amount: number;
+  dueDate?: string;
+  status?: PayableStatus;
+  paidAt?: string;
+  method?: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Automation extends DataObject {

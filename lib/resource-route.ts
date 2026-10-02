@@ -47,8 +47,23 @@ export function resourceRoute<T extends BusinessRecordType>(type: T) {
           { error: 'Identificador inválido para este cadastro' },
           { status: 400 },
         );
-      const record = await repo.save(account.id, id, validation.data as RecordData[T]);
-      return record ? Response.json({ record }, { status: 201 }) : denied();
+      try {
+        const record = await repo.save(account.id, id, validation.data as RecordData[T]);
+        return record ? Response.json({ record }, { status: 201 }) : denied();
+      } catch (error) {
+        const databaseError = error as { code?: string; constraint?: string };
+        if (
+          type === 'client' &&
+          databaseError.code === '23505' &&
+          databaseError.constraint === 'clients_account_phone_digits_unique'
+        ) {
+          return Response.json(
+            { error: 'Já existe um cliente com este telefone nesta loja.' },
+            { status: 409 },
+          );
+        }
+        throw error;
+      }
     },
 
     async DELETE(request: Request) {

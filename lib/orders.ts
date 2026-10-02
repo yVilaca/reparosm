@@ -1,5 +1,6 @@
 import { tenantTransaction } from '@/lib/db';
 import * as clients from '@/lib/repos/clients';
+import * as orderItems from '@/lib/repos/order-items';
 import * as orders from '@/lib/repos/orders';
 import * as shops from '@/lib/repos/shops';
 import { notifyOrder } from '@/lib/whatsapp';
@@ -52,9 +53,26 @@ export async function saveOrder(accountId: string, id: string, order: Order) {
       : warrantyDaysFromSetting((await shops.get(accountId, 'shop-main', run))?.data.warranty);
     const deliveredAt = resolveDeliveredAt(previous?.data.deliveredAt, previous?.data.stage, stage);
     const savedOrder = { ...order, code, stage, warrantyDays, deliveredAt };
-    const record = await orders.save(accountId, id, savedOrder, run);
+    const initialRecord = await orders.save(accountId, id, savedOrder, run);
+    if (!initialRecord) return null;
+    const itemTotals =
+      order.items !== undefined ? await orderItems.replace(accountId, id, order.items, run) : null;
+    const normalizedOrder =
+      itemTotals && order.items?.length
+        ? {
+            ...savedOrder,
+            parts: itemTotals.total,
+            total: Number(savedOrder.labor || 0) + itemTotals.total,
+            cost: itemTotals.cost,
+            profit: Number(savedOrder.labor || 0) + itemTotals.total - itemTotals.cost,
+          }
+        : savedOrder;
+    const record =
+      normalizedOrder === savedOrder
+        ? initialRecord
+        : await orders.save(accountId, id, normalizedOrder, run);
     if (!record) return null;
-    const clientId = await clients.upsertFromOrder(accountId, savedOrder, run);
+    const clientId = await clients.upsertFromOrder(accountId, normalizedOrder, run);
     await orders.linkClient(accountId, id, clientId, run);
     return {
       previous,
@@ -86,9 +104,10 @@ export async function saveOrder(accountId: string, id: string, order: Order) {
     }
   }
   const record = (await orders.get(accountId, id)) ?? result.record;
-  const enteredPickup = result.nextStage === 'Retirada' && result.previousStage !== 'Retirada';
+  const enteredCompleted =
+    result.record.data.status === 'Concluído' && result.previous?.data.status !== 'Concluído';
   const total = Number(record.data.total || 0);
   const paymentDue =
-    enteredPickup && total > 0 && !record.data.payment ? { orderId: id, total } : null;
+    enteredCompleted && total > 0 && !record.data.payment ? { orderId: id, total } : null;
   return { record, client: result.client, notification, paymentDue };
 }

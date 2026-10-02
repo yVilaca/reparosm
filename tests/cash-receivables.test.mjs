@@ -25,8 +25,8 @@ before(async () => {
     `INSERT INTO accounts (id, username, name, role, status, password_hash)
      VALUES ('account-rec', 'rec', 'Rec', 'merchant', 'active', 'x')`,
   );
-  await order('order-ready', 'OS-1', 350, 'Retirada');
-  await order('order-working', 'OS-2', 200, 'Em reparo');
+  await order('order-ready', 'OS-1', 350, 'Retirada', 'Concluído');
+  await order('order-working', 'OS-2', 200, 'Em reparo', 'Concluído');
   await order('order-free', 'OS-3', 0, 'Retirada');
   await order('order-cancelled', 'OS-4', 180, 'Retirada', 'Cancelado');
   await order('order-divergent', 'OS-5', 400, 'Retirada');
@@ -39,7 +39,7 @@ before(async () => {
 });
 after(async () => db?.drop());
 
-test('splits receivables between ready for pickup and in progress', { skip }, async () => {
+test('splits completed receivables by delivery stage', { skip }, async () => {
   const result = await cash.receivables('account-rec');
   assert.equal(result.ready.orders, 1);
   assert.equal(result.ready.amount, 350);

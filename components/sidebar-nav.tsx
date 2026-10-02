@@ -5,6 +5,8 @@ import {
   ClipboardList,
   CreditCard,
   Database,
+  ArrowDownToLine,
+  ArrowUpFromLine,
   Home,
   LifeBuoy,
   Mail,
@@ -59,7 +61,10 @@ const groups = (isAdmin: boolean): NavGroup[] => [
   {
     label: 'Gestão',
     items: [
-      { href: '/pagamentos', label: 'Pagamentos', icon: CreditCard },
+      { href: '/contas-receber', label: 'Contas a receber', icon: ArrowDownToLine },
+      { href: '/contas-pagar', label: 'Contas a pagar', icon: ArrowUpFromLine },
+      { href: '/compras', label: 'Compras', icon: Package },
+      { href: '/pagamentos', label: 'Caixa', icon: CreditCard },
       { href: '/minha-assistencia', label: 'Minha assistência', icon: Store },
       { href: '/dados', label: 'Dados e exportação', icon: Database },
       ...(isAdmin ? [{ href: '/contas', label: 'Contas de lojistas', icon: Settings }] : []),

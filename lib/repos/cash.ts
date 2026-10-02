@@ -96,7 +96,7 @@ export async function receivables(accountId: string) {
   }>(
     `SELECT o.id, o.code, o.customer, o.total, o.stage
      FROM orders o ${UNPAID}
-     WHERE o.account_id = $1 AND o.total > 0 AND o.status <> 'Cancelado' AND c.id IS NULL
+     WHERE o.account_id = $1 AND o.total > 0 AND o.status = 'Concluído' AND c.id IS NULL
      ORDER BY o.updated_at DESC`,
     [accountId],
   );
