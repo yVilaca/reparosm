@@ -11,6 +11,7 @@ test('dashboard revenue goal exposes accessible progress values', () => {
       quotes: [],
       parts: [],
       clients: [],
+      monthlyRevenue: 0,
       payments: [],
       expenses: [],
       messages: [],
@@ -23,7 +24,7 @@ test('dashboard revenue goal exposes accessible progress values', () => {
   assert.match(html, /aria-valuenow="0"/);
 });
 
-test('dashboard keeps the existing priority links and revenue calculation', () => {
+test('dashboard keeps the existing priority links and monthly revenue calculation', () => {
   const html = renderToStaticMarkup(
     createElement(DashboardRoute, {
       orders: [
@@ -39,6 +40,7 @@ test('dashboard keeps the existing priority links and revenue calculation', () =
       quotes: [{ id: 'quote-1', status: 'Aguardando' }],
       parts: [{ id: 'part-1', stock: 2 }],
       clients: [],
+      monthlyRevenue: 5000,
       payments: [{ id: 'payment-1', value: 5000, description: 'Serviço', date: '2026-09-27' }],
       expenses: [],
       messages: [],
@@ -61,6 +63,7 @@ test('recent activity labels wrap instead of clipping long details', () => {
       quotes: [],
       parts: [],
       clients: [],
+      monthlyRevenue: 0,
       payments: [{ id: 'payment-long', value: 100, description: label }],
       expenses: [],
       messages: [],
@@ -68,4 +71,22 @@ test('recent activity labels wrap instead of clipping long details', () => {
   );
 
   assert.match(html, new RegExp(`class="block break-words text-sm font-medium">${label}`));
+});
+
+test('measures the monthly revenue against the monthly goal', () => {
+  const markup = renderToStaticMarkup(
+    createElement(DashboardRoute, {
+      clients: [],
+      expenses: [],
+      messages: [],
+      monthlyRevenue: 12500,
+      orders: [],
+      parts: [],
+      payments: [],
+      quotes: [],
+    }),
+  );
+
+  assert.match(markup, /Meta mensal/i);
+  assert.match(markup, /R\$\s*12\.500,00/);
 });

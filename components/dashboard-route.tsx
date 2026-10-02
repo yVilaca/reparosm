@@ -24,6 +24,7 @@ export default function DashboardRoute({
   payments,
   expenses,
   messages,
+  monthlyRevenue,
 }: {
   orders: Row<Order>[];
   quotes: Row<Quote>[];
@@ -32,8 +33,9 @@ export default function DashboardRoute({
   payments: Row<Payment>[];
   expenses: Row<Expense>[];
   messages: Row<Message>[];
+  monthlyRevenue: number;
 }) {
-  const revenue = payments.reduce((sum, payment) => sum + Number(payment.value || 0), 0);
+  const revenue = monthlyRevenue;
   const goal = 50000;
   const progress = Math.max(0, Math.min(100, Math.round((revenue / goal) * 100)));
   const open = orders.filter((order) => order.status !== 'Concluído' && order.stage !== 'Retirada');
@@ -186,7 +188,7 @@ export default function DashboardRoute({
 
         <Card>
           <CardHeader>
-            <CardTitle>Meta mensal de receita</CardTitle>
+            <CardTitle>Meta mensal</CardTitle>
             <CardDescription>Baseada nos recebimentos registrados.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
