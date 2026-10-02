@@ -43,6 +43,8 @@ export interface PublicAccount extends DataObject {
   updatedAt?: string;
 }
 
+export type OrderPayment = { id: string; value: number; method: string; date: string };
+
 export interface PasswordRequest {
   id: string;
   accountId: string;
@@ -77,6 +79,7 @@ export interface Order extends DataObject {
   technician?: string;
   warrantyDays?: number;
   deliveredAt?: string;
+  payment?: OrderPayment | null;
   createdAt?: string;
   updatedAt?: string;
 }

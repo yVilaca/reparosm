@@ -36,6 +36,10 @@ type OrderRow = {
   quote_id: string | null;
   quote_code: string | null;
   client_id: string | null;
+  payment_id: string | null;
+  payment_value: string | null;
+  payment_method: string | null;
+  payment_date: string | null;
   created_at: Timestamp;
   updated_at: Timestamp;
 };
@@ -43,8 +47,13 @@ type OrderRow = {
 const select = `SELECT o.id, o.code, o.customer, o.phone, o.device, o.imei, o.device_password,
     o.pattern, o.problem, o.service, o.notes, o.technician, o.priority, o.stage, o.status,
     o.labor, o.parts, o.cost, o.total, o.warranty_days, o.delivered_at, o.whatsapp_consent, o.quote_id,
-    q.code AS quote_code, o.client_id, o.created_at, o.updated_at
-  FROM orders o LEFT JOIN quotes q ON q.id = o.quote_id`;
+    q.code AS quote_code, o.client_id, o.created_at, o.updated_at,
+    c.id AS payment_id, c.value AS payment_value, c.method AS payment_method,
+    c.date::text AS payment_date
+  FROM orders o
+  LEFT JOIN quotes q ON q.id = o.quote_id
+  LEFT JOIN cash_entries c
+    ON c.account_id = o.account_id AND c.order_id = o.id AND c.kind = 'in'`;
 
 const toOrder = (row: OrderRow) =>
   toRecord(
@@ -79,6 +88,14 @@ const toOrder = (row: OrderRow) =>
       quoteId: row.quote_id,
       quoteCode: row.quote_code,
       clientId: row.client_id,
+      payment: row.payment_id
+        ? {
+            id: row.payment_id,
+            value: money(row.payment_value),
+            method: row.payment_method || '',
+            date: row.payment_date || '',
+          }
+        : null,
       createdAt: iso(row.created_at),
       updatedAt: iso(row.updated_at),
     }),
