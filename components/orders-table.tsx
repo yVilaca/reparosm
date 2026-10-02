@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useFeedback } from '@/components/feedback';
+import OrderPaymentStatus from '@/components/order-payment-status';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,12 +41,14 @@ export default function OrdersTable({
   emptyMessage,
   onCreate,
   onEdit,
+  onCharge,
   onRemoved,
 }: {
   orders: OrderRow[];
   emptyMessage?: string;
   onCreate?: () => void;
   onEdit?: (order: OrderRow) => void;
+  onCharge?: (order: OrderRow) => void;
   onRemoved?: (id: string) => void;
 }) {
   const { notify, confirm } = useFeedback();
@@ -158,6 +161,10 @@ export default function OrdersTable({
                       </p>
                     </div>
                   </div>
+                  <OrderPaymentStatus
+                    onCharge={onCharge ? () => onCharge(order) : undefined}
+                    order={order}
+                  />
                   <div
                     aria-label={`Ações da ordem ${order.code}`}
                     className="flex flex-wrap gap-2 border-t pt-3"
@@ -202,7 +209,13 @@ export default function OrdersTable({
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {formatMoney(Number(order.total || 0))}
+                    <div className="grid justify-items-end gap-1">
+                      <span>{formatMoney(Number(order.total || 0))}</span>
+                      <OrderPaymentStatus
+                        onCharge={onCharge ? () => onCharge(order) : undefined}
+                        order={order}
+                      />
+                    </div>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatMoney(Number(order.cost || 0))}

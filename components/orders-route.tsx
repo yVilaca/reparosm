@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useFeedback } from '@/components/feedback';
+import OrderPaymentDialog from '@/components/order-payment-dialog';
 import OrdersTable from '@/components/orders-table';
 import {
   OrderCreateModal,
@@ -22,7 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import PageHeader from '@/components/ui/page-header';
-import type { Order } from '@/lib/types';
+import type { Order, OrderPayment } from '@/lib/types';
 import { uploadOrderPhotos } from '@/lib/order-photo-upload';
 
 const stages = [
@@ -47,6 +48,7 @@ export default function OrdersRoute({
   const [orders, setOrders] = useState(initialOrders),
     [modal, setModal] = useState<'create' | 'edit' | null>(null),
     [editing, setEditing] = useState<OrderRow | null>(null),
+    [charging, setCharging] = useState<{ id: string; code: string; total: number } | null>(null),
     [query, setQuery] = useState(''),
     [stage, setStage] = useState('Todas'),
     [priority, setPriority] = useState('Todas');
@@ -72,6 +74,7 @@ export default function OrdersRoute({
       const result = (await response.json()) as {
         error?: string;
         record?: { id: string; data: Order };
+        paymentDue?: { orderId: string; total: number } | null;
       };
       if (!response.ok || !result.record)
         throw new Error(result.error || 'Não foi possível salvar a ordem.');
@@ -89,6 +92,12 @@ export default function OrdersRoute({
       setOrders((current) =>
         id ? current.map((order) => (order.id === id ? saved : order)) : [saved, ...current],
       );
+      if (result.paymentDue)
+        setCharging({
+          id: result.paymentDue.orderId,
+          code: saved.code,
+          total: result.paymentDue.total,
+        });
       setEditing(null);
       setModal(null);
     } catch (error) {
@@ -104,6 +113,8 @@ export default function OrdersRoute({
     setEditing(order);
     setModal('edit');
   };
+  const startCharging = (order: OrderRow) =>
+    setCharging({ id: order.id, code: order.code, total: Number(order.total || 0) });
   const clearFilters = () => {
     setQuery('');
     setStage('Todas');
@@ -195,6 +206,7 @@ export default function OrdersRoute({
           orders.length && filtered ? 'Nenhuma ordem corresponde aos filtros.' : undefined
         }
         onCreate={create}
+        onCharge={startCharging}
         onEdit={edit}
         onRemoved={(id) => setOrders((current) => current.filter((order) => order.id !== id))}
       />
@@ -207,6 +219,18 @@ export default function OrdersRoute({
       )}
       {modal === 'edit' && editing && (
         <OrderEditModal item={editing} close={() => setModal(null)} save={save} />
+      )}
+      {charging && (
+        <OrderPaymentDialog
+          close={() => setCharging(null)}
+          order={charging}
+          saved={(payment: OrderPayment) => {
+            setOrders((current) =>
+              current.map((order) => (order.id === charging.id ? { ...order, payment } : order)),
+            );
+            setCharging(null);
+          }}
+        />
       )}
     </>
   );

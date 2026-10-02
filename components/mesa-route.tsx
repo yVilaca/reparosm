@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useFeedback } from '@/components/feedback';
+import OrderPaymentDialog from '@/components/order-payment-dialog';
+import OrderPaymentStatus from '@/components/order-payment-status';
 import { OrderCreateModal, type SaveOrder } from '@/components/order-modals';
 import { orderPriorityVariant } from '@/components/orders-table';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import EmptyState from '@/components/ui/empty-state';
 import PageHeader from '@/components/ui/page-header';
 import { formatMoney } from '@/lib/format';
-import type { Order, OrderStage } from '@/lib/types';
+import type { Order, OrderPayment, OrderStage } from '@/lib/types';
 import { uploadOrderPhotos } from '@/lib/order-photo-upload';
 
 type OrderRow = Order & { id: string };
@@ -34,6 +36,9 @@ export default function MesaRoute({
   const { notify } = useFeedback();
   const [orders, setOrders] = useState(initialOrders);
   const [modal, setModal] = useState(false);
+  const [charging, setCharging] = useState<{ id: string; code: string; total: number } | null>(
+    null,
+  );
   const save: SaveOrder = async (data, id, photos = []) => {
     try {
       const response = await fetch('/api/orders', {
@@ -44,6 +49,7 @@ export default function MesaRoute({
       const result = (await response.json()) as {
         error?: string;
         record?: { id: string; data: Order };
+        paymentDue?: { orderId: string; total: number } | null;
       };
       if (!response.ok || !result.record)
         throw new Error(result.error || 'Não foi possível atualizar a ordem.');
@@ -61,6 +67,12 @@ export default function MesaRoute({
       setOrders((current) =>
         id ? current.map((order) => (order.id === id ? saved : order)) : [saved, ...current],
       );
+      if (result.paymentDue)
+        setCharging({
+          id: result.paymentDue.orderId,
+          code: saved.code,
+          total: result.paymentDue.total,
+        });
       setModal(false);
     } catch (error) {
       notify(
@@ -76,6 +88,8 @@ export default function MesaRoute({
     );
     void save({ ...order, stage: stages[index] }, order.id);
   };
+  const startCharging = (order: OrderRow) =>
+    setCharging({ id: order.id, code: order.code, total: Number(order.total || 0) });
   return (
     <>
       <PageHeader
@@ -120,6 +134,7 @@ export default function MesaRoute({
                         </div>
                         <p className="text-sm font-medium">{order.device}</p>
                         <p className="text-sm text-muted-foreground">{order.customer}</p>
+                        <OrderPaymentStatus onCharge={() => startCharging(order)} order={order} />
                         <div className="flex items-center justify-between gap-2 border-t pt-2">
                           <Button
                             aria-label={`Voltar etapa de ${order.code}`}
@@ -165,6 +180,18 @@ export default function MesaRoute({
           close={() => setModal(false)}
           save={save}
           defaultWarrantyDays={defaultWarrantyDays}
+        />
+      )}
+      {charging && (
+        <OrderPaymentDialog
+          close={() => setCharging(null)}
+          order={charging}
+          saved={(payment: OrderPayment) => {
+            setOrders((current) =>
+              current.map((order) => (order.id === charging.id ? { ...order, payment } : order)),
+            );
+            setCharging(null);
+          }}
         />
       )}
     </>
