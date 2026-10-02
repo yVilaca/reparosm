@@ -40,16 +40,18 @@ const priorities = ['Todas', 'Normal', 'Urgente', 'Garantia'];
 export default function OrdersRoute({
   initialOrders,
   defaultWarrantyDays = 90,
+  initialQuery = '',
 }: {
   initialOrders: OrderRow[];
   defaultWarrantyDays?: number;
+  initialQuery?: string;
 }) {
   const { notify } = useFeedback();
   const [orders, setOrders] = useState(initialOrders),
     [modal, setModal] = useState<'create' | 'edit' | null>(null),
     [editing, setEditing] = useState<OrderRow | null>(null),
     [charging, setCharging] = useState<{ id: string; code: string; total: number } | null>(null),
-    [query, setQuery] = useState(''),
+    [query, setQuery] = useState(initialQuery),
     [stage, setStage] = useState('Todas'),
     [priority, setPriority] = useState('Todas');
   const visible = orders.filter((order) => {

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useFeedback } from '@/components/feedback';
+import OrderPaymentDialog from '@/components/order-payment-dialog';
 import MoneyModal, {
   type MoneyData,
   type MoneyKind,
@@ -119,6 +120,9 @@ export default function FinanceRoute({
   const [period, setPeriod] = useState<CashPeriod>('today');
   const [modal, setModal] = useState<MoneyKind | null>(null);
   const [editing, setEditing] = useState<FinanceRow | null>(null);
+  const [charging, setCharging] = useState<{ id: string; code: string; total: number } | null>(
+    null,
+  );
 
   const changePeriod = async (next: CashPeriod) => {
     const previous = period;
@@ -303,13 +307,23 @@ export default function FinanceRoute({
                 <ul className="grid gap-2 border-t pt-3 text-sm">
                   {summary.receivables.ready.list.map((order) => (
                     <li className="flex items-center justify-between gap-3" key={order.id}>
-                      <Link
-                        className="min-w-0 truncate font-medium underline-offset-4 hover:underline"
-                        href={`/ordens?busca=${encodeURIComponent(order.code)}`}
+                      <div className="flex min-w-0 items-center gap-2">
+                        <Link
+                          className="min-w-0 truncate font-medium underline-offset-4 hover:underline"
+                          href={`/ordens?busca=${encodeURIComponent(order.code)}`}
+                        >
+                          {order.code} · {order.customer}
+                        </Link>
+                        <span className="shrink-0 tabular-nums">{formatMoney(order.total)}</span>
+                      </div>
+                      <Button
+                        onClick={() => setCharging(order)}
+                        size="sm"
+                        type="button"
+                        variant="outline"
                       >
-                        {order.code} · {order.customer}
-                      </Link>
-                      <span className="shrink-0 tabular-nums">{formatMoney(order.total)}</span>
+                        Registrar recebimento
+                      </Button>
                     </li>
                   ))}
                 </ul>
@@ -528,6 +542,16 @@ export default function FinanceRoute({
           item={editing || undefined}
           close={() => setModal(null)}
           save={save}
+        />
+      )}
+      {charging && (
+        <OrderPaymentDialog
+          close={() => setCharging(null)}
+          order={charging}
+          saved={() => {
+            setCharging(null);
+            router.refresh();
+          }}
         />
       )}
     </>
