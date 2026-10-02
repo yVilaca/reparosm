@@ -29,6 +29,24 @@ const stringValue = (data: DataObject, key: string, required = false) => {
   return value;
 };
 
+// Only http(s) is accepted: the value renders directly as an <img src>, so
+// schemes like javascript:/data:/vbscript: must never reach storage even
+// though browsers already ignore most of them in that context today.
+const isHttpUrl = (value: string) => {
+  try {
+    return ['http:', 'https:'].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+};
+
+const urlValue = (data: DataObject, key: string, required = false) => {
+  const value = data[key];
+  if (value === undefined || value === null || value === '') return required ? null : undefined;
+  if (typeof value !== 'string' || !isHttpUrl(value)) return null;
+  return value;
+};
+
 const numberValue = (data: DataObject, key: string, required = false) => {
   const value = data[key];
   if (value === undefined || value === null || value === '') return required ? null : undefined;
@@ -145,7 +163,7 @@ const validateFilm = (value: unknown): ValidationResult<Film> => {
 
 const validateClient = (value: unknown): ValidationResult<Client> => {
   const data = objectValue(value);
-  if (!data || !validateStrings(data, ['name', 'phone', 'logo'], ['name', 'phone']))
+  if (!data || !validateStrings(data, ['name', 'phone'], ['name', 'phone']))
     return { ok: false, error: 'Cliente inválido.' };
   if (!validateBooleans(data, ['vip', 'automatic'], []))
     return { ok: false, error: 'Preferências do cliente inválidas.' };
@@ -221,6 +239,7 @@ const validateShop = (value: unknown): ValidationResult<Shop> => {
   const data = objectValue(value);
   if (!data || !validateStrings(data, ['name', 'phone'], ['name', 'phone']))
     return { ok: false, error: 'Assistência inválida.' };
+  if (urlValue(data, 'logo') === null) return { ok: false, error: 'URL do logo inválida.' };
   if (!validateBooleans(data, ['showLaborOnPrint'], []))
     return { ok: false, error: 'Preferências de impressão inválidas.' };
   return { ok: true, data: data as Shop };

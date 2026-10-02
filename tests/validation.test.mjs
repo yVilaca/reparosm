@@ -44,6 +44,25 @@ test('accepts the optional shop print preference and rejects invalid values', ()
   );
 });
 
+test('accepts an optional shop logo URL, clears with an empty string, and rejects unsafe values', () => {
+  const base = { name: 'ReparoSM', phone: '11999999999' };
+  assert.equal(validateRecord('shop', { ...base, logo: 'https://example.com/logo.png' }).ok, true);
+  assert.equal(validateRecord('shop', { ...base, logo: '' }).ok, true);
+  assert.equal(validateRecord('shop', base).ok, true);
+  assert.equal(validateRecord('shop', { ...base, logo: 'javascript:alert(1)' }).ok, false);
+  assert.equal(validateRecord('shop', { ...base, logo: 'data:image/png;base64,abcd' }).ok, false);
+  assert.equal(validateRecord('shop', { ...base, logo: 'not a url' }).ok, false);
+  assert.equal(validateRecord('shop', { ...base, logo: 123 }).ok, false);
+});
+
+test('ignores a logo field sent on a client record', () => {
+  assert.equal(
+    validateRecord('client', { name: 'Ana', phone: '11999999999', logo: 'https://x.test/a.png' })
+      .ok,
+    true,
+  );
+});
+
 test('accepts an order without a code (the server assigns it)', () => {
   assert.equal(
     validateRecord('order', { customer: 'Ana', device: 'iPhone', problem: 'Não liga' }).ok,
