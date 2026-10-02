@@ -81,7 +81,7 @@ export function OrderEditModal({
     <Dialog open onOpenChange={(open) => !open && close()}>
       <DialogContent className="max-w-3xl p-0">
         <form
-          className="grid max-h-[90dvh] gap-6 overflow-y-auto p-6"
+          className="grid gap-6 p-6"
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
@@ -357,7 +357,8 @@ export function OrderCreateModal({
     <Dialog open onOpenChange={(open) => !open && close()}>
       <DialogContent className="max-w-2xl p-0">
         <form
-          className="grid max-h-[90dvh] gap-6 overflow-y-auto p-6"
+          autoComplete="off"
+          className="grid min-w-0 max-w-full gap-6 p-6"
           onSubmit={(event) => event.preventDefault()}
         >
           <DialogHeader className="pr-8">
@@ -429,7 +430,7 @@ export function OrderCreateModal({
           )}
 
           {step === 2 && (
-            <section aria-label="Dados do aparelho" className="grid gap-4 sm:grid-cols-2">
+            <section aria-label="Dados do aparelho" className="grid min-w-0 gap-4 sm:grid-cols-2">
               <div className="grid gap-2 sm:col-span-2">
                 <Label htmlFor="order-create-device">Aparelho *</Label>
                 <Input
@@ -442,22 +443,35 @@ export function OrderCreateModal({
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="order-create-imei">IMEI / série</Label>
-                <Input id="order-create-imei" onChange={field('imei')} value={form.imei} />
+                <Input
+                  autoComplete="off"
+                  id="order-create-imei"
+                  inputMode="text"
+                  name="device-imei"
+                  onChange={field('imei')}
+                  spellCheck={false}
+                  value={form.imei}
+                />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="order-create-password">Senha numérica</Label>
                 <Input
-                  autoComplete="off"
+                  autoComplete="new-password"
                   id="order-create-password"
+                  inputMode="numeric"
+                  name="device-unlock-password"
                   onChange={field('password')}
+                  spellCheck={false}
                   type="password"
                   value={form.password}
                 />
               </div>
-              <fieldset className="grid gap-2 sm:col-span-2">
-                <legend className="text-sm font-medium">Senha padrão desenhada</legend>
+              <fieldset className="grid justify-items-center gap-2 sm:col-span-2">
+                <legend className="justify-self-center px-1 text-center text-sm font-medium">
+                  Senha padrão desenhada
+                </legend>
                 <div
-                  className="grid w-fit grid-cols-3 gap-2"
+                  className="grid w-fit grid-cols-3 gap-2 justify-self-center"
                   role="group"
                   aria-label="Padrão de desbloqueio"
                 >
@@ -474,32 +488,55 @@ export function OrderCreateModal({
                     </Button>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="justify-self-center text-center text-xs text-muted-foreground">
                   Sequência: {pattern.join(' → ') || 'nenhuma'}
                 </p>
               </fieldset>
-              <div className="grid gap-2 sm:col-span-2">
-                <Label htmlFor="order-create-photos">Fotos de prova (opcional)</Label>
-                <p className="text-xs text-muted-foreground">
-                  Fotografe ou selecione imagens do aparelho. Até 5 fotos, 8 MB cada.
-                </p>
-                <Button asChild size="sm" variant="outline" className="w-fit">
-                  <label htmlFor="order-create-photos" className="cursor-pointer">
-                    📷 Fotografar / selecionar fotos
-                    <input
-                      accept="image/jpeg,image/png,image/webp"
-                      aria-label="Fotografar ou selecionar fotos de prova do aparelho"
-                      capture="environment"
-                      className="sr-only"
-                      id="order-create-photos"
-                      multiple
-                      onChange={selectPhotos}
-                      type="file"
-                    />
-                  </label>
-                </Button>
+              <div className="grid min-w-0 gap-3 rounded-lg border bg-muted/20 p-4 sm:col-span-2">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="grid gap-1">
+                    <Label htmlFor="order-create-camera">Fotos de prova (opcional)</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Use a câmera quando disponível ou escolha imagens da galeria/computador. Até 5
+                      fotos, 8 MB cada.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                    {photos.length}/5 fotos
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button asChild size="sm">
+                    <label htmlFor="order-create-camera" className="cursor-pointer">
+                      📷 Abrir câmera
+                      <input
+                        accept="image/jpeg,image/png,image/webp"
+                        aria-label="Abrir câmera para tirar foto de prova do aparelho"
+                        capture="environment"
+                        className="sr-only"
+                        id="order-create-camera"
+                        onChange={selectPhotos}
+                        type="file"
+                      />
+                    </label>
+                  </Button>
+                  <Button asChild size="sm" variant="outline">
+                    <label htmlFor="order-create-gallery" className="cursor-pointer">
+                      🖼️ Galeria / computador
+                      <input
+                        accept="image/jpeg,image/png,image/webp"
+                        aria-label="Selecionar fotos de prova da galeria ou computador"
+                        className="sr-only"
+                        id="order-create-gallery"
+                        multiple
+                        onChange={selectPhotos}
+                        type="file"
+                      />
+                    </label>
+                  </Button>
+                </div>
                 <p aria-live="polite" className="text-xs text-muted-foreground">
-                  {photos.length} de 5 fotos selecionadas
+                  {photos.length ? 'Fotos selecionadas:' : 'Nenhuma foto selecionada ainda.'}
                 </p>
                 {photoError && (
                   <p className="text-sm text-destructive" role="alert">
@@ -507,13 +544,13 @@ export function OrderCreateModal({
                   </p>
                 )}
                 {photos.length > 0 && (
-                  <ul aria-label="Fotos selecionadas" className="grid gap-1">
+                  <ul aria-label="Fotos selecionadas" className="grid min-w-0 gap-2">
                     {photos.map((photo, index) => (
                       <li
-                        className="flex items-center justify-between gap-2 rounded-md border px-3 py-1.5 text-sm"
+                        className="flex min-w-0 items-center justify-between gap-2 rounded-lg border bg-background px-3 py-2 text-sm"
                         key={`${photo.name}-${photo.lastModified}-${index}`}
                       >
-                        <span className="truncate">{photo.name}</span>
+                        <span className="min-w-0 flex-1 truncate">{photo.name}</span>
                         <Button
                           aria-label={`Remover foto ${photo.name}`}
                           onClick={() =>

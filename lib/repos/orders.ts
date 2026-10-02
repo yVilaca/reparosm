@@ -56,10 +56,8 @@ const select = `SELECT o.id, o.code, o.customer, o.phone, o.device, o.imei, o.de
     ON c.account_id = o.account_id AND c.order_id = o.id AND c.kind = 'in'`;
 
 const toOrder = (row: OrderRow) =>
-  toRecord(
-    'order',
-    row.id,
-    compact({
+  toRecord('order', row.id, {
+    ...compact({
       code: row.code,
       customer: row.customer,
       phone: row.phone,
@@ -88,18 +86,18 @@ const toOrder = (row: OrderRow) =>
       quoteId: row.quote_id,
       quoteCode: row.quote_code,
       clientId: row.client_id,
-      payment: row.payment_id
-        ? {
-            id: row.payment_id,
-            value: money(row.payment_value),
-            method: row.payment_method || '',
-            date: row.payment_date || '',
-          }
-        : null,
       createdAt: iso(row.created_at),
       updatedAt: iso(row.updated_at),
     }),
-  );
+    payment: row.payment_id
+      ? {
+          id: row.payment_id,
+          value: money(row.payment_value),
+          method: row.payment_method || '',
+          date: row.payment_date || '',
+        }
+      : null,
+  });
 
 export async function list(accountId: string, run?: Query) {
   const rows = await tenantQueryFor(accountId, run)<OrderRow>(
