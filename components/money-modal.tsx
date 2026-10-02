@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { Expense, Payment } from '@/lib/types';
+import { todayInSaoPaulo } from '@/lib/warranty';
 
 export type MoneyKind = 'payment' | 'expense';
 export type MoneyData = Payment | Expense;
@@ -40,7 +41,7 @@ const formFrom = (item?: MoneyRow): MoneyForm => ({
   description: item?.description || '',
   reference: item?.reference || '',
   method: item?.method || 'Pix',
-  date: item?.date || new Date().toISOString().slice(0, 10),
+  date: item?.date || todayInSaoPaulo(),
   value: item?.value === undefined ? '' : String(item.value),
 });
 

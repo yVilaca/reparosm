@@ -155,3 +155,65 @@ export async function review(accountId: string) {
     },
   };
 }
+
+export type CashPeriod = 'today' | 'month' | 'previous-month';
+export type CashHistoryRow = {
+  id: string;
+  kind: 'in' | 'out';
+  description: string;
+  reference: string | null;
+  method: string;
+  date: string;
+  value: number;
+  order: { id: string; code: string } | null;
+};
+
+export async function history(
+  accountId: string,
+  period: CashPeriod,
+  asOfDate = todayInSaoPaulo(),
+): Promise<CashHistoryRow[]> {
+  const execute = tenantQueryFor(accountId);
+  const [window] = await execute<{ from: string; to: string }>(
+    `SELECT
+       CASE $2
+         WHEN 'today' THEN $1::date
+         WHEN 'month' THEN date_trunc('month', $1::date)::date
+         ELSE (date_trunc('month', $1::date) - interval '1 month')::date
+       END::text AS "from",
+       CASE $2
+         WHEN 'previous-month' THEN (date_trunc('month', $1::date) - interval '1 day')::date
+         ELSE $1::date
+       END::text AS "to"`,
+    [asOfDate, period],
+  );
+  const rows = await execute<{
+    id: string;
+    kind: 'in' | 'out';
+    description: string;
+    reference: string | null;
+    method: string | null;
+    date: string;
+    value: string;
+    order_id: string | null;
+    order_code: string | null;
+  }>(
+    `SELECT c.id, c.kind, c.description, c.reference, c.method, ${COMPETENCE}::text AS date, c.value,
+            c.order_id, o.code AS order_code
+     FROM cash_entries c
+     LEFT JOIN orders o ON o.account_id = c.account_id AND o.id = c.order_id
+     WHERE c.account_id = $1 AND ${COMPETENCE} BETWEEN $2::date AND $3::date
+     ORDER BY ${COMPETENCE} DESC, c.created_at DESC`,
+    [accountId, window.from, window.to],
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    kind: row.kind,
+    description: row.description,
+    reference: row.reference,
+    method: row.method?.trim() || 'Não informado',
+    date: row.date,
+    value: money(row.value),
+    order: row.order_id && row.order_code ? { id: row.order_id, code: row.order_code } : null,
+  }));
+}
