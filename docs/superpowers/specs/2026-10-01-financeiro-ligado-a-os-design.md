@@ -65,7 +65,7 @@ Fixadas em conversa com o usuário; o desenho inteiro depende delas.
   divergência é exibida, não cobrada.
 - **`orders.status` permanece independente.** O pagamento não altera esse
   campo: ele alimenta outro fluxo (o filtro de "ordens em atendimento" do
-  painel) e conflatá-los teria efeito colateral fora do financeiro.
+  painel) e confundi-los teria efeito colateral fora do financeiro.
 
 ## Modelo de dados
 
@@ -152,6 +152,20 @@ colunas declaradas (`lib/repos/simple.ts:99-104`): bastaria uma edição vinda
 do modal atual — que desconhece `orderId` — para gravar `order_id = NULL` e
 apagar o vínculo em silêncio.
 
+**O mecanismo de proteção é a omissão: `order_id` não entra em `cashColumns`.**
+O `simpleRepo` só sabe gravar colunas declaradas, então, sem declará-la, as
+quatro garantias saem de graça, sem nenhum código de defesa:
+
+- lançamento manual novo nasce com `order_id = NULL` (coluna ausente do
+  `INSERT`, default nulo);
+- apenas o endpoint dedicado cria o vínculo, com SQL própria;
+- edição de recebimento vinculado preserva o vínculo (coluna fora do
+  `DO UPDATE SET`);
+- payload do cliente não consegue forjar vínculo — o campo sequer é lido.
+
+A leitura do histórico com a OS de origem não depende disso: ela vem das
+consultas próprias de `lib/repos/cash.ts`, não do `simpleRepo`.
+
 O endpoint dedicado:
 
 - recebe apenas **forma de pagamento e data**;
@@ -159,16 +173,17 @@ O endpoint dedicado:
 - **ignora qualquer valor enviado pelo cliente** e grava o `orders.total`
   atual — a igualdade fica garantida no servidor, não na interface;
 - define `account_id`, `kind = 'in'` e `order_id` no servidor;
-- trata violação do índice único como conflito controlado (a OS já foi paga
-  em outra aba), não como erro 500;
-- preserva `order_id` em qualquer edição posterior do lançamento.
+- responde **409** à violação do índice único (a OS já foi paga em outra aba),
+  nunca 500. A tela que recebeu o 409 recarrega o resumo `payment` da OS e
+  mostra que o recebimento já foi registrado, em vez de insistir na cobrança.
 
 ### Diálogo
 
-Um único componente `<OrderPaymentDialog>`, usado por `/ordens` e `/mesa`:
-valor exibido **fixo e não editável** (o total atual da OS), forma de pagamento
-obrigatória, data com default em São Paulo, e a frase "para cobrar outro valor,
-altere o total da OS".
+Um único componente `<OrderPaymentDialog>`, usado por `/ordens`, `/mesa` e
+`/pagamentos` (este último para recuperar cobranças canceladas, via o grupo
+"pronto pra retirar"): valor exibido **fixo e não editável** (o total atual da
+OS), forma de pagamento obrigatória, data com default em São Paulo, e a frase
+"para cobrar outro valor, altere o total da OS".
 
 **Cancelar o diálogo não cria lançamento e não reverte a etapa:** a OS fica em
 Retirada e pendente. Como ela já está em Retirada, _não haverá nova transição_
@@ -209,9 +224,10 @@ Toda data do financeiro é São Paulo, como já é o resto do produto:
 ```sql
 -- data de competência de um lançamento
 COALESCE(date, (created_at AT TIME ZONE 'America/Sao_Paulo')::date)
--- "hoje"
-(now() AT TIME ZONE 'America/Sao_Paulo')::date
 ```
+
+O "hoje" não é calculado no SQL: chega como parâmetro (ver "Data de
+referência injetável" abaixo).
 
 Dois motivos, ambos verificados:
 
@@ -219,13 +235,30 @@ Dois motivos, ambos verificados:
   `COALESCE`, um lançamento sem data sumiria de _todos_ os períodos ao mesmo
   tempo em que continuaria somando no total geral — um relatório que não
   fecha.
-- `CURRENT_DATE` usaria o fuso do servidor (UTC em produção): o dia viraria às
-  21h de Brasília.
+- `CURRENT_DATE`/`now()` usariam o fuso do servidor (UTC em produção): o dia
+  viraria às 21h de Brasília. É também por isso que o "hoje" vem de fora, já
+  resolvido em São Paulo.
 
 O mesmo vale na escrita: o default de data do formulário usa hoje
 `new Date().toISOString().slice(0, 10)` (`components/money-modal.tsx:43`), que
 entre 21h e meia-noite já devolve o dia seguinte. Passa a usar
 `todayInSaoPaulo()`, que já existe.
+
+### Data de referência injetável
+
+Toda função de leitura de `lib/repos/cash.ts` recebe um `asOfDate` opcional
+(`YYYY-MM-DD`) e **sempre** passa essa data ao SQL como parâmetro. O default
+é `todayInSaoPaulo()`, calculado em TypeScript.
+
+Decisão deliberada: `now()` **não aparece** nas consultas de período. Ter o
+"hoje" às vezes vindo do SQL e às vezes do TypeScript criaria dois caminhos
+que podem divergir; com um só, o que o teste exercita é exatamente o que roda
+em produção. A conversão de fuso continua no SQL apenas onde é sobre dado
+armazenado (o `COALESCE` da competência, que converte `created_at`).
+
+Sem isso, os testes de fronteira — fechamento de 31 de março contra fevereiro,
+virada de mês, lançamento às 21h30 — seriam impossíveis de escrever de forma
+determinística: dependeriam do dia em que a suíte roda.
 
 ### Hoje (fechamento do dia)
 
@@ -239,7 +272,7 @@ Comparar mês parcial com mês inteiro mente. A comparação é **acumulada até
 mesmo número de dias decorridos**:
 
 ```
-hoje          = (now() AT TIME ZONE 'America/Sao_Paulo')::date
+hoje          = $asOfDate            -- parâmetro; default todayInSaoPaulo()
 inicio_mes    = date_trunc('month', hoje)::date
 decorridos    = hoje - inicio_mes
 anterior_ini  = (inicio_mes - interval '1 month')::date
@@ -276,13 +309,31 @@ quanto ainda deve entrar, e uma OS que recebeu R$ 350 e teve o total alterado
 para R$ 400 não tem R$ 400 nem R$ 50 a receber — a decisão de produto é que
 alteração posterior não gera cobrança. Somá-la ali corromperia o número-âncora.
 
-OS com entrada vinculada cujo `value` difere do `total` atual, exibindo três
-informações — nunca uma soma líquida, que deixaria uma diferença positiva
-cancelar uma negativa:
+O bloco cobre **duas** condições, ambas decorrentes de decisões de produto que
+deliberadamente não agem sozinhas:
+
+**1. Divergência de valor** — OS com entrada vinculada cujo `value` difere do
+`total` atual. Exibe três informações, nunca uma soma líquida (que deixaria
+uma diferença positiva cancelar uma negativa):
 
 - quantidade de OS divergentes;
 - **total a completar**: soma de `total - recebido` onde positivo;
 - **total recebido acima**: soma de `recebido - total` onde negativo.
+
+OS cancelada **entra** nesta contagem quando houver divergência: pode exigir
+devolução ou ajuste manual. Continua fora de "A receber" e sem ação
+automática.
+
+**2. Cancelada com recebimento** — OS com `status = 'Cancelado'` e entrada
+vinculada, **independente de haver divergência**. Linha própria, com contagem
+e soma do valor recebido (não de um delta: o que está em questão é o dinheiro
+inteiro, não uma diferença).
+
+A condição 2 não estava na revisão e eu a acrescentei: a decisão da Parte 1 é
+que cancelar uma OS paga não faz nada automático. Sem esta linha, o caso mais
+grave — serviço cancelado com o dinheiro do cliente retido — seria justamente
+o único invisível, porque uma OS cancelada cujo recebimento bate com o total
+não é "divergente" por nenhum critério de valor.
 
 ### Histórico
 
@@ -341,37 +392,48 @@ todo lojista — torná-la configurável está **fora** desta spec.
 Suíte atual: `node:test` com banco Postgres descartável por arquivo
 (`tests/support/db.mjs`). Os testes que de fato justificam esforço:
 
+Os testes de período usam `asOfDate` para fixar a data; sem isso dependeriam
+do dia em que a suíte roda.
+
 - **Fuso**: lançamento às 21h30 de São Paulo cai no dia correto em "Hoje" e no
   mês. É o teste que paga por toda a discussão de timezone.
-- **Virada de mês**: em 31 de março, a janela "mesmo período anterior" termina
-  em 28/29 de fevereiro e não invade março.
+- **Virada de mês**: com `asOfDate = 31 de março`, a janela "mesmo período
+  anterior" termina em 28/29 de fevereiro e não invade março. Inclui um ano
+  bissexto.
 - **Concorrência**: duas confirmações simultâneas → uma entra, a outra recebe
-  conflito controlado pelo índice único. Há precedente na suíte
+  409 pelo índice único. Há precedente na suíte
   (`public quote approval creates one linked order when answered concurrently`).
 - **Invariantes do banco**: despesa com `order_id` rejeitada pelo CHECK;
   lançamento não consegue apontar para OS de outra conta (FK composta).
-- **Vínculo preservado**: editar o lançamento pelo caminho normal não zera
-  `order_id`.
+- **Vínculo protegido por omissão**: salvar um recebimento vinculado pelo CRUD
+  genérico não zera `order_id`; e um payload com `orderId` não cria vínculo
+  por esse caminho.
 - **Gatilho**: OS em "Recebido" salva sem o campo não dispara cobrança nem
   notificação (regressão do bug de etapa crua); total zero não cobra; OS já
-  paga não cobra de novo; cancelar o diálogo deixa a OS pendente e recuperável.
+  paga não cobra de novo; cancelar o diálogo deixa a OS pendente e recuperável
+  pela ação "Registrar recebimento".
 - **Servidor ignora valor do cliente**: enviar um valor diferente do total
   grava o total.
-- **Leituras**: baldes de a receber, divergências positivas e negativas sem se
-  cancelarem, e `method` vazio caindo em "Não informado".
+- **Leituras**: baldes de a receber; divergências positivas e negativas sem se
+  cancelarem; OS cancelada com recebimento aparecendo em "Conferir" mesmo sem
+  divergência de valor; e `method` vazio caindo em "Não informado".
 
 ## Sequência sugerida
 
 Três blocos, cada um entregando algo verificável sozinho:
 
 1. **Banco e escrita** — migração, resumo `payment` nas leituras de OS,
-   correção da comparação de etapa, endpoint dedicado e diálogo nas duas
-   rotas. Ao final disso o dinheiro da OS já nasce da OS.
+   correção da comparação de etapa, endpoint dedicado e o
+   `<OrderPaymentDialog>` em `/ordens` e `/mesa`. Ao final disso o dinheiro da
+   OS já nasce da OS.
 2. **Leituras** — `lib/repos/cash.ts` com os cinco blocos (hoje, mês, a
-   receber, conferir, histórico filtrado) e a correção de fuso no default de
-   data do formulário.
-3. **Telas** — a aba Financeiro reorganizada sobre o módulo de leitura e o
-   ajuste da métrica do painel.
+   receber, conferir, histórico filtrado), o `asOfDate` injetável e a correção
+   de fuso no default de data do formulário.
+3. **Telas** — a aba Financeiro reorganizada sobre o módulo de leitura,
+   incluindo a ação "Registrar recebimento" no grupo "pronto pra retirar"
+   (terceiro ponto de uso do `<OrderPaymentDialog>`, que fecha o caso do
+   diálogo cancelado), o link `/ordens?busca=` e o ajuste da métrica do
+   painel.
 
 ## Riscos e pontos de atenção
 
