@@ -78,3 +78,80 @@ export async function month(accountId: string, asOfDate = todayInSaoPaulo()) {
   ]);
   return { current, previous };
 }
+
+export type ReceivableGroup = { orders: number; amount: number };
+export type ReceivableOrder = { id: string; code: string; customer: string; total: number };
+
+const UNPAID = `LEFT JOIN cash_entries c
+    ON c.account_id = o.account_id AND c.order_id = o.id AND c.kind = 'in'`;
+
+export async function receivables(accountId: string) {
+  const execute = tenantQueryFor(accountId);
+  const rows = await execute<{
+    id: string;
+    code: string;
+    customer: string;
+    total: string;
+    stage: string;
+  }>(
+    `SELECT o.id, o.code, o.customer, o.total, o.stage
+     FROM orders o ${UNPAID}
+     WHERE o.account_id = $1 AND o.total > 0 AND o.status <> 'Cancelado' AND c.id IS NULL
+     ORDER BY o.updated_at DESC`,
+    [accountId],
+  );
+  const group = (items: typeof rows): ReceivableGroup => ({
+    orders: items.length,
+    amount: items.reduce((sum, row) => sum + money(row.total), 0),
+  });
+  const ready = rows.filter((row) => row.stage === 'Retirada');
+  return {
+    ready: {
+      ...group(ready),
+      list: ready.map((row) => ({
+        id: row.id,
+        code: row.code,
+        customer: row.customer,
+        total: money(row.total),
+      })),
+    },
+    inProgress: group(rows.filter((row) => row.stage !== 'Retirada')),
+  };
+}
+
+export async function review(accountId: string) {
+  const execute = tenantQueryFor(accountId);
+  // As diferenças são somadas em numeric no banco: comparar em float no
+  // JavaScript erra em centavos. Positivas e negativas vão em colunas
+  // separadas para que não se cancelem.
+  const [row] = await execute<{
+    divergent_orders: string;
+    to_collect: string;
+    overpaid: string;
+    cancelled_orders: string;
+    cancelled_amount: string;
+  }>(
+    `SELECT
+       COUNT(*) FILTER (WHERE c.value <> o.total) AS divergent_orders,
+       COALESCE(SUM(GREATEST(o.total - c.value, 0)), 0) AS to_collect,
+       COALESCE(SUM(GREATEST(c.value - o.total, 0)), 0) AS overpaid,
+       COUNT(*) FILTER (WHERE o.status = 'Cancelado') AS cancelled_orders,
+       COALESCE(SUM(c.value) FILTER (WHERE o.status = 'Cancelado'), 0) AS cancelled_amount
+     FROM orders o
+     JOIN cash_entries c
+       ON c.account_id = o.account_id AND c.order_id = o.id AND c.kind = 'in'
+     WHERE o.account_id = $1`,
+    [accountId],
+  );
+  return {
+    divergent: {
+      orders: Number(row.divergent_orders),
+      toCollect: money(row.to_collect),
+      overpaid: money(row.overpaid),
+    },
+    cancelledPaid: {
+      orders: Number(row.cancelled_orders),
+      amount: money(row.cancelled_amount),
+    },
+  };
+}
