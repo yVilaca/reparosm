@@ -1,17 +1,15 @@
 import FinanceRoute from '@/components/finance-route';
-import { expenses, payments } from '@/lib/repos/rest';
+import * as cash from '@/lib/repos/cash';
 import { requireServerAccount } from '@/lib/server-auth';
 
 export default async function PaymentsPage() {
   const account = await requireServerAccount();
-  const [paymentRecords, expenseRecords] = await Promise.all([
-    payments.list(account.id),
-    expenses.list(account.id),
+  const [today, month, receivables, review, history] = await Promise.all([
+    cash.today(account.id),
+    cash.month(account.id),
+    cash.receivables(account.id),
+    cash.review(account.id),
+    cash.history(account.id, 'today'),
   ]);
-  return (
-    <FinanceRoute
-      initialPayments={paymentRecords.map((record) => ({ id: record.id, ...record.data }))}
-      initialExpenses={expenseRecords.map((record) => ({ id: record.id, ...record.data }))}
-    />
-  );
+  return <FinanceRoute initialHistory={history} summary={{ today, month, receivables, review }} />;
 }
