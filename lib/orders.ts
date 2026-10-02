@@ -56,12 +56,21 @@ export async function saveOrder(accountId: string, id: string, order: Order) {
     if (!record) return null;
     const clientId = await clients.upsertFromOrder(accountId, savedOrder, run);
     await orders.linkClient(accountId, id, clientId, run);
-    return { previous, record, client: await clients.get(accountId, clientId, run) };
+    return {
+      previous,
+      record,
+      client: await clients.get(accountId, clientId, run),
+      previousStage: previous?.data.stage,
+      nextStage: stage,
+    };
   });
   if (!result) return null;
 
+  // A etapa comparada é a normalizada dos dois lados. Comparar com a etapa
+  // crua do cliente fazia uma OS salva sem o campo parecer ter mudado.
+  const movedStage = result.previousStage !== result.nextStage;
   let notification: unknown = null;
-  if (!result.previous || result.previous.data.stage !== order.stage) {
+  if (!result.previous || movedStage) {
     try {
       notification = await notifyOrder(
         accountId,
@@ -77,5 +86,9 @@ export async function saveOrder(accountId: string, id: string, order: Order) {
     }
   }
   const record = (await orders.get(accountId, id)) ?? result.record;
-  return { record, client: result.client, notification };
+  const enteredPickup = result.nextStage === 'Retirada' && result.previousStage !== 'Retirada';
+  const total = Number(record.data.total || 0);
+  const paymentDue =
+    enteredPickup && total > 0 && !record.data.payment ? { orderId: id, total } : null;
+  return { record, client: result.client, notification, paymentDue };
 }
