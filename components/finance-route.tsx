@@ -306,7 +306,10 @@ export default function FinanceRoute({
               {summary.receivables.ready.list.length ? (
                 <ul className="grid gap-2 border-t pt-3 text-sm">
                   {summary.receivables.ready.list.map((order) => (
-                    <li className="flex items-center justify-between gap-3" key={order.id}>
+                    <li
+                      className="grid gap-2 sm:flex sm:items-center sm:justify-between"
+                      key={order.id}
+                    >
                       <div className="flex min-w-0 items-center gap-2">
                         <Link
                           className="min-w-0 truncate font-medium underline-offset-4 hover:underline"
@@ -317,6 +320,7 @@ export default function FinanceRoute({
                         <span className="shrink-0 tabular-nums">{formatMoney(order.total)}</span>
                       </div>
                       <Button
+                        className="w-full sm:w-auto"
                         onClick={() => setCharging(order)}
                         size="sm"
                         type="button"

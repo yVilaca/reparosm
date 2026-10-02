@@ -48,6 +48,7 @@ test('offers to record the payment of an order waiting for pickup', () => {
   const markup = render(createElement(FinanceRoute, { initialHistory: [], summary }));
   assert.match(markup, /OS-1/);
   assert.match(markup, /Registrar recebimento/i);
+  assert.match(markup, /grid gap-2 sm:flex sm:items-center sm:justify-between/);
 });
 
 test('links a history row to the order in the list', () => {
