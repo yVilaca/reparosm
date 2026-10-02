@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   formatMoney,
   hasValidWhatsapp,
+  identifyingPhoneDigits,
   normalizePhone,
   whatsappPhone,
   whatsappUrl,
@@ -22,4 +23,16 @@ test('builds an encoded WhatsApp URL', () => {
 
 test('formats Brazilian currency', () => {
   assert.match(formatMoney(1234.5), /^R\$\s1\.234,50$/);
+});
+
+test('only treats a real phone as a client identifier', () => {
+  assert.equal(identifyingPhoneDigits('(11) 98888-7777'), '11988887777');
+  assert.equal(identifyingPhoneDigits('1133334444'), '1133334444');
+  // Sem telefone, curto demais ou placeholder digitado quando o campo era
+  // obrigatório: nada disso identifica uma pessoa.
+  assert.equal(identifyingPhoneDigits(''), '');
+  assert.equal(identifyingPhoneDigits(undefined), '');
+  assert.equal(identifyingPhoneDigits('98888777'), '');
+  assert.equal(identifyingPhoneDigits('000000000000'), '');
+  assert.equal(identifyingPhoneDigits('(11) 11111-1111'), '');
 });

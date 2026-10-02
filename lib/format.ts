@@ -10,6 +10,17 @@ export function normalizePhone(value: unknown): string {
   return String(value ?? '').replace(/\D/g, '');
 }
 
+/**
+ * The phone digits when they can identify a client, or '' when they can't:
+ * fewer than 10 digits, or a placeholder such as 000000000000 typed back when
+ * the field was required. Mirrors the predicate of the unique index on
+ * clients (migration 0016) — the two must stay in sync.
+ */
+export function identifyingPhoneDigits(value: unknown): string {
+  const digits = normalizePhone(value);
+  return digits.length >= 10 && !/^(\d)\1*$/.test(digits) ? digits : '';
+}
+
 export function whatsappPhone(value: unknown): string {
   const digits = normalizePhone(value);
   return digits.length === 10 || digits.length === 11 ? `55${digits}` : digits;

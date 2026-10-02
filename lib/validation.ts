@@ -178,7 +178,7 @@ const validateFilm = (value: unknown): ValidationResult<Film> => {
 
 const validateClient = (value: unknown): ValidationResult<Client> => {
   const data = objectValue(value);
-  if (!data || !validateStrings(data, ['name', 'phone'], ['name', 'phone']))
+  if (!data || !validateStrings(data, ['name', 'phone'], ['name']))
     return { ok: false, error: 'Cliente inválido.' };
   if (!validateBooleans(data, ['vip', 'automatic'], []))
     return { ok: false, error: 'Preferências do cliente inválidas.' };

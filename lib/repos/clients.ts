@@ -1,5 +1,5 @@
 import { tenantQueryFor, type Query } from '@/lib/db';
-import { normalizePhone } from '@/lib/format';
+import { identifyingPhoneDigits } from '@/lib/format';
 import { compact, dateOrNull, iso, textOrNull, toRecord, type Timestamp } from '@/lib/repos/rows';
 import type { Client, Order } from '@/lib/types';
 
@@ -112,27 +112,29 @@ export async function remove(accountId: string, id: string) {
 }
 
 /**
- * Finds the order's client (same phone first, then same name) or creates one,
- * refreshing name, phone and status. Returns the client id.
+ * Finds the order's client by phone or creates one, refreshing name, phone and
+ * status. Returns the client id, or null when the order has no phone that can
+ * identify a person: such orders don't register a client at all. Matching by
+ * name used to merge different people who share a name, and placeholder
+ * phones (000…) merged everyone who had one.
  */
 export async function upsertFromOrder(
   accountId: string,
   order: Pick<Order, 'customer' | 'phone' | 'status'>,
   run?: Query,
-) {
+): Promise<string | null> {
+  const phone = order.phone ?? '';
+  const digits = identifyingPhoneDigits(phone);
+  if (!digits) return null;
   const execute = tenantQueryFor(accountId, run);
   const name = order.customer.trim();
-  const phone = order.phone ?? '';
-  const digits = normalizePhone(phone);
   const status = order.status === 'Concluído' ? 'Concluído' : 'Em atendimento';
   const [match] = await execute<{ id: string }>(
     `SELECT id FROM clients
-     WHERE account_id = $1
-       AND ((length($2) >= 10 AND regexp_replace(phone, '\\D', '', 'g') = $2)
-            OR lower(trim(name)) = lower($3))
-     ORDER BY regexp_replace(phone, '\\D', '', 'g') = $2 DESC, updated_at DESC
+     WHERE account_id = $1 AND regexp_replace(phone, '\\D', '', 'g') = $2
+     ORDER BY updated_at DESC
      LIMIT 1`,
-    [accountId, digits, name],
+    [accountId, digits],
   );
   if (match) {
     await execute(

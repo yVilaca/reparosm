@@ -73,11 +73,11 @@ export async function saveOrder(accountId: string, id: string, order: Order) {
         : await orders.save(accountId, id, normalizedOrder, run);
     if (!record) return null;
     const clientId = await clients.upsertFromOrder(accountId, normalizedOrder, run);
-    await orders.linkClient(accountId, id, clientId, run);
+    if (clientId) await orders.linkClient(accountId, id, clientId, run);
     return {
       previous,
       record,
-      client: await clients.get(accountId, clientId, run),
+      client: clientId ? await clients.get(accountId, clientId, run) : null,
       previousStage: previous?.data.stage,
       nextStage: stage,
     };
