@@ -29,7 +29,7 @@ type TutorialRow = Tutorial & { id: string };
 
 const guides = [
   ['Começando', 'Cadastre sua assistência e o primeiro cliente.'],
-  ['Ordens de serviço', 'Crie uma OS, registre custos e acompanhe pela Mesa.'],
+  ['Ordens de serviço', 'Crie uma OS, registre custos e acompanhe no Grid ou Kanban.'],
   ['Estoque', 'Cadastre produtos, custos, preços e disponibilidade.'],
   ['Financeiro', 'Registre entradas e despesas para acompanhar o resultado.'],
   ['Orçamentos', 'Envie propostas e registre a decisão do cliente.'],

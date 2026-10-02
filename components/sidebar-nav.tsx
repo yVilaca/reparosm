@@ -9,7 +9,6 @@ import {
   LifeBuoy,
   Mail,
   Menu,
-  Monitor,
   Package,
   Settings,
   ShieldCheck,
@@ -29,7 +28,6 @@ type NavGroup = { label: string; items: NavItem[] };
 
 const primary: NavItem[] = [
   { href: '/', label: 'Início', icon: Home },
-  { href: '/mesa', label: 'Mesa', icon: Monitor },
   { href: '/ordens', label: 'Ordens', icon: Wrench },
   { href: '/clientes', label: 'Clientes', icon: Users },
 ];
@@ -40,7 +38,6 @@ const groups = (isAdmin: boolean): NavGroup[] => [
     items: [
       primary[0],
       primary[1],
-      primary[2],
       { href: '/orcamentos', label: 'Orçamentos', icon: ClipboardList },
     ],
   },
@@ -54,7 +51,7 @@ const groups = (isAdmin: boolean): NavGroup[] => [
   {
     label: 'Relacionamento',
     items: [
-      primary[3],
+      primary[2],
       { href: '/pos-venda', label: 'Pós-venda', icon: Mail },
       { href: '/garantias', label: 'Garantias', icon: ShieldCheck },
     ],
@@ -130,7 +127,7 @@ export default function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
           </div>
         ))}
       </div>
-      <div className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 items-stretch border-t bg-background p-1 md:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 items-stretch border-t bg-background p-1 md:hidden">
         {primary.map((item) => (
           <Item item={item} pathname={pathname} key={item.href} close={() => setMoreOpen(false)} />
         ))}
