@@ -4,6 +4,7 @@ import * as ordersTable from '../components/orders-table.tsx';
 import * as clientsRoute from '../components/clients-route.tsx';
 
 test('order stages map to clear badge variants', () => {
+  assert.equal(ordersTable.orderStageVariant('Recebido'), 'default');
   assert.equal(ordersTable.orderStageVariant('Retirada'), 'success');
   assert.equal(ordersTable.orderStageVariant('Aguardando aprovação'), 'warning');
   assert.equal(ordersTable.orderStageVariant('Etapa desconhecida'), 'secondary');

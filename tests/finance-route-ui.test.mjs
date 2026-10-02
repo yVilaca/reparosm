@@ -39,7 +39,7 @@ const router = {
   refresh() {},
   replace() {},
 };
-const html = () =>
+const html = (initialSection) =>
   renderToStaticMarkup(
     createElement(
       AppRouterContext.Provider,
@@ -47,7 +47,7 @@ const html = () =>
       createElement(
         FeedbackProvider,
         null,
-        createElement(FinanceRoute, { initialHistory: [], summary }),
+        createElement(FinanceRoute, { initialHistory: [], summary, initialSection }),
       ),
     ),
   );
@@ -58,12 +58,13 @@ test('shows the daily close with the breakdown by method', () => {
   assert.match(markup, /Pix/);
 });
 
-test('labels the monthly comparison as the same elapsed period', () => {
-  assert.match(html(), /Mesmo período anterior/i);
+test('keeps the monthly comparison in the analysis section', () => {
+  assert.match(html('analysis'), /Mesmo período anterior/i);
 });
 
-test('keeps the receivable total separate from the reconciliation block', () => {
+test('keeps the overview focused on receivables', () => {
   const markup = html();
   assert.match(markup, /A receber/i);
-  assert.match(markup, /Conferir/i);
+  assert.match(markup, /Análise/i);
+  assert.doesNotMatch(markup, /Conferir/i);
 });

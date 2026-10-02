@@ -67,6 +67,7 @@ test('links a history row to the order in the list', () => {
         },
       ],
       summary,
+      initialSection: 'entries',
     }),
   );
   assert.match(markup, /href="\/ordens\?busca=OS-9"/);
