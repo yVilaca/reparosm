@@ -51,8 +51,10 @@ Fixadas em conversa com o usuário; o desenho inteiro depende delas.
 - **O pagamento acontece inteiro na retirada.** Sem entrada/sinal, sem
   parcelamento, sem fiado. Consequência: **uma OS tem no máximo um
   recebimento.**
-- **A cobrança é confirmada por diálogo**, não criada em silêncio: ao entrar
-  em Retirada, abre-se uma confirmação com o valor e a forma de pagamento.
+- **A cobrança é confirmada por diálogo**, não criada em silêncio: ao
+  **concluir** a OS (status passa a "Concluído"), abre-se uma confirmação com o
+  valor e a forma de pagamento. (Até 2026-10-02 o gatilho era entrar na etapa
+  Retirada — ver "Revisões".)
 - **O custo digitado na OS não vira saída de caixa.** O caixa registra apenas
   dinheiro que de fato entrou ou saiu; o custo continua servindo só ao cálculo
   de margem. Lançar também o custo da OS contaria o mesmo dinheiro duas vezes
@@ -63,9 +65,10 @@ Fixadas em conversa com o usuário; o desenho inteiro depende delas.
 - **Alterar o total depois de pago não gera cobrança.** O recebimento registra
   o dinheiro que entrou; o total representa o valor comercial atual. A
   divergência é exibida, não cobrada.
-- **`orders.status` permanece independente.** O pagamento não altera esse
-  campo: ele alimenta outro fluxo (o filtro de "ordens em atendimento" do
-  painel) e confundi-los teria efeito colateral fora do financeiro.
+- **O pagamento nunca escreve em `orders.status`.** Desde a revisão de
+  2026-10-02 o status _dispara_ a cobrança (conclusão), mas registrar o
+  recebimento não muda o status: ele continua alimentando outros fluxos (o
+  filtro de "ordens em atendimento" do painel).
 
 ## Modelo de dados
 
@@ -136,8 +139,8 @@ notificação quanto a cobrança passam a usá-la.
 
 A cobrança é devida quando, e somente quando:
 
-1. a etapa normalizada entrou em `'Retirada'` agora (`previousStage !== 'Retirada'`
-   e `nextStage === 'Retirada'`, incluindo o caso sem OS anterior); **e**
+1. o status persistido passou a `'Concluído'` agora (o anterior era outro,
+   incluindo o caso sem OS anterior); **e**
 2. `total > 0`; **e**
 3. não existe entrada vinculada à OS.
 
@@ -181,28 +184,28 @@ O endpoint dedicado:
 
 Um único componente `<OrderPaymentDialog>`, usado por `/ordens`, `/mesa` e
 `/pagamentos` (este último para recuperar cobranças canceladas, via o grupo
-"pronto pra retirar"): valor exibido **fixo e não editável** (o total atual da
+"pronto pra cobrar"): valor exibido **fixo e não editável** (o total atual da
 OS), forma de pagamento obrigatória, data com default em São Paulo, e a frase
 "para cobrar outro valor, altere o total da OS".
 
-**Cancelar o diálogo não cria lançamento e não reverte a etapa:** a OS fica em
-Retirada e pendente. Como ela já está em Retirada, _não haverá nova transição_
+**Cancelar o diálogo não cria lançamento e não reverte o status:** a OS fica
+concluída e pendente. Como ela já está concluída, _não haverá nova transição_
 — a cobrança não reapareceria sozinha. A via de recuperação é explícita: tanto
-o indicador "Pagamento pendente" na OS quanto a lista "pronto pra retirar" do
+o indicador "Pagamento pendente" na OS quanto a lista "pronto pra cobrar" do
 financeiro oferecem a ação **"Registrar recebimento"**, que abre o mesmo
 diálogo e chama o mesmo endpoint.
 
 ### Casos de borda
 
-| Situação                                  | Comportamento                                                                                                                              |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| OS de garantia / total R$ 0               | Não cobra. Sem valor, sem cobrança.                                                                                                        |
-| Aparelho volta na garantia e é reentregue | Não cobra de novo: já existe entrada vinculada.                                                                                            |
-| OS criada já em "Retirada"                | A interface não produz isso (criação chumba "Recebido"), mas a API aceita qualquer etapa; a regra trata por ser escrita sobre a transição. |
-| Total editado depois de paga              | O lançamento não muda. A OS passa a exibir "Recebido R$ 350 de R$ 400".                                                                    |
-| OS cancelada depois de paga               | Nada automático. Havendo devolução, lança-se uma saída de estorno à mão.                                                                   |
-| Lançamento excluído                       | A OS volta a contar como não paga; a ação "Registrar recebimento" fica disponível de novo.                                                 |
-| OS excluída                               | O lançamento permanece, sem vínculo (`ON DELETE SET NULL`).                                                                                |
+| Situação                                  | Comportamento                                                                                                                                |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| OS de garantia / total R$ 0               | Não cobra. Sem valor, sem cobrança.                                                                                                          |
+| Aparelho volta na garantia e é reentregue | Não cobra de novo: já existe entrada vinculada.                                                                                              |
+| OS criada já como "Concluído"             | A interface não produz isso (criação começa em "Aberto"), mas a API aceita qualquer status; a regra trata por ser escrita sobre a transição. |
+| Total editado depois de paga              | O lançamento não muda. A OS passa a exibir "Recebido R$ 350 de R$ 400".                                                                      |
+| OS cancelada depois de paga               | Nada automático. Havendo devolução, lança-se uma saída de estorno à mão.                                                                     |
+| Lançamento excluído                       | A OS volta a contar como não paga; a ação "Registrar recebimento" fica disponível de novo.                                                   |
+| OS excluída                               | O lançamento permanece, sem vínculo (`ON DELETE SET NULL`).                                                                                  |
 
 ## Leitura: de onde sai cada número
 
@@ -292,13 +295,14 @@ zero, o percentual aparece como "—" (sem divisão por zero).
 Sai de `orders`, não do caixa: OS com `total > 0`, `status <> 'Cancelado'` e
 **sem** entrada vinculada, em dois grupos, cada um com soma e contagem:
 
-- **Pronto pra retirar** — `stage = 'Retirada'`;
-- **Em andamento** — demais etapas.
+- **Pronto pra cobrar** — `status = 'Concluído'`, em qualquer etapa;
+- **Em andamento** — demais status (a previsão do que vai entrar).
 
-Uma OS concluída, entregue e sem recebimento aparece no primeiro grupo: é
-exatamente o vazamento que esse número existe para expor.
+Uma OS concluída e sem recebimento aparece no primeiro grupo mesmo que ainda
+não tenha chegado em Retirada: é exatamente o vazamento que esse número existe
+para expor.
 
-O grupo "pronto pra retirar" **lista as OS**, não apenas o total: é onde mora
+O grupo "pronto pra cobrar" **lista as OS**, não apenas o total: é onde mora
 a ação "Registrar recebimento" para quem cancelou o diálogo. "Em andamento"
 pode ficar só com soma e contagem — não há ação a tomar ali.
 
@@ -359,7 +363,7 @@ Aba Financeiro, de cima para baixo:
 2. **Hoje**: entradas, saídas, saldo e quebra por forma de pagamento.
 3. **Este mês**: receita, despesa e resultado, com o mesmo período anterior ao
    lado e a variação.
-4. **A receber**: pronto pra retirar e em andamento, com soma e contagem.
+4. **A receber**: pronto pra cobrar e em andamento, com soma e contagem.
 5. **Conferir**: quantidade, total a completar e total recebido acima.
 6. **Histórico**: seletor de período e coluna da OS.
 
@@ -430,7 +434,7 @@ Três blocos, cada um entregando algo verificável sozinho:
    receber, conferir, histórico filtrado), o `asOfDate` injetável e a correção
    de fuso no default de data do formulário.
 3. **Telas** — a aba Financeiro reorganizada sobre o módulo de leitura,
-   incluindo a ação "Registrar recebimento" no grupo "pronto pra retirar"
+   incluindo a ação "Registrar recebimento" no grupo "pronto pra cobrar"
    (terceiro ponto de uso do `<OrderPaymentDialog>`, que fecha o caso do
    diálogo cancelado), o link `/ordens?busca=` e o ajuste da métrica do
    painel.
@@ -449,3 +453,19 @@ Três blocos, cada um entregando algo verificável sozinho:
 - Existe trabalho em paralelo no mesmo repositório (outros worktrees). Os
   arquivos de maior risco de conflito são `components/finance-route.tsx`,
   `components/dashboard-route.tsx`, `lib/orders.ts` e `lib/repos/rest.ts`.
+
+## Revisões
+
+### 2026-10-02 — gatilho na conclusão
+
+Junto com contas a pagar/receber (PR #11), o gatilho de cobrança passou de
+"entrou na etapa Retirada" para "status passou a Concluído", decisão aceita
+pelo usuário ao mandar o branch para o `main`. Consequências mantidas nesta
+spec:
+
+- "A receber" separa por **status**, não por etapa: concluída e não paga é
+  _pronto pra cobrar_ em qualquer etapa; o resto não cancelado é a previsão
+  _em andamento_. O branch havia restringido "A receber" a OS concluídas,
+  eliminando a previsão; o usuário escolheu restaurá-la.
+- A correção da comparação de etapa normalizada continua valendo para a
+  notificação de WhatsApp; o gatilho de cobrança compara status persistidos.
