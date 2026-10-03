@@ -65,6 +65,7 @@ test('names who to act on, why, and the one action to take', () => {
   assert.match(html, />Avisar</);
   assert.match(html, /Vencida há 2 dias, R\$\s*412,35/);
   assert.match(html, />Pagar</);
+  assert.match(html, /href="\/contas-pagar\?pagar=b1"[^>]*>Pagar</);
   assert.match(html, />Repor</);
 });
 
