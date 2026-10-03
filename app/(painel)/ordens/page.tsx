@@ -6,10 +6,15 @@ import { warrantyDaysFromSetting } from '@/lib/warranty';
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ busca?: string | string[]; view?: string | string[] }>;
+  searchParams: Promise<{
+    busca?: string | string[];
+    view?: string | string[];
+    nova?: string | string[];
+  }>;
 }) {
   const account = await requireServerAccount();
   const params = await searchParams;
+  const startCreating = Boolean(params.nova);
   const initialQuery = Array.isArray(params.busca) ? params.busca[0] || '' : params.busca || '';
   const initialView =
     (Array.isArray(params.view) ? params.view[0] : params.view) === 'kanban' ? 'kanban' : 'grid';
@@ -26,6 +31,7 @@ export default async function OrdersPage({
       defaultWarrantyDays={warrantyDaysFromSetting(shop?.data.warranty)}
       initialQuery={initialQuery}
       initialView={initialView}
+      startCreating={startCreating}
     />
   );
 }

@@ -8,7 +8,11 @@ let db, dashboard;
 const A = 'account-dash';
 const today = todayInSaoPaulo();
 
-const order = (id, code, { stage, status = 'Aberto', total = 0, priority = 'Normal', days = 0, phone = '11987650000' }) =>
+const order = (
+  id,
+  code,
+  { stage, status = 'Aberto', total = 0, priority = 'Normal', days = 0, phone = '11987650000' },
+) =>
   db.migrationQuery(
     `INSERT INTO orders (id, account_id, code, customer, phone, device, stage, status, total, priority,
                          created_at, updated_at)
@@ -34,8 +38,18 @@ before(async () => {
     [A],
   );
   await order('o-cancel', 'OS-4', { stage: 'Em reparo', status: 'Cancelado', total: 300, days: 5 });
-  await order('o-urgent-old', 'OS-5', { stage: 'Em reparo', priority: 'Urgente', total: 650, days: 3 });
-  await order('o-urgent-new', 'OS-6', { stage: 'Em reparo', priority: 'Urgente', total: 400, days: 0 });
+  await order('o-urgent-old', 'OS-5', {
+    stage: 'Em reparo',
+    priority: 'Urgente',
+    total: 650,
+    days: 3,
+  });
+  await order('o-urgent-new', 'OS-6', {
+    stage: 'Em reparo',
+    priority: 'Urgente',
+    total: 400,
+    days: 0,
+  });
   await order('o-diag', 'OS-7', { stage: 'Diagnóstico' });
   await db.migrationQuery(
     `INSERT INTO quotes (id, account_id, code, customer, phone, device, service, total, status, created_at)
@@ -96,7 +110,10 @@ test('carries who, what, how much and how long', { skip }, async () => {
 test('puts the longest wait first and restocking last', { skip }, async () => {
   const actions = await dashboard.actions(A, today);
   const days = actions.slice(0, -1).map((item) => item.days);
-  assert.deepEqual(days, [...days].sort((a, b) => b - a));
+  assert.deepEqual(
+    days,
+    [...days].sort((a, b) => b - a),
+  );
   assert.equal(actions.at(-1).kind, 'restock');
 });
 

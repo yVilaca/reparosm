@@ -3,90 +3,113 @@ import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import DashboardRoute from '../components/dashboard-route.tsx';
+import { FeedbackProvider } from '../components/feedback.tsx';
 
-test('dashboard revenue goal exposes accessible progress values', () => {
-  const html = renderToStaticMarkup(
-    createElement(DashboardRoute, {
-      orders: [],
-      quotes: [],
-      parts: [],
-      clients: [],
-      monthlyRevenue: 0,
-      payments: [],
-      expenses: [],
-      messages: [],
-    }),
+const totals = (income, expense = 0) => ({ income, expense, balance: income - expense });
+const base = {
+  asOfDate: '2026-10-03',
+  actions: [],
+  bench: [
+    { stage: 'Recebido', orders: 1 },
+    { stage: 'Diagnóstico', orders: 1 },
+    { stage: 'Aguardando aprovação', orders: 0 },
+    { stage: 'Em reparo', orders: 2 },
+    { stage: 'Teste final', orders: 1 },
+    { stage: 'Retirada', orders: 1 },
+  ],
+  today: { ...totals(105), methods: [{ method: 'Pix', value: 60 }] },
+  movements: [],
+  month: { current: totals(1425), previous: totals(1240) },
+};
+const render = (props = {}) =>
+  renderToStaticMarkup(
+    createElement(FeedbackProvider, null, createElement(DashboardRoute, { ...base, ...props })),
   );
 
-  assert.match(html, /role="progressbar"/);
-  assert.match(html, /aria-valuemin="0"/);
-  assert.match(html, /aria-valuemax="100"/);
-  assert.match(html, /aria-valuenow="0"/);
+test('opens on today, with the date in Portuguese', () => {
+  const html = render();
+  assert.match(html, />Hoje</);
+  assert.match(html, /Sábado, 3 de outubro/);
 });
 
-test('dashboard keeps the existing priority links and monthly revenue calculation', () => {
-  const html = renderToStaticMarkup(
-    createElement(DashboardRoute, {
-      orders: [
-        {
-          id: 'order-1',
-          code: 'OS-1',
-          customer: 'Ana',
-          status: 'Em andamento',
-          stage: 'Recebido',
-          createdAt: '2026-09-27',
-        },
-      ],
-      quotes: [{ id: 'quote-1', status: 'Aguardando' }],
-      parts: [{ id: 'part-1', stock: 2 }],
-      clients: [],
-      monthlyRevenue: 5000,
-      payments: [{ id: 'payment-1', value: 5000, description: 'Serviço', date: '2026-09-27' }],
-      expenses: [],
-      messages: [],
-    }),
-  );
-
-  assert.match(html, /href="\/ordens\?view=kanban"/);
-  assert.match(html, /href="\/orcamentos"/);
-  assert.match(html, /href="\/estoque\?view=inventory"/);
-  assert.match(html, /href="\/ordens"/);
-  assert.match(html, /aria-valuenow="10"/);
-  assert.match(html, /OS-1/);
+test('names who to act on, why, and the one action to take', () => {
+  const html = render({
+    actions: [
+      { kind: 'overdue', id: 'b1', who: 'Enel', what: 'Conta de energia', amount: 412.35, days: 2 },
+      {
+        kind: 'ready',
+        id: 'o42',
+        code: 'OS-42',
+        who: 'Rafael Lima',
+        what: 'Galaxy S22',
+        phone: '11976542345',
+        amount: 280,
+        days: 1,
+      },
+      { kind: 'restock', id: 'p1', who: 'Bateria Moto G84', days: 0 },
+      {
+        kind: 'charge',
+        id: 'o48',
+        code: 'OS-48',
+        who: 'Thiago Martins',
+        what: 'iPhone 14 Pro',
+        amount: 520,
+        days: 1,
+      },
+    ],
+  });
+  assert.match(html, /Concluída, falta receber R\$\s*520,00/);
+  assert.match(html, />Receber</);
+  assert.match(html, /Rafael Lima/);
+  assert.match(html, /Pronto para retirada há 1 dia/);
+  assert.match(html, />Avisar</);
+  assert.match(html, /Vencida há 2 dias, R\$\s*412,35/);
+  assert.match(html, />Pagar</);
+  assert.match(html, />Repor</);
 });
 
-test('recent activity labels wrap instead of clipping long details', () => {
-  const label = 'Recebimento por reparo de placa com descrição longa para caber na atividade';
-  const html = renderToStaticMarkup(
-    createElement(DashboardRoute, {
-      orders: [],
-      quotes: [],
-      parts: [],
-      clients: [],
-      monthlyRevenue: 0,
-      payments: [{ id: 'payment-long', value: 100, description: label }],
-      expenses: [],
-      messages: [],
-    }),
-  );
-
-  assert.match(html, new RegExp(`class="block break-words text-sm font-medium">${label}`));
+test('falls back to opening the order when the phone cannot receive WhatsApp', () => {
+  const html = render({
+    actions: [
+      { kind: 'ready', id: 'o46', code: 'OS-46', who: 'Lucas', what: 'Galaxy A54', days: 0 },
+    ],
+  });
+  assert.doesNotMatch(html, />Avisar</);
+  assert.match(html, /href="\/ordens\?busca=OS-46"/);
 });
 
-test('measures the monthly revenue against the monthly goal', () => {
-  const markup = renderToStaticMarkup(
-    createElement(DashboardRoute, {
-      clients: [],
-      expenses: [],
-      messages: [],
-      monthlyRevenue: 12500,
-      orders: [],
-      parts: [],
-      payments: [],
-      quotes: [],
-    }),
-  );
+// Vermelho fica reservado a dinheiro atrasado.
+test('uses the alarm color only for late money', () => {
+  const late = render({
+    actions: [{ kind: 'overdue', id: 'b1', who: 'Enel', amount: 10, days: 1 }],
+  });
+  const calm = render({
+    actions: [{ kind: 'restock', id: 'p1', who: 'Película', days: 0 }],
+  });
+  assert.match(late, /text-destructive/);
+  assert.doesNotMatch(calm, /text-destructive/);
+});
 
-  assert.match(markup, /Meta mensal/i);
-  assert.match(markup, /R\$\s*12\.500,00/);
+test('says when there is nothing waiting', () => {
+  assert.match(render(), /Tudo em dia/);
+});
+
+test("shows today's cash and the month against the same days of last month", () => {
+  const html = render();
+  assert.match(html, /Caixa de hoje/);
+  assert.match(html, /R\$\s*105,00/);
+  assert.match(html, /Outubro até hoje/);
+  assert.match(html, /\+R\$\s*185,00 \(\+15%\) em relação ao mesmo período de setembro/);
+});
+
+test('does not divide by zero when last month had nothing', () => {
+  const html = render({ month: { current: totals(500), previous: totals(0) } });
+  assert.match(html, /Sem recebimentos no mesmo período de setembro/);
+  assert.doesNotMatch(html, /Infinity|NaN/);
+});
+
+test('counts the bench by stage', () => {
+  const html = render();
+  assert.match(html, /6 aparelhos em serviço/);
+  assert.match(html, /Na bancada/);
 });

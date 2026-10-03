@@ -36,8 +36,7 @@ const STALLED_DAYS = 2;
 const LIMIT = 20;
 
 /** Idade em dias de São Paulo entre um timestamp e a data de referência. */
-const ageOf = (column: string) =>
-  `($2::date - (${column} AT TIME ZONE 'America/Sao_Paulo')::date)`;
+const ageOf = (column: string) => `($2::date - (${column} AT TIME ZONE 'America/Sao_Paulo')::date)`;
 
 type Row = {
   kind: DashboardActionKind;

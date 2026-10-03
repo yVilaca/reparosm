@@ -1,55 +1,27 @@
 import DashboardRoute from '@/components/dashboard-route';
 import * as cash from '@/lib/repos/cash';
-import { clients, messages, orders, parts, quotes } from '@/lib/repos';
-import { expenses, payments } from '@/lib/repos/rest';
-import * as payables from '@/lib/repos/payables';
+import * as dashboard from '@/lib/repos/dashboard';
 import { requireServerAccount } from '@/lib/server-auth';
+import { todayInSaoPaulo } from '@/lib/warranty';
 
 export default async function DashboardPage() {
   const account = await requireServerAccount();
-  const [
-    orderRecords,
-    quoteRecords,
-    partRecords,
-    clientRecords,
-    paymentRecords,
-    expenseRecords,
-    messageRecords,
-    monthTotals,
-    receivables,
-    payableRecords,
-  ] = await Promise.all([
-    orders.list(account.id),
-    quotes.list(account.id),
-    parts.list(account.id),
-    clients.list(account.id),
-    payments.list(account.id),
-    expenses.list(account.id),
-    messages.list(account.id),
-    cash.month(account.id),
-    cash.receivables(account.id),
-    payables.list(account.id),
+  const asOfDate = todayInSaoPaulo();
+  const [actions, bench, today, movements, month] = await Promise.all([
+    dashboard.actions(account.id, asOfDate),
+    dashboard.bench(account.id),
+    cash.today(account.id, asOfDate),
+    cash.history(account.id, 'today', asOfDate),
+    cash.month(account.id, asOfDate),
   ]);
   return (
     <DashboardRoute
-      orders={orderRecords.map((record) => ({ id: record.id, ...record.data }))}
-      quotes={quoteRecords.map((record) => ({ id: record.id, ...record.data }))}
-      parts={partRecords.map((record) => ({ id: record.id, ...record.data }))}
-      clients={clientRecords.map((record) => ({ id: record.id, ...record.data }))}
-      payments={paymentRecords.map((record) => ({ id: record.id, ...record.data }))}
-      expenses={expenseRecords.map((record) => ({ id: record.id, ...record.data }))}
-      messages={messageRecords.map((record) => ({ id: record.id, ...record.data }))}
-      monthlyRevenue={monthTotals.current.income}
-      pendingReceivables={receivables.ready.orders}
-      overduePayables={
-        payableRecords.filter(
-          (record) =>
-            record.data.status !== 'paid' &&
-            record.data.dueDate &&
-            record.data.dueDate < new Date().toISOString().slice(0, 10),
-        ).length
-      }
-      pendingPayables={payableRecords.filter((record) => record.data.status !== 'paid').length}
+      actions={actions}
+      asOfDate={asOfDate}
+      bench={bench}
+      month={month}
+      movements={movements}
+      today={today}
     />
   );
 }

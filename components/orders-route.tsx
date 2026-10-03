@@ -49,16 +49,18 @@ export default function OrdersRoute({
   defaultWarrantyDays = 90,
   initialQuery = '',
   initialView = 'grid',
+  startCreating = false,
 }: {
   initialOrders: OrderRow[];
   initialParts?: PartRow[];
   defaultWarrantyDays?: number;
   initialQuery?: string;
   initialView?: OrderView;
+  startCreating?: boolean;
 }) {
   const { notify } = useFeedback();
   const [orders, setOrders] = useState(initialOrders),
-    [modal, setModal] = useState<'create' | 'edit' | null>(null),
+    [modal, setModal] = useState<'create' | 'edit' | null>(startCreating ? 'create' : null),
     [editing, setEditing] = useState<OrderRow | null>(null),
     [charging, setCharging] = useState<{ id: string; code: string; total: number } | null>(null),
     [query, setQuery] = useState(initialQuery),
