@@ -10,7 +10,7 @@ const linked = () =>
   Response.json(
     {
       error:
-        'Esta saída veio do pagamento de uma conta. Para corrigir, desfaça o pagamento em Contas a pagar.',
+        'Esta saída veio do pagamento de uma conta. Para corrigir, desfaça o pagamento em Receber e pagar.',
     },
     { status: 409 },
   );

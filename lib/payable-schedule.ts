@@ -118,7 +118,8 @@ const monthName = new Intl.DateTimeFormat('pt-BR', {
   year: 'numeric',
   timeZone: 'UTC',
 });
-const monthLabel = (month: string) => {
+/** "2026-10" → "Outubro de 2026". */
+export const monthLabel = (month: string) => {
   const label = monthName.format(new Date(`${month}-15T12:00:00Z`));
   return label.charAt(0).toUpperCase() + label.slice(1);
 };
@@ -140,7 +141,8 @@ export function groupPaidPayables<T extends Bill>(rows: T[]) {
   });
 }
 
-const plain = (text: string) =>
+/** Texto sem acentos e em minúsculas, para busca. */
+export const plainText = (text: string) =>
   text
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
@@ -148,9 +150,9 @@ const plain = (text: string) =>
 
 /** Busca por descrição, fornecedor ou categoria, sem diferenciar acentos e maiúsculas. */
 export function matchesPayable(row: Bill, query: string) {
-  const wanted = plain(query.trim());
+  const wanted = plainText(query.trim());
   if (!wanted) return true;
   return [row.description, row.supplier, row.category].some(
-    (text) => text && plain(text).includes(wanted),
+    (text) => text && plainText(text).includes(wanted),
   );
 }

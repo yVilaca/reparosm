@@ -209,7 +209,7 @@ test('the cash tab refuses to edit or delete the outflow of a paid bill', { skip
   );
   const removed = await expenses.DELETE(request('expenses', A, 'DELETE', null, entry.id));
   assert.equal(removed.status, 409);
-  assert.match((await removed.json()).error, /Contas a pagar/);
+  assert.match((await removed.json()).error, /Receber e pagar/);
   const edited = await expenses.POST(
     request('expenses', A, 'POST', { id: entry.id, data: { description: 'Gás', value: 1 } }),
   );

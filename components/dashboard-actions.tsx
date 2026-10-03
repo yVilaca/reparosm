@@ -7,43 +7,41 @@ import OrderPaymentDialog from '@/components/order-payment-dialog';
 import { Button } from '@/components/ui/button';
 import { whatsappUrl } from '@/lib/format';
 
-/** Abre uma conversa e registra exatamente essa mensagem no histórico. */
-export function WhatsappAction({
-  label,
-  phone,
-  message,
-  customer,
-  kind,
-  orderId,
-}: {
-  label: string;
+type WhatsappMessage = {
   phone: string;
   message: string;
   customer: string;
   kind: string;
   orderId?: string;
-}) {
+};
+
+/** Abre uma conversa e registra exatamente essa mensagem no histórico. */
+export function openWhatsapp(
+  { phone, message, customer, kind, orderId }: WhatsappMessage,
+  notify: (message: string, tone: 'error') => void,
+) {
+  window.open(whatsappUrl(phone, message), '_blank', 'noopener,noreferrer');
+  void fetch('/api/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      data: {
+        ...(orderId ? { orderId } : {}),
+        customer,
+        phone,
+        kind,
+        message,
+        status: 'Aberto no WhatsApp',
+        sentAt: new Date().toISOString(),
+      },
+    }),
+  }).catch(() => notify('A conversa abriu, mas não foi registrada no histórico.', 'error'));
+}
+
+export function WhatsappAction({ label, ...message }: WhatsappMessage & { label: string }) {
   const { notify } = useFeedback();
-  const send = () => {
-    window.open(whatsappUrl(phone, message), '_blank', 'noopener,noreferrer');
-    void fetch('/api/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        data: {
-          ...(orderId ? { orderId } : {}),
-          customer,
-          phone,
-          kind,
-          message,
-          status: 'Aberto no WhatsApp',
-          sentAt: new Date().toISOString(),
-        },
-      }),
-    }).catch(() => notify('A conversa abriu, mas não foi registrada no histórico.', 'error'));
-  };
   return (
-    <Button onClick={send} size="sm" type="button" variant="outline">
+    <Button onClick={() => openWhatsapp(message, notify)} size="sm" type="button" variant="outline">
       {label}
     </Button>
   );

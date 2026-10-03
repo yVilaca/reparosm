@@ -93,7 +93,7 @@ function ActionButton({ action }: { action: DashboardAction }) {
     case 'overdue':
       return (
         <Button asChild size="sm" variant="outline">
-          <Link href={`/contas-pagar?pagar=${encodeURIComponent(action.id)}`}>Pagar</Link>
+          <Link href={`/receber-e-pagar?pagar=${encodeURIComponent(action.id)}`}>Pagar</Link>
         </Button>
       );
     case 'restock':

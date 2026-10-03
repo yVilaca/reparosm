@@ -92,7 +92,7 @@ export default function OrderPaymentDialog({
           <div className="grid gap-2">
             <Label htmlFor="order-payment-method">Forma de pagamento</Label>
             <Select onValueChange={setMethod} value={method}>
-              <SelectTrigger id="order-payment-method">
+              <SelectTrigger className="w-full" id="order-payment-method">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
