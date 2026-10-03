@@ -56,3 +56,101 @@ export function installmentDueDates(first: string, count: number): string[] {
   }
   return dates;
 }
+
+type Bill = {
+  amount: number;
+  dueDate?: string;
+  status?: 'pending' | 'paid';
+  paidOn?: string;
+  paidAmount?: number;
+  description: string;
+  supplier?: string;
+  category?: string;
+};
+type Total = { amount: number; count: number };
+
+const total = (values: number[]) =>
+  values.reduce((cents, value) => cents + Math.round(value * 100), 0) / 100;
+const sumOf = (rows: Bill[], value: (row: Bill) => number): Total => ({
+  amount: total(rows.map(value)),
+  count: rows.length,
+});
+const isOpen = (row: Bill) => row.status !== 'paid';
+const paidValue = (row: Bill) => row.paidAmount ?? row.amount;
+
+/** Os três números do topo: o que venceu, o que vence em até 7 dias e o que foi pago no mês. */
+export function summarizePayables(rows: Bill[], today: string) {
+  const open = rows.filter(isOpen);
+  const month = today.slice(0, 7);
+  return {
+    overdue: sumOf(
+      open.filter((row) => dueGroup(row.dueDate, today) === 'overdue'),
+      (row) => row.amount,
+    ),
+    upcoming: sumOf(
+      open.filter((row) => ['today', 'week'].includes(dueGroup(row.dueDate, today))),
+      (row) => row.amount,
+    ),
+    paidThisMonth: sumOf(
+      rows.filter((row) => !isOpen(row) && row.paidOn?.startsWith(month)),
+      paidValue,
+    ),
+  };
+}
+
+const dueOrder: DueGroup[] = ['overdue', 'today', 'week', 'later', 'undated'];
+
+/** Contas em aberto por urgência, cada grupo com seu total; grupos vazios ficam de fora. */
+export function groupOpenPayables<T extends Bill>(rows: T[], today: string) {
+  const open = rows
+    .filter(isOpen)
+    .sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'));
+  return dueOrder
+    .map((group) => {
+      const items = open.filter((row) => dueGroup(row.dueDate, today) === group);
+      return { group, total: total(items.map((row) => row.amount)), rows: items };
+    })
+    .filter((group) => group.rows.length > 0);
+}
+
+const monthName = new Intl.DateTimeFormat('pt-BR', {
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+const monthLabel = (month: string) => {
+  const label = monthName.format(new Date(`${month}-15T12:00:00Z`));
+  return label.charAt(0).toUpperCase() + label.slice(1);
+};
+
+/** Contas pagas pelo mês do pagamento, do mais recente para o mais antigo. */
+export function groupPaidPayables<T extends Bill>(rows: T[]) {
+  const paid = rows
+    .filter((row) => !isOpen(row))
+    .sort((a, b) => (b.paidOn || '').localeCompare(a.paidOn || ''));
+  const months = [...new Set(paid.map((row) => (row.paidOn || '').slice(0, 7)))];
+  return months.map((month) => {
+    const items = paid.filter((row) => (row.paidOn || '').slice(0, 7) === month);
+    return {
+      month,
+      label: month ? monthLabel(month) : 'Sem data',
+      total: total(items.map(paidValue)),
+      rows: items,
+    };
+  });
+}
+
+const plain = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+
+/** Busca por descrição, fornecedor ou categoria, sem diferenciar acentos e maiúsculas. */
+export function matchesPayable(row: Bill, query: string) {
+  const wanted = plain(query.trim());
+  if (!wanted) return true;
+  return [row.description, row.supplier, row.category].some(
+    (text) => text && plain(text).includes(wanted),
+  );
+}

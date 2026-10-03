@@ -1,121 +1,226 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { MoreHorizontal, Plus, Search } from 'lucide-react';
+import { cn } from 'cn';
 import { useFeedback } from '@/components/feedback';
-import { Badge } from '@/components/ui/badge';
+import PayableFormDialog from '@/components/payable-form-dialog';
+import PayablePayDialog, {
+  copyPaymentCode,
+  paymentDifference,
+  type PaidResult,
+  type PayableRow,
+} from '@/components/payable-pay-dialog';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import EmptyState from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import PageHeader from '@/components/ui/page-header';
 import { formatMoney } from '@/lib/format';
+import { recurrenceLabels } from '@/lib/payable-recurrence';
+import {
+  dueLabel,
+  groupOpenPayables,
+  groupPaidPayables,
+  matchesPayable,
+  summarizePayables,
+  type DueGroup,
+} from '@/lib/payable-schedule';
 import { todayInSaoPaulo } from '@/lib/warranty';
-import type { Payable, PayableStatus } from '@/lib/types';
 import type { PayableRecord } from '@/lib/repos/payables';
 
 type Mode = 'all' | 'purchases';
-type PayableRow = Payable & { id: string };
+type Tab = 'open' | 'paid';
 
-const sourceLabels = { purchase: 'Compra', fixed: 'Fixa', other: 'Outra' } as const;
+const groupTitles: Record<DueGroup, string> = {
+  overdue: 'Vencidas',
+  today: 'Vencem hoje',
+  week: 'Próximos 7 dias',
+  later: 'Mais adiante',
+  undated: 'Sem vencimento',
+};
+
+const toRow = (record: PayableRecord): PayableRow => ({ id: record.id, ...record.data });
+const brDate = (isoDate: string) => isoDate.split('-').reverse().join('/');
+const optionsFrom = (values: (string | undefined)[]) =>
+  [...new Set(values.map((value) => value?.trim()).filter(Boolean) as string[])].sort((a, b) =>
+    a.localeCompare(b, 'pt-BR'),
+  );
+const monthOf = (today: string) =>
+  new Intl.DateTimeFormat('pt-BR', { month: 'long', timeZone: 'UTC' }).format(
+    new Date(`${today}T12:00:00Z`),
+  );
+/** Último dia da janela "próximos 7 dias", como dd/mm. */
+const weekEnd = (today: string) =>
+  brDate(
+    new Date(Date.parse(`${today}T12:00:00Z`) + 7 * 86_400_000).toISOString().slice(0, 10),
+  ).slice(0, 5);
+const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+
+/** Forma usada da última vez para a mesma série ou o mesmo fornecedor. */
+function lastMethodFor(rows: PayableRow[], payable: PayableRow) {
+  return rows
+    .filter(
+      (row) =>
+        row.status === 'paid' &&
+        row.method &&
+        ((payable.seriesId && row.seriesId === payable.seriesId) ||
+          (payable.supplier && row.supplier === payable.supplier)),
+    )
+    .sort((a, b) => (b.paidOn || '').localeCompare(a.paidOn || ''))[0]?.method;
+}
+
+function details(row: PayableRow, mode: Mode) {
+  return [
+    mode === 'all' && row.source === 'purchase' ? 'Compra' : null,
+    row.supplier,
+    row.category,
+    row.installmentCount ? `Parcela ${row.installmentNumber} de ${row.installmentCount}` : null,
+    row.recurrence ? `Repete · ${recurrenceLabels[row.recurrence]}` : null,
+  ].filter(Boolean);
+}
 
 export default function PayablesRoute({
   initialPayables,
   mode = 'all',
   title = 'Contas a pagar',
-  description = 'Organize compras, aluguel, mensalidades e outras saídas futuras.',
+  description = 'O que vence, o que já venceu e o que você pagou.',
+  payId,
 }: {
   initialPayables: PayableRecord[];
   mode?: Mode;
   title?: string;
   description?: string;
+  /** Conta a abrir direto no diálogo de pagamento (link do painel Hoje). */
+  payId?: string;
 }) {
   const { notify, confirm } = useFeedback();
   const router = useRouter();
-  const [rows, setRows] = useState<PayableRow[]>(
-    initialPayables.map((record) => ({ id: record.id, ...record.data })),
+  const today = todayInSaoPaulo();
+  const [rows, setRows] = useState<PayableRow[]>(() => initialPayables.map(toRow));
+  const linked = rows.find((row) => row.id === payId);
+  const [tab, setTab] = useState<Tab>(linked?.status === 'paid' ? 'paid' : 'open');
+  const [query, setQuery] = useState('');
+  // undefined: formulário fechado; null: conta nova.
+  const [editing, setEditing] = useState<PayableRow | null | undefined>(undefined);
+  const [paying, setPaying] = useState<PayableRow | null>(
+    linked && linked.status !== 'paid' ? linked : null,
   );
-  const [editing, setEditing] = useState<PayableRow | null>(null);
-  const [open, setOpen] = useState(false);
-  const visible = rows.filter((row) => mode !== 'purchases' || row.source === 'purchase');
-  const pending = visible.filter((row) => row.status !== 'paid');
-  const pendingAmount = pending.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  const overdue = pending.filter((row) => row.dueDate && row.dueDate < todayInSaoPaulo());
 
-  const save = async (data: Payable, id?: string) => {
-    try {
-      const response = await fetch('/api/payables', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data, id }),
-      });
-      const result = (await response.json()) as { error?: string; record?: PayableRecord };
-      if (!response.ok || !result.record)
-        throw new Error(result.error || 'Não foi possível salvar a conta.');
-      const saved = { id: result.record.id, ...result.record.data };
-      setRows((current) =>
-        id ? current.map((row) => (row.id === id ? saved : row)) : [saved, ...current],
-      );
-      setOpen(false);
-      setEditing(null);
-      router.refresh();
-      notify(id ? 'Conta atualizada.' : 'Conta registrada.', 'success');
-    } catch (error) {
-      notify(error instanceof Error ? error.message : 'Não foi possível salvar a conta.', 'error');
-    }
+  const scoped = rows.filter((row) => mode !== 'purchases' || row.source === 'purchase');
+  const visible = scoped.filter((row) => matchesPayable(row, query));
+  const summary = summarizePayables(scoped, today);
+  const openGroups = groupOpenPayables(visible, today);
+  const paidGroups = groupPaidPayables(visible);
+  const openCount = visible.filter((row) => row.status !== 'paid').length;
+  const paidCount = visible.length - openCount;
+  const hasOpen = scoped.some((row) => row.status !== 'paid');
+  const hasPaid = scoped.some((row) => row.status === 'paid');
+  const newLabel = mode === 'purchases' ? 'Nova compra' : 'Nova conta';
+
+  const merge = (records: PayableRecord[], removedId?: string) =>
+    setRows((current) => {
+      const incoming = new Map(records.map((record) => [record.id, toRow(record)]));
+      const kept = current
+        .filter((row) => row.id !== removedId)
+        .map((row) => incoming.get(row.id) || row);
+      const known = new Set(kept.map((row) => row.id));
+      return [...kept, ...[...incoming.values()].filter((row) => !known.has(row.id))];
+    });
+
+  const closePay = () => {
+    setPaying(null);
+    if (payId) router.replace('/contas-pagar', { scroll: false });
   };
 
-  const pay = async (row: PayableRow) => {
-    // ponytail: native prompt keeps this one-field settlement flow minimal; replace it with a shared modal if more settlement fields are added.
-    const method = window.prompt('Forma de pagamento:', row.method || 'Pix');
-    if (!method?.trim()) return;
+  const afterSaved = (records: PayableRecord[]) => {
+    const updating = Boolean(editing);
+    merge(records);
+    setEditing(undefined);
+    setTab('open');
+    router.refresh();
+    notify(
+      updating
+        ? 'Conta atualizada.'
+        : records.length > 1
+          ? `${records.length} parcelas registradas.`
+          : mode === 'purchases'
+            ? 'Compra registrada.'
+            : 'Conta registrada.',
+      'success',
+    );
+  };
+
+  const afterPaid = ({ record, nextRecord }: PaidResult) => {
+    merge(nextRecord ? [record, nextRecord] : [record]);
+    closePay();
+    router.refresh();
+    const value = formatMoney(record.data.paidAmount ?? record.data.amount);
+    notify(
+      `Pago. Saída de ${value} lançada no Caixa.${
+        nextRecord?.data.dueDate ? ` Próxima conta: ${brDate(nextRecord.data.dueDate)}.` : ''
+      }`,
+      'success',
+    );
+  };
+
+  const undo = async (row: PayableRow) => {
+    const value = formatMoney(row.paidAmount ?? row.amount);
+    const message = `Desfazer o pagamento de ${row.description}? A saída de ${value} sai do Caixa e a conta volta para "A pagar".${
+      row.recurrence ? ' A próxima conta que esse pagamento criou também é removida.' : ''
+    }`;
+    if (!(await confirm(message))) return;
     try {
       const response = await fetch('/api/payables', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: row.id, method: method.trim() }),
+        body: JSON.stringify({ id: row.id, action: 'undo' }),
       });
-      const result = (await response.json()) as { error?: string; record?: PayableRecord };
+      const result = (await response.json()) as {
+        error?: string;
+        record?: PayableRecord;
+        removedNextId?: string;
+      };
       if (!response.ok || !result.record)
-        throw new Error(result.error || 'Não foi possível pagar a conta.');
-      const saved = { id: result.record.id, ...result.record.data };
-      setRows((current) => current.map((item) => (item.id === row.id ? saved : item)));
+        throw new Error(result.error || 'Não foi possível desfazer o pagamento.');
+      merge([result.record], result.removedNextId);
       router.refresh();
-      notify('Conta paga e saída lançada no caixa.', 'success');
+      notify('Pagamento desfeito. A conta voltou para "A pagar".', 'success');
     } catch (error) {
-      notify(error instanceof Error ? error.message : 'Não foi possível pagar a conta.', 'error');
+      notify(
+        error instanceof Error ? error.message : 'Não foi possível desfazer o pagamento.',
+        'error',
+      );
     }
   };
 
   const remove = async (row: PayableRow) => {
-    if (!(await confirm(`Excluir a conta ${row.description}?`))) return;
+    const which = row.installmentCount
+      ? ` (só a parcela ${row.installmentNumber} de ${row.installmentCount})`
+      : '';
+    if (!(await confirm(`Excluir ${row.description}${which}? Isso não pode ser desfeito.`))) return;
     const response = await fetch(`/api/payables?id=${encodeURIComponent(row.id)}`, {
       method: 'DELETE',
     });
-    const result = (await response.json()) as { error?: string };
+    const result = (await response.json().catch(() => ({}))) as { error?: string };
     if (!response.ok) {
       notify(result.error || 'Não foi possível excluir a conta.', 'error');
       return;
     }
     setRows((current) => current.filter((item) => item.id !== row.id));
+    router.refresh();
     notify('Conta excluída.', 'success');
   };
+
+  const copy = (code: string) => void copyPaymentCode(code, (message) => notify(message));
 
   return (
     <>
@@ -123,265 +228,350 @@ export default function PayablesRoute({
         title={title}
         description={description}
         action={
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setOpen(true);
-              }}
-            >
-              {mode === 'purchases' ? 'Nova compra' : 'Nova conta'}
-            </Button>
-          </div>
+          <Button onClick={() => setEditing(null)}>
+            <Plus aria-hidden="true" />
+            {newLabel}
+          </Button>
         }
       />
-      <section aria-label="Resumo de contas a pagar" className="mb-4 grid gap-3 sm:grid-cols-3">
-        <Summary
-          label="Em aberto"
-          value={formatMoney(pendingAmount)}
-          detail={`${pending.length} contas`}
+      <section aria-label="Resumo das contas" className="mb-6 grid gap-3 sm:grid-cols-3">
+        <SummaryCard
+          label="Vencidas"
+          tone={summary.overdue.count ? 'danger' : undefined}
+          value={formatMoney(summary.overdue.amount)}
+          detail={
+            summary.overdue.count
+              ? plural(summary.overdue.count, 'conta', 'contas')
+              : 'Nada vencido'
+          }
         />
-        <Summary label="Vencidas" value={String(overdue.length)} detail="Precisam de atenção" />
-        <Summary label="Total listado" value={String(visible.length)} detail="Compras e despesas" />
+        <SummaryCard
+          label="Próximos 7 dias"
+          value={formatMoney(summary.upcoming.amount)}
+          detail={
+            summary.upcoming.count
+              ? `${plural(summary.upcoming.count, 'conta', 'contas')}, até ${weekEnd(today)}`
+              : 'Nada vencendo'
+          }
+        />
+        <SummaryCard
+          label={`Pago em ${monthOf(today)}`}
+          value={formatMoney(summary.paidThisMonth.amount)}
+          detail={plural(summary.paidThisMonth.count, 'conta paga', 'contas pagas')}
+        />
       </section>
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {mode === 'purchases' ? 'Compras registradas' : 'Contas cadastradas'}
-          </CardTitle>
-          <CardDescription>
-            Uma conta só entra no caixa quando for marcada como paga.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {visible.length ? (
-            <div className="grid gap-3">
-              {visible.map((row) => (
-                <article
-                  className="grid gap-3 rounded-lg border p-4 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center"
-                  key={row.id}
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="truncate font-medium">{row.description}</h3>
-                      <Badge
+
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          aria-label="Mostrar contas"
+          className="inline-flex self-start rounded-lg bg-muted p-1"
+          role="group"
+        >
+          {(
+            [
+              ['open', 'A pagar', openCount],
+              ['paid', 'Pagas', paidCount],
+            ] as const
+          ).map(([value, label, count]) => (
+            <button
+              aria-pressed={tab === value}
+              className={cn(
+                'rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
+                tab === value
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+              key={value}
+              onClick={() => setTab(value)}
+              type="button"
+            >
+              {label}
+              <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{count}</span>
+            </button>
+          ))}
+        </div>
+        <div className="relative sm:w-80">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            aria-label="Buscar por descrição, fornecedor ou categoria"
+            className="pl-8"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Buscar conta ou fornecedor"
+            type="search"
+            value={query}
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-6">
+        {tab === 'open' ? (
+          openGroups.length ? (
+            openGroups.map((group) => (
+              <Group
+                count={group.rows.length}
+                key={group.group}
+                title={groupTitles[group.group]}
+                tone={group.group === 'overdue' ? 'danger' : undefined}
+                total={group.total}
+              >
+                {group.rows.map((row) => (
+                  <Row
+                    amount={formatMoney(row.amount)}
+                    details={details(row, mode)}
+                    key={row.id}
+                    menu={
+                      <RowMenu label={row.description}>
+                        {row.paymentCode && (
+                          <DropdownMenuItem onSelect={() => copy(row.paymentCode!)}>
+                            Copiar código de pagamento
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem onSelect={() => setEditing(row)}>Editar</DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={() => void remove(row)} variant="destructive">
+                          Excluir
+                        </DropdownMenuItem>
+                      </RowMenu>
+                    }
+                    note={group.group === 'undated' ? undefined : dueLabel(row.dueDate, today)}
+                    noteTone={
+                      group.group === 'overdue'
+                        ? 'danger'
+                        : group.group === 'today'
+                          ? 'warning'
+                          : undefined
+                    }
+                    primary={
+                      // Destaque só no que é urgente; o resto não compete pela atenção.
+                      <Button
+                        onClick={() => setPaying(row)}
+                        size="sm"
                         variant={
-                          row.status === 'paid'
-                            ? 'success'
-                            : row.dueDate && row.dueDate < todayInSaoPaulo()
-                              ? 'destructive'
-                              : 'warning'
+                          group.group === 'overdue' || group.group === 'today'
+                            ? 'default'
+                            : 'outline'
                         }
                       >
-                        {row.status === 'paid'
-                          ? 'Paga'
-                          : row.dueDate && row.dueDate < todayInSaoPaulo()
-                            ? 'Vencida'
-                            : 'Em aberto'}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {[row.supplier, row.category || (row.source ? sourceLabels[row.source] : '')]
-                        .filter(Boolean)
-                        .join(' · ') || 'Sem categoria'}
-                    </p>
-                    {row.dueDate && (
-                      <p className="text-xs text-muted-foreground">Vencimento: {row.dueDate}</p>
-                    )}
-                  </div>
-                  <strong className="tabular-nums">{formatMoney(row.amount)}</strong>
-                  <div className="flex flex-wrap gap-2">
-                    {row.status !== 'paid' && (
-                      <Button onClick={() => void pay(row)} size="sm">
-                        Marcar como paga
+                        Pagar
                       </Button>
-                    )}
-                    {row.status !== 'paid' && (
-                      <Button
-                        onClick={() => {
-                          setEditing(row);
-                          setOpen(true);
-                        }}
-                        size="sm"
-                        variant="outline"
-                      >
-                        Editar
-                      </Button>
-                    )}
-                    {row.status !== 'paid' && (
-                      <Button onClick={() => void remove(row)} size="sm" variant="destructive">
-                        Excluir
-                      </Button>
-                    )}
-                  </div>
-                </article>
-              ))}
-            </div>
+                    }
+                    title={row.description}
+                  />
+                ))}
+              </Group>
+            ))
+          ) : query && hasOpen ? (
+            <EmptyState
+              title="Nada encontrado"
+              description={`Nenhuma conta a pagar com “${query}”.`}
+            />
           ) : (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Nenhuma conta cadastrada.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-      {open && <PayableModal item={editing} mode={mode} close={() => setOpen(false)} save={save} />}
+            <EmptyState
+              action={
+                <Button onClick={() => setEditing(null)} variant="outline">
+                  <Plus aria-hidden="true" />
+                  {newLabel}
+                </Button>
+              }
+              description={
+                mode === 'purchases'
+                  ? 'Registre as compras a prazo para ver aqui o que vence.'
+                  : 'Cadastre aluguel, energia, compras a prazo e outras contas para ver aqui o que vence.'
+              }
+              title="Nenhuma conta em aberto"
+            />
+          )
+        ) : paidGroups.length ? (
+          paidGroups.map((group) => (
+            <Group
+              count={group.rows.length}
+              key={group.month}
+              title={group.label}
+              total={group.total}
+            >
+              {group.rows.map((row) => {
+                const difference = paymentDifference(row.amount, row.paidAmount ?? row.amount);
+                return (
+                  <Row
+                    amount={formatMoney(row.paidAmount ?? row.amount)}
+                    details={details(row, mode)}
+                    key={row.id}
+                    menu={
+                      <RowMenu label={row.description}>
+                        <DropdownMenuItem onSelect={() => void undo(row)}>
+                          Desfazer pagamento
+                        </DropdownMenuItem>
+                      </RowMenu>
+                    }
+                    note={[
+                      row.paidOn ? `Pago em ${brDate(row.paidOn)}` : 'Pago',
+                      row.method,
+                      difference,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                    title={row.description}
+                  />
+                );
+              })}
+            </Group>
+          ))
+        ) : query && hasPaid ? (
+          <EmptyState title="Nada encontrado" description={`Nenhuma conta paga com “${query}”.`} />
+        ) : (
+          <EmptyState
+            description="Quando você registrar um pagamento, ele aparece aqui, separado por mês."
+            title="Nenhuma conta paga ainda"
+          />
+        )}
+      </div>
+
+      {editing !== undefined && (
+        <PayableFormDialog
+          categories={optionsFrom(rows.map((row) => row.category))}
+          close={() => setEditing(undefined)}
+          defaultKind={mode === 'purchases' ? 'purchase' : 'expense'}
+          item={editing}
+          saved={afterSaved}
+          suppliers={optionsFrom(rows.map((row) => row.supplier))}
+        />
+      )}
+      {paying && (
+        <PayablePayDialog
+          close={closePay}
+          paid={afterPaid}
+          payable={paying}
+          suggestedMethod={lastMethodFor(rows, paying)}
+        />
+      )}
     </>
   );
 }
 
-function Summary({ label, value, detail }: { label: string; value: string; detail: string }) {
+type Tone = 'danger' | 'warning' | undefined;
+
+function SummaryCard({
+  label,
+  value,
+  detail,
+  tone,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  tone?: Tone;
+}) {
+  // No celular, rótulo à esquerda e valor à direita: os três cabem sem empurrar a lista.
   return (
     <Card size="sm">
-      <CardContent className="grid gap-1">
+      <CardContent className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 sm:grid-cols-1 sm:items-start">
         <p className="text-sm text-muted-foreground">{label}</p>
-        <strong className="text-xl tabular-nums">{value}</strong>
-        <p className="text-xs text-muted-foreground">{detail}</p>
+        <strong
+          className={cn(
+            'row-span-2 text-lg tabular-nums sm:row-span-1 sm:text-xl',
+            tone === 'danger' && 'text-destructive',
+          )}
+        >
+          {value}
+        </strong>
+        <p className="col-start-1 text-xs text-muted-foreground">{detail}</p>
       </CardContent>
     </Card>
   );
 }
 
-function PayableModal({
-  item,
-  mode,
-  close,
-  save,
+function Group({
+  title,
+  count,
+  total,
+  tone,
+  children,
 }: {
-  item: PayableRow | null;
-  mode: Mode;
-  close: () => void;
-  save: (data: Payable, id?: string) => Promise<void>;
+  title: string;
+  count: number;
+  total: number;
+  tone?: Tone;
+  children: ReactNode;
 }) {
-  const [form, setForm] = useState({
-    description: item?.description || '',
-    supplier: item?.supplier || '',
-    category: item?.category || '',
-    source: item?.source || (mode === 'purchases' ? 'purchase' : 'other'),
-    amount: item?.amount ? String(item.amount) : '',
-    dueDate: item?.dueDate || todayInSaoPaulo(),
-    notes: item?.notes || '',
-  });
-  const [saving, setSaving] = useState(false);
-  const field = (key: keyof typeof form) => (event: { target: { value: string } }) =>
-    setForm((current) => ({ ...current, [key]: event.target.value }));
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (saving) return;
-    setSaving(true);
-    try {
-      await save(
-        {
-          description: form.description,
-          supplier: form.supplier,
-          category: form.category,
-          source: form.source as Payable['source'],
-          amount: Number(form.amount),
-          dueDate: form.dueDate,
-          notes: form.notes,
-          status: item?.status || ('pending' as PayableStatus),
-        },
-        item?.id,
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
   return (
-    <Dialog open onOpenChange={(open) => !open && close()}>
-      <DialogContent className="max-w-lg p-0">
-        <form className="grid gap-5 p-6" onSubmit={submit}>
-          <DialogHeader>
-            <DialogTitle>
-              {item ? 'Editar conta' : mode === 'purchases' ? 'Nova compra' : 'Nova conta a pagar'}
-            </DialogTitle>
-            <DialogDescription>
-              Registre a obrigação agora e pague quando ela for quitada.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-2">
-            <Label htmlFor="payable-description">Descrição *</Label>
-            <Input
-              id="payable-description"
-              onChange={field('description')}
-              required
-              value={form.description}
-            />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="payable-supplier">Fornecedor</Label>
-              <Input id="payable-supplier" onChange={field('supplier')} value={form.supplier} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="payable-category">Categoria</Label>
-              <Input
-                id="payable-category"
-                onChange={field('category')}
-                placeholder="Peças, aluguel…"
-                value={form.category}
-              />
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="payable-amount">Valor *</Label>
-              <Input
-                id="payable-amount"
-                min="0.01"
-                onChange={field('amount')}
-                required
-                step="0.01"
-                type="number"
-                value={form.amount}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="payable-due-date">Vencimento</Label>
-              <Input
-                id="payable-due-date"
-                onChange={field('dueDate')}
-                type="date"
-                value={form.dueDate}
-              />
-            </div>
-          </div>
-          {mode !== 'purchases' && (
-            <div className="grid gap-2">
-              <Label htmlFor="payable-source">Tipo</Label>
-              <Select
-                onValueChange={(value) =>
-                  setForm((current) => ({
-                    ...current,
-                    source: value as NonNullable<Payable['source']>,
-                  }))
-                }
-                value={form.source}
-              >
-                <SelectTrigger id="payable-source">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="other">Outra</SelectItem>
-                  <SelectItem value="fixed">Fixa</SelectItem>
-                  <SelectItem value="purchase">Compra</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          <div className="grid gap-2">
-            <Label htmlFor="payable-notes">Observações</Label>
-            <Textarea id="payable-notes" onChange={field('notes')} value={form.notes} />
-          </div>
-          <DialogFooter>
-            <Button onClick={close} type="button" variant="outline">
-              Cancelar
-            </Button>
-            <Button disabled={saving} type="submit">
-              {saving ? 'Salvando…' : 'Salvar conta'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <section aria-label={title} className="grid gap-2">
+      <header className="flex items-baseline justify-between gap-3 px-1">
+        <h2 className={cn('text-sm font-semibold', tone === 'danger' && 'text-destructive')}>
+          {title}
+          <span className="ml-1.5 font-normal text-muted-foreground tabular-nums">{count}</span>
+        </h2>
+        <span className="text-sm font-medium tabular-nums">{formatMoney(total)}</span>
+      </header>
+      <ul className="divide-y overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
+        {children}
+      </ul>
+    </section>
+  );
+}
+
+function Row({
+  title,
+  details,
+  amount,
+  note,
+  noteTone,
+  primary,
+  menu,
+}: {
+  title: string;
+  details: (string | null | undefined)[];
+  amount: string;
+  note?: string;
+  noteTone?: Tone;
+  primary?: ReactNode;
+  menu: ReactNode;
+}) {
+  // No celular: título na primeira linha; valor e ações sempre juntos na segunda.
+  return (
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+      <div className="min-w-0 basis-full sm:flex-1 sm:basis-56">
+        <p className="font-medium break-words">{title}</p>
+        {details.length > 0 && (
+          <p className="text-sm break-words text-muted-foreground">{details.join(' · ')}</p>
+        )}
+      </div>
+      <div className="sm:text-right">
+        <p className="font-semibold tabular-nums">{amount}</p>
+        {note && (
+          <p
+            className={cn(
+              'text-xs',
+              noteTone === 'danger'
+                ? 'font-medium text-destructive'
+                : noteTone === 'warning'
+                  ? 'font-medium text-amber-700 dark:text-amber-300'
+                  : 'text-muted-foreground',
+            )}
+          >
+            {note}
+          </p>
+        )}
+      </div>
+      <div className="ml-auto flex items-center gap-1">
+        {primary}
+        {menu}
+      </div>
+    </li>
+  );
+}
+
+function RowMenu({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button aria-label={`Mais ações: ${label}`} size="icon-sm" variant="ghost">
+          <MoreHorizontal aria-hidden="true" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">{children}</DropdownMenuContent>
+    </DropdownMenu>
   );
 }

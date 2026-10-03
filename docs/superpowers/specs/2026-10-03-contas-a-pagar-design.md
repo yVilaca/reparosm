@@ -78,7 +78,8 @@ Dono ou atendente de assistência técnica, no balcão ou no celular:
 
 - **Tela organizada por vencimento** em duas abas: _A pagar_ (grupos
   Vencidas, Vence hoje, Próximos 7 dias, Mais adiante, Sem vencimento, cada um
-  com total) e _Pagas_ (por mês, padrão o mês atual).
+  com total) e _Pagas_ (agrupadas pelo mês do pagamento, mais recente primeiro,
+  com total; a busca alcança todos os meses).
 - **Resumo com três números úteis**: vencido (valor e quantidade), próximos 7
   dias (valor e quantidade) e pago no mês.
 - **Diálogo de pagamento** com valor pago (padrão o valor da conta), data
@@ -102,8 +103,9 @@ Dono ou atendente de assistência técnica, no balcão ou no celular:
   chave Pix, com botão "Copiar código" na linha.
 - **Conta paga não se edita**: para corrigir, desfaz-se o pagamento. Evita que
   conta e saída do caixa divirjam.
-- **Uma ação primária por linha**: "Pagar"; o resto (copiar código, editar,
-  excluir) fica num menu.
+- **Uma ação primária por linha**: "Pagar" (preenchido só no que está vencido
+  ou vence hoje, contornado no resto, para o urgente se destacar); o resto
+  (copiar código, editar, excluir; nas pagas, desfazer) fica num menu.
 - **Busca** por descrição, fornecedor ou categoria; **sugestões** de fornecedor
   e categoria a partir do que a loja já usou.
 - **Link direto**: `/contas-pagar?pagar=<id>` abre o diálogo de pagamento; o
