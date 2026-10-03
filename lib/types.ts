@@ -171,11 +171,21 @@ export interface Payable extends DataObject {
   description: string;
   supplier?: string;
   category?: string;
+  /** 'fixed' é legado e é tratado como despesa. */
   source?: 'purchase' | 'fixed' | 'other';
+  recurrence?: 'weekly' | 'monthly' | 'yearly';
+  seriesId?: string;
+  installmentNumber?: number;
+  installmentCount?: number;
+  /** Linha digitável do boleto ou chave Pix. */
+  paymentCode?: string;
   amount: number;
   dueDate?: string;
   status?: PayableStatus;
   paidAt?: string;
+  /** Data de negócio do pagamento (a do caixa). */
+  paidOn?: string;
+  paidAmount?: number;
   method?: string;
   notes?: string;
   createdAt?: string;
