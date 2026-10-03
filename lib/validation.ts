@@ -115,6 +115,21 @@ const validateOrder = (value: unknown): ValidationResult<Order> => {
     (!Array.isArray(data.pattern) || !data.pattern.every((item) => Number.isInteger(item)))
   )
     return { ok: false, error: 'Padrão da ordem inválido.' };
+  if (
+    data.items !== undefined &&
+    (!Array.isArray(data.items) ||
+      !data.items.every(
+        (item) =>
+          typeof item === 'object' &&
+          item !== null &&
+          !Array.isArray(item) &&
+          typeof (item as DataObject).partId === 'string' &&
+          /^[^\s]+$/.test((item as DataObject).partId as string) &&
+          Number.isInteger((item as DataObject).quantity) &&
+          ((item as DataObject).quantity as number) > 0,
+      ))
+  )
+    return { ok: false, error: 'Produtos da ordem inválidos.' };
   return { ok: true, data: data as Order };
 };
 
@@ -163,7 +178,7 @@ const validateFilm = (value: unknown): ValidationResult<Film> => {
 
 const validateClient = (value: unknown): ValidationResult<Client> => {
   const data = objectValue(value);
-  if (!data || !validateStrings(data, ['name', 'phone'], ['name', 'phone']))
+  if (!data || !validateStrings(data, ['name', 'phone'], ['name']))
     return { ok: false, error: 'Cliente inválido.' };
   if (!validateBooleans(data, ['vip', 'automatic'], []))
     return { ok: false, error: 'Preferências do cliente inválidas.' };

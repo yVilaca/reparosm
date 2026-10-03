@@ -64,7 +64,7 @@ export async function POST(request: Request) {
         const order = orderFromQuote(quote, record.id, new Date().toISOString(), code);
         if (!(await orders.save(accountId, orderId, order, run))) throw new QuoteOrderConflict();
         clientId = await clients.upsertFromOrder(accountId, order, run);
-        await orders.linkClient(accountId, orderId, clientId, run);
+        if (clientId) await orders.linkClient(accountId, orderId, clientId, run);
       }
       await quotes.answer(accountId, record.id, status, clientId, run);
       return { orderId };

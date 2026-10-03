@@ -4,7 +4,16 @@ import { passwordHash } from '../lib/security.ts';
 import { createTestDatabase, skipWithoutDatabase } from './support/db.mjs';
 
 const skip = skipWithoutDatabase;
-let db, orderRoute, clientRoute, quoteRoute, publicQuoteRoute, shopRoute, A, B;
+let db,
+  orderRoute,
+  clientRoute,
+  quoteRoute,
+  publicQuoteRoute,
+  shopRoute,
+  partRoute,
+  payableRoute,
+  A,
+  B;
 
 async function merchant(username) {
   const { createSession } = await import('../lib/repos/sessions.ts');
@@ -25,6 +34,8 @@ before(async () => {
   clientRoute = await import('../app/api/clients/route.ts');
   quoteRoute = await import('../app/api/quotes/route.ts');
   shopRoute = await import('../app/api/shops/route.ts');
+  partRoute = await import('../app/api/parts/route.ts');
+  payableRoute = await import('../app/api/payables/route.ts');
   publicQuoteRoute = await import('../app/api/public/quote/route.ts');
   A = await merchant('resource-flows');
   B = await merchant('resource-flows-other');
@@ -91,6 +102,62 @@ test('orders use resource routes to create and reuse a client by phone', { skip 
   assert.equal(clients.records[0].data.name, 'Ana S.');
   assert.equal(second.client.id, clients.records[0].id);
   assert.deepEqual(clients.records[0].data.lastOrderId, second.record.id);
+});
+
+test('orders keep the selected stock products as sale snapshots', { skip }, async () => {
+  const partResponse = await partRoute.POST(
+    request('parts', A, 'POST', {
+      data: { name: 'Tela OLED', stock: 4, cost: 80, price: 180, published: true },
+    }),
+  );
+  const part = await partResponse.json();
+  assert.equal(partResponse.status, 201);
+
+  const createdResponse = await orderRoute.POST(
+    request('orders', A, 'POST', {
+      data: order({
+        customer: 'Produto Cliente',
+        phone: '11911112222',
+        items: [{ partId: part.record.id, quantity: 2, name: 'valor ignorado', unitPrice: 1 }],
+      }),
+    }),
+  );
+  const created = await createdResponse.json();
+  assert.equal(createdResponse.status, 201);
+  assert.equal(created.record.data.parts, 360);
+  assert.deepEqual(created.record.data.items, [
+    { partId: part.record.id, name: 'Tela OLED', quantity: 2, unitPrice: 180, unitCost: 80 },
+  ]);
+});
+
+test('paying a payable creates one linked cash outflow', { skip }, async () => {
+  const createdResponse = await payableRoute.POST(
+    request('payables', A, 'POST', {
+      data: {
+        description: 'Compra de componentes',
+        supplier: 'Fornecedor A',
+        category: 'Material',
+        source: 'purchase',
+        amount: 245.5,
+        dueDate: '2026-10-05',
+      },
+    }),
+  );
+  const created = await createdResponse.json();
+  assert.equal(createdResponse.status, 201);
+
+  const paidResponse = await payableRoute.PATCH(
+    request('payables', A, 'PATCH', { id: created.record.id, method: 'Pix' }),
+  );
+  const paid = await paidResponse.json();
+  assert.equal(paidResponse.status, 200);
+  assert.equal(paid.record.data.status, 'paid');
+  const [cash] = await db.migrationQuery(
+    `SELECT kind, value::text AS value, method FROM cash_entries
+     WHERE account_id = $1 AND description = 'Compra de componentes'`,
+    [A.id],
+  );
+  assert.deepEqual(cash, { kind: 'out', value: '245.50', method: 'Pix' });
 });
 
 test(

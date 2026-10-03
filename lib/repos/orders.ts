@@ -40,6 +40,7 @@ type OrderRow = {
   payment_value: string | null;
   payment_method: string | null;
   payment_date: string | null;
+  items: import('@/lib/types').OrderItem[];
   created_at: Timestamp;
   updated_at: Timestamp;
 };
@@ -49,7 +50,18 @@ const select = `SELECT o.id, o.code, o.customer, o.phone, o.device, o.imei, o.de
     o.labor, o.parts, o.cost, o.total, o.warranty_days, o.delivered_at, o.whatsapp_consent, o.quote_id,
     q.code AS quote_code, o.client_id, o.created_at, o.updated_at,
     c.id AS payment_id, c.value AS payment_value, c.method AS payment_method,
-    c.date::text AS payment_date
+    c.date::text AS payment_date,
+    COALESCE((
+      SELECT json_agg(json_build_object(
+        'partId', oi.part_id,
+        'name', oi.name,
+        'quantity', oi.quantity,
+        'unitPrice', oi.unit_price,
+        'unitCost', oi.unit_cost
+      ) ORDER BY oi.created_at, oi.id)
+      FROM order_items oi
+      WHERE oi.account_id = o.account_id AND oi.order_id = o.id
+    ), '[]'::json) AS items
   FROM orders o
   LEFT JOIN quotes q ON q.id = o.quote_id
   LEFT JOIN cash_entries c
@@ -86,6 +98,7 @@ const toOrder = (row: OrderRow) =>
       quoteId: row.quote_id,
       quoteCode: row.quote_code,
       clientId: row.client_id,
+      items: row.items || [],
       createdAt: iso(row.created_at),
       updatedAt: iso(row.updated_at),
     }),

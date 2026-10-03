@@ -19,25 +19,30 @@ after(async () => db?.drop());
 const base = { customer: 'Ana', device: 'iPhone', labor: 350, parts: 0, total: 350 };
 const save = (id, data) => saveOrder('account-trigger', id, { ...base, ...data });
 
-test('asks for payment when the order enters Retirada', { skip }, async () => {
+test('asks for payment when the order becomes Concluído', { skip }, async () => {
   await save('order-t1', { stage: 'Em reparo' });
-  const result = await save('order-t1', { stage: 'Retirada' });
+  const result = await save('order-t1', { stage: 'Retirada', status: 'Concluído' });
   assert.deepEqual(result.paymentDue, { orderId: 'order-t1', total: 350 });
 });
 
-test('asks for payment when a new API order starts in Retirada', { skip }, async () => {
-  const result = await save('order-t-direct', { stage: 'Retirada' });
+test('asks for payment when a new API order starts as Concluído', { skip }, async () => {
+  const result = await save('order-t-direct', { stage: 'Retirada', status: 'Concluído' });
   assert.deepEqual(result.paymentDue, { orderId: 'order-t-direct', total: 350 });
 });
 
-test('does not ask again while it stays in Retirada', { skip }, async () => {
-  const result = await save('order-t1', { stage: 'Retirada' });
+test('does not ask again while it stays Concluído', { skip }, async () => {
+  const result = await save('order-t1', { stage: 'Retirada', status: 'Concluído' });
   assert.equal(result.paymentDue, null);
 });
 
 test('does not ask when the total is zero', { skip }, async () => {
   await save('order-t2', { stage: 'Em reparo', labor: 0, total: 0 });
-  const result = await save('order-t2', { stage: 'Retirada', labor: 0, total: 0 });
+  const result = await save('order-t2', {
+    stage: 'Retirada',
+    status: 'Concluído',
+    labor: 0,
+    total: 0,
+  });
   assert.equal(result.paymentDue, null);
 });
 
@@ -47,7 +52,7 @@ test('does not ask when a payment is already linked', { skip }, async () => {
     `INSERT INTO cash_entries (id, account_id, kind, description, value, order_id)
      VALUES ('payment-t3', 'account-trigger', 'in', 'OS', 350, 'order-t3')`,
   );
-  const result = await save('order-t3', { stage: 'Retirada' });
+  const result = await save('order-t3', { stage: 'Retirada', status: 'Concluído' });
   assert.equal(result.paymentDue, null);
 });
 

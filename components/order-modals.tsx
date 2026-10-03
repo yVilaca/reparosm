@@ -23,9 +23,10 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { formatMoney as money } from '@/lib/format';
 import { addOrderPhotoSelection } from '@/lib/order-photo-selection';
-import type { Order, OrderPriority } from '@/lib/types';
+import type { Order, OrderItem, OrderPriority, Part } from '@/lib/types';
 
 export type OrderRow = Order & { id: string };
+export type PartRow = Part & { id: string };
 export type SaveOrder = (data: Order, id?: string, photos?: File[]) => Promise<void>;
 type FieldChange = ChangeEvent<HTMLInputElement | HTMLTextAreaElement>;
 
@@ -44,13 +45,16 @@ export function OrderEditModal({
   item,
   close,
   save,
+  parts = [],
 }: {
   item: OrderRow;
   close: () => void;
   save: SaveOrder;
+  parts?: PartRow[];
 }) {
   const { notify } = useFeedback();
   const [form, setForm] = useState({ ...item }),
+    [selectedItems, setSelectedItems] = useState<OrderItem[]>(item.items || []),
     [saving, setSaving] = useState(false);
   const field = (key: keyof OrderRow) => (event: FieldChange) =>
     setForm(
@@ -62,7 +66,10 @@ export function OrderEditModal({
     );
   const setChoice = (key: 'stage' | 'status' | 'priority', value: string) =>
     setForm((current) => ({ ...current, [key]: value }) as OrderRow);
-  const total = Number(form.labor || 0) + Number(form.parts || 0);
+  const partsTotal = selectedItems.length
+    ? selectedItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
+    : Number(form.parts || 0);
+  const total = Number(form.labor || 0) + partsTotal;
   const profit = total - Number(form.cost || 0);
   const submit = async () => {
     if (!String(form.customer || '').trim() || !String(form.device || '').trim()) {
@@ -71,7 +78,17 @@ export function OrderEditModal({
     }
     setSaving(true);
     try {
-      await save({ ...form, total, profit, updatedAt: new Date().toISOString() }, item.id);
+      await save(
+        {
+          ...form,
+          items: selectedItems,
+          parts: partsTotal,
+          total,
+          profit: total - Number(form.cost || 0),
+          updatedAt: new Date().toISOString(),
+        },
+        item.id,
+      );
     } finally {
       setSaving(false);
     }
@@ -199,6 +216,8 @@ export function OrderEditModal({
             </div>
           </div>
 
+          <OrderProductsPicker parts={parts} value={selectedItems} onChange={setSelectedItems} />
+
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="grid gap-2">
               <Label htmlFor="order-edit-technician">Técnico responsável</Label>
@@ -231,9 +250,10 @@ export function OrderEditModal({
                   id={`order-edit-${key}`}
                   min="0"
                   onChange={field(key)}
+                  readOnly={key === 'parts' && selectedItems.length > 0}
                   step="0.01"
                   type="number"
-                  value={form[key] || 0}
+                  value={key === 'parts' ? partsTotal : form[key] || 0}
                 />
               </div>
             ))}
@@ -272,14 +292,17 @@ export function OrderCreateModal({
   close,
   save,
   defaultWarrantyDays = 90,
+  parts: availableParts = [],
 }: {
   close: () => void;
   save: SaveOrder;
   defaultWarrantyDays?: number;
+  parts?: PartRow[];
 }) {
   const { notify } = useFeedback();
   const [step, setStep] = useState(1),
     [pattern, setPattern] = useState<number[]>([]),
+    [selectedItems, setSelectedItems] = useState<OrderItem[]>([]),
     [labor, setLabor] = useState(0),
     [parts, setParts] = useState(0),
     [cost, setCost] = useState(0),
@@ -298,7 +321,10 @@ export function OrderCreateModal({
       notes: '',
       priority: 'Normal' as OrderPriority,
     });
-  const total = labor + parts;
+  const partsTotal = selectedItems.length
+    ? selectedItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
+    : parts;
+  const total = labor + partsTotal;
   const field = (key: keyof typeof form) => (event: FieldChange) =>
     setForm((value) => ({ ...value, [key]: event.target.value }));
   const selectPhotos = (event: ChangeEvent<HTMLInputElement>) => {
@@ -336,7 +362,8 @@ export function OrderCreateModal({
           whatsappConsent,
           pattern,
           labor,
-          parts,
+          parts: partsTotal,
+          items: selectedItems,
           cost,
           warrantyDays,
           total,
@@ -615,6 +642,11 @@ export function OrderCreateModal({
 
           {step === 4 && (
             <section aria-label="Valores da ordem" className="grid gap-4 sm:grid-cols-2">
+              <OrderProductsPicker
+                parts={availableParts}
+                value={selectedItems}
+                onChange={setSelectedItems}
+              />
               <div className="grid gap-2">
                 <Label htmlFor="order-create-labor">Mão de obra</Label>
                 <Input
@@ -632,9 +664,10 @@ export function OrderCreateModal({
                   id="order-create-parts"
                   min="0"
                   onChange={(event) => setParts(Number(event.target.value))}
+                  readOnly={selectedItems.length > 0}
                   step="0.01"
                   type="number"
-                  value={parts}
+                  value={partsTotal}
                 />
               </div>
               <div className="grid gap-2 sm:col-span-2">
@@ -701,5 +734,90 @@ export function OrderCreateModal({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function OrderProductsPicker({
+  parts,
+  value,
+  onChange,
+}: {
+  parts: PartRow[];
+  value: OrderItem[];
+  onChange: (items: OrderItem[]) => void;
+}) {
+  const selected = (partId: string) => value.find((item) => item.partId === partId);
+  const toggle = (part: PartRow, checked: boolean) => {
+    if (checked) {
+      onChange([
+        ...value,
+        { partId: part.id, name: part.name, quantity: 1, unitPrice: Number(part.price || 0) },
+      ]);
+    } else onChange(value.filter((item) => item.partId !== part.id));
+  };
+  const quantity = (partId: string, next: number) =>
+    onChange(value.map((item) => (item.partId === partId ? { ...item, quantity: next } : item)));
+  const visibleParts = parts.filter(
+    (part) => Number(part.stock || 0) > 0 || value.some((item) => item.partId === part.id),
+  );
+
+  return (
+    <div className="grid min-w-0 gap-3 rounded-lg border bg-muted/20 p-4 sm:col-span-2">
+      <div>
+        <p className="text-sm font-medium">Produtos do estoque</p>
+        <p className="text-xs text-muted-foreground">
+          Associe à OS os produtos vendidos. O preço é salvo como histórico da venda.
+        </p>
+      </div>
+      {visibleParts.length ? (
+        <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+          {visibleParts.map((part) => {
+            const item = selected(part.id);
+            return (
+              <div
+                className="flex min-w-0 items-center gap-3 rounded-lg border bg-background p-3"
+                key={part.id}
+              >
+                <Input
+                  aria-label={`Adicionar ${part.name}`}
+                  checked={Boolean(item)}
+                  className="size-4 shrink-0"
+                  onChange={(event) => toggle(part, event.target.checked)}
+                  type="checkbox"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{part.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {money(part.price)} · {part.stock} em estoque
+                  </p>
+                </div>
+                {item && (
+                  <Input
+                    aria-label={`Quantidade de ${part.name}`}
+                    className="w-20"
+                    min="1"
+                    onChange={(event) => quantity(part.id, Math.max(1, Number(event.target.value)))}
+                    type="number"
+                    value={item.quantity}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Nenhum produto disponível no estoque. Você ainda pode informar o valor das peças abaixo.
+        </p>
+      )}
+      {value.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          Produtos selecionados:{' '}
+          <strong>
+            {money(value.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0))}
+          </strong>
+        </p>
+      )}
+    </div>
   );
 }

@@ -47,7 +47,7 @@ test('dashboard keeps the existing priority links and monthly revenue calculatio
     }),
   );
 
-  assert.match(html, /href="\/mesa"/);
+  assert.match(html, /href="\/ordens\?view=kanban"/);
   assert.match(html, /href="\/orcamentos"/);
   assert.match(html, /href="\/estoque\?view=inventory"/);
   assert.match(html, /href="\/ordens"/);

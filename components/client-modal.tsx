@@ -117,12 +117,11 @@ export default function ClientModal({
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="client-phone">WhatsApp *</Label>
+              <Label htmlFor="client-phone">WhatsApp</Label>
               <Input
                 autoComplete="tel"
                 id="client-phone"
                 onChange={field('phone')}
-                required
                 value={form.phone}
               />
             </div>

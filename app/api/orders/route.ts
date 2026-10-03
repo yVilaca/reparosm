@@ -1,5 +1,6 @@
 import { currentAccount, sameOrigin } from '@/lib/auth';
 import { saveOrder } from '@/lib/orders';
+import { OrderItemError } from '@/lib/repos/order-items';
 import { orders } from '@/lib/repos';
 import { resourceRoute } from '@/lib/resource-route';
 import type { DataObject, Order } from '@/lib/types';
@@ -46,7 +47,14 @@ export async function POST(request: Request) {
   const orderId = id || `order-${crypto.randomUUID()}`;
   if (!orderId.startsWith('order-'))
     return Response.json({ error: 'Identificador inválido para este cadastro' }, { status: 400 });
-  const result = await saveOrder(account.id, orderId, validation.data as Order);
+  let result;
+  try {
+    result = await saveOrder(account.id, orderId, validation.data as Order);
+  } catch (error) {
+    if (error instanceof OrderItemError)
+      return Response.json({ error: error.message }, { status: 400 });
+    throw error;
+  }
   return result
     ? Response.json(result, { status: 201 })
     : Response.json({ error: 'Acesso negado' }, { status: 403 });

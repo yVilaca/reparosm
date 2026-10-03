@@ -4,14 +4,17 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useFeedback } from '@/components/feedback';
 import OrderPaymentDialog from '@/components/order-payment-dialog';
+import OrderPaymentStatus from '@/components/order-payment-status';
 import OrdersTable from '@/components/orders-table';
 import {
   OrderCreateModal,
   OrderEditModal,
+  type PartRow,
   type OrderRow,
   type SaveOrder,
 } from '@/components/order-modals';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,11 +26,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import PageHeader from '@/components/ui/page-header';
-import type { Order, OrderPayment } from '@/lib/types';
+import { formatMoney } from '@/lib/format';
+import type { Order, OrderPayment, OrderStage } from '@/lib/types';
 import { uploadOrderPhotos } from '@/lib/order-photo-upload';
 
-const stages = [
-  'Todas',
+type OrderView = 'grid' | 'kanban';
+
+const orderStages: OrderStage[] = [
   'Recebido',
   'Diagnóstico',
   'Aguardando aprovação',
@@ -35,16 +40,21 @@ const stages = [
   'Teste final',
   'Retirada',
 ];
+const stages = ['Todas', ...orderStages];
 const priorities = ['Todas', 'Normal', 'Urgente', 'Garantia'];
 
 export default function OrdersRoute({
   initialOrders,
+  initialParts = [],
   defaultWarrantyDays = 90,
   initialQuery = '',
+  initialView = 'grid',
 }: {
   initialOrders: OrderRow[];
+  initialParts?: PartRow[];
   defaultWarrantyDays?: number;
   initialQuery?: string;
+  initialView?: OrderView;
 }) {
   const { notify } = useFeedback();
   const [orders, setOrders] = useState(initialOrders),
@@ -53,7 +63,8 @@ export default function OrdersRoute({
     [charging, setCharging] = useState<{ id: string; code: string; total: number } | null>(null),
     [query, setQuery] = useState(initialQuery),
     [stage, setStage] = useState('Todas'),
-    [priority, setPriority] = useState('Todas');
+    [priority, setPriority] = useState('Todas'),
+    [view, setView] = useState<OrderView>(initialView);
   const visible = orders.filter((order) => {
     const search = query.trim().toLowerCase();
     const matchesQuery =
@@ -117,6 +128,12 @@ export default function OrdersRoute({
   };
   const startCharging = (order: OrderRow) =>
     setCharging({ id: order.id, code: order.code, total: Number(order.total || 0) });
+  const move = (order: OrderRow, direction: number) => {
+    const current = orderStages.indexOf((order.stage || 'Recebido') as OrderStage);
+    const next = Math.max(0, Math.min(orderStages.length - 1, current + direction));
+    if (next === current) return;
+    void save({ ...order, stage: orderStages[next] }, order.id);
+  };
   const clearFilters = () => {
     setQuery('');
     setStage('Todas');
@@ -130,6 +147,25 @@ export default function OrdersRoute({
         description="Nova OS: adicione fotos na etapa Aparelho. Garantia: Editar OS. Impressão: botão Imprimir OS."
         action={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <div
+              className="flex rounded-lg border p-1"
+              role="group"
+              aria-label="Visualização das ordens"
+            >
+              {(['grid', 'kanban'] as const).map((option) => (
+                <Button
+                  aria-pressed={view === option}
+                  className="flex-1 sm:flex-none"
+                  key={option}
+                  onClick={() => setView(option)}
+                  size="sm"
+                  type="button"
+                  variant={view === option ? 'default' : 'ghost'}
+                >
+                  {option === 'grid' ? 'Grid' : 'Kanban'}
+                </Button>
+              ))}
+            </div>
             <Button asChild className="w-full sm:w-auto" variant="outline">
               <Link href="/">Painel completo</Link>
             </Button>
@@ -202,25 +238,121 @@ export default function OrdersRoute({
         </CardContent>
       </Card>
 
-      <OrdersTable
-        orders={visible}
-        emptyMessage={
-          orders.length && filtered ? 'Nenhuma ordem corresponde aos filtros.' : undefined
-        }
-        onCreate={create}
-        onCharge={startCharging}
-        onEdit={edit}
-        onRemoved={(id) => setOrders((current) => current.filter((order) => order.id !== id))}
-      />
+      {view === 'grid' ? (
+        <OrdersTable
+          orders={visible}
+          emptyMessage={
+            orders.length && filtered ? 'Nenhuma ordem corresponde aos filtros.' : undefined
+          }
+          onCreate={create}
+          onCharge={startCharging}
+          onEdit={edit}
+          onRemoved={(id) => setOrders((current) => current.filter((order) => order.id !== id))}
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Fluxo de atendimento</CardTitle>
+            <CardDescription>{visible.length} ordens nos filtros atuais.</CardDescription>
+          </CardHeader>
+          <CardContent className="overflow-x-auto pb-4">
+            {visible.length ? (
+              <div className="flex min-w-max gap-4">
+                {orderStages.map((column) => {
+                  const inStage = visible.filter((order) => (order.stage || 'Recebido') === column);
+                  return (
+                    <section className="grid w-72 shrink-0 content-start gap-3" key={column}>
+                      <div className="flex items-center justify-between gap-2">
+                        <h2 className="text-sm font-semibold">{column}</h2>
+                        <Badge variant="secondary">{inStage.length}</Badge>
+                      </div>
+                      {inStage.length ? (
+                        inStage.map((order) => (
+                          <article
+                            className="grid gap-2 rounded-lg border bg-card p-3"
+                            key={order.id}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <strong className="text-sm">{order.code}</strong>
+                              <Badge variant="secondary">{order.priority || 'Normal'}</Badge>
+                            </div>
+                            <p className="text-sm font-medium">{order.device}</p>
+                            <p className="text-sm text-muted-foreground">{order.customer}</p>
+                            <OrderPaymentStatus
+                              onCharge={() => startCharging(order)}
+                              order={order}
+                            />
+                            <div className="flex items-center justify-between gap-2 border-t pt-2">
+                              <Button
+                                aria-label={`Voltar etapa de ${order.code}`}
+                                disabled={column === orderStages[0]}
+                                onClick={() => move(order, -1)}
+                                size="icon"
+                                title="Voltar etapa"
+                                type="button"
+                                variant="outline"
+                              >
+                                ←
+                              </Button>
+                              <span className="text-sm font-medium tabular-nums">
+                                {formatMoney(Number(order.total || 0))}
+                              </span>
+                              <Button
+                                aria-label={`Avançar etapa de ${order.code}`}
+                                disabled={column === orderStages.at(-1)}
+                                onClick={() => move(order, 1)}
+                                size="icon"
+                                title="Avançar etapa"
+                                type="button"
+                                variant="outline"
+                              >
+                                →
+                              </Button>
+                            </div>
+                            <Button
+                              onClick={() => edit(order)}
+                              size="sm"
+                              type="button"
+                              variant="outline"
+                            >
+                              Editar OS
+                            </Button>
+                          </article>
+                        ))
+                      ) : (
+                        <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
+                          Nenhuma ordem
+                        </p>
+                      )}
+                    </section>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                {orders.length && filtered
+                  ? 'Nenhuma ordem corresponde aos filtros.'
+                  : 'Nenhuma ordem cadastrada.'}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
       {modal === 'create' && (
         <OrderCreateModal
           close={() => setModal(null)}
           save={save}
           defaultWarrantyDays={defaultWarrantyDays}
+          parts={initialParts}
         />
       )}
       {modal === 'edit' && editing && (
-        <OrderEditModal item={editing} close={() => setModal(null)} save={save} />
+        <OrderEditModal
+          item={editing}
+          close={() => setModal(null)}
+          parts={initialParts}
+          save={save}
+        />
       )}
       {charging && (
         <OrderPaymentDialog

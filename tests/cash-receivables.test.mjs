@@ -25,7 +25,8 @@ before(async () => {
     `INSERT INTO accounts (id, username, name, role, status, password_hash)
      VALUES ('account-rec', 'rec', 'Rec', 'merchant', 'active', 'x')`,
   );
-  await order('order-ready', 'OS-1', 350, 'Retirada');
+  await order('order-ready', 'OS-1', 350, 'Retirada', 'Concluído');
+  await order('order-done-early', 'OS-8', 120, 'Teste final', 'Concluído');
   await order('order-working', 'OS-2', 200, 'Em reparo');
   await order('order-free', 'OS-3', 0, 'Retirada');
   await order('order-cancelled', 'OS-4', 180, 'Retirada', 'Cancelado');
@@ -39,14 +40,13 @@ before(async () => {
 });
 after(async () => db?.drop());
 
-test('splits receivables between ready for pickup and in progress', { skip }, async () => {
+// A cobrança dispara na conclusão: OS concluída e não paga está pronta para
+// cobrar em qualquer etapa; o que ainda está em serviço é a previsão.
+test('splits receivables into completed and still in service', { skip }, async () => {
   const result = await cash.receivables('account-rec');
-  assert.equal(result.ready.orders, 1);
-  assert.equal(result.ready.amount, 350);
-  assert.deepEqual(
-    result.ready.list.map((item) => item.code),
-    ['OS-1'],
-  );
+  assert.equal(result.ready.orders, 2);
+  assert.equal(result.ready.amount, 470);
+  assert.deepEqual(result.ready.list.map((item) => item.code).sort(), ['OS-1', 'OS-8']);
   assert.equal(result.inProgress.orders, 1);
   assert.equal(result.inProgress.amount, 200);
 });

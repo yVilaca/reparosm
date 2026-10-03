@@ -25,6 +25,9 @@ export default function DashboardRoute({
   expenses,
   messages,
   monthlyRevenue,
+  pendingReceivables = 0,
+  pendingPayables = 0,
+  overduePayables = 0,
 }: {
   orders: Row<Order>[];
   quotes: Row<Quote>[];
@@ -34,6 +37,9 @@ export default function DashboardRoute({
   expenses: Row<Expense>[];
   messages: Row<Message>[];
   monthlyRevenue: number;
+  pendingReceivables?: number;
+  pendingPayables?: number;
+  overduePayables?: number;
 }) {
   const revenue = monthlyRevenue;
   const goal = 50000;
@@ -78,8 +84,8 @@ export default function DashboardRoute({
     {
       count: open.length,
       label: 'Ordens em atendimento',
-      detail: 'Acompanhar na Mesa',
-      href: '/mesa',
+      detail: 'Acompanhar no Kanban',
+      href: '/ordens?view=kanban',
       variant: 'default',
     },
     {
@@ -92,8 +98,8 @@ export default function DashboardRoute({
     {
       count: readyPickup.length,
       label: 'Ordens aguardando retirada',
-      detail: 'Conferir na Mesa',
-      href: '/mesa',
+      detail: 'Conferir no Kanban',
+      href: '/ordens?view=kanban',
       variant: 'success',
     },
     {
@@ -101,6 +107,20 @@ export default function DashboardRoute({
       label: 'Itens com estoque baixo',
       detail: 'Repor estoque',
       href: '/estoque?view=inventory',
+      variant: 'destructive',
+    },
+    {
+      count: pendingReceivables,
+      label: 'Contas a receber',
+      detail: 'Cobrar OS concluídas',
+      href: '/contas-receber',
+      variant: 'warning',
+    },
+    {
+      count: overduePayables,
+      label: 'Contas a pagar vencidas',
+      detail: 'Revisar pagamentos',
+      href: '/contas-pagar',
       variant: 'destructive',
     },
   ] as const;
@@ -116,6 +136,8 @@ export default function DashboardRoute({
       value: parts.reduce((sum, part) => sum + Number(part.stock || 0), 0),
     },
     { label: 'Mensagens registradas', value: messages.length },
+    { label: 'Contas a receber', value: pendingReceivables },
+    { label: 'Contas a pagar em aberto', value: pendingPayables },
   ];
 
   return (
@@ -126,7 +148,7 @@ export default function DashboardRoute({
         action={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
             <Button asChild className="w-full sm:w-auto" variant="outline">
-              <Link href="/mesa">Abrir Mesa</Link>
+              <Link href="/ordens?view=kanban">Abrir Kanban</Link>
             </Button>
             <Button asChild className="w-full sm:w-auto">
               <Link href="/ordens">Nova ordem</Link>
@@ -143,7 +165,7 @@ export default function DashboardRoute({
               <CardDescription>O que precisa de uma ação da equipe.</CardDescription>
             </div>
             <Button asChild className="shrink-0" size="sm" variant="ghost">
-              <Link href="/mesa">Ver Mesa</Link>
+              <Link href="/ordens?view=kanban">Ver Kanban</Link>
             </Button>
           </CardHeader>
           <CardContent>

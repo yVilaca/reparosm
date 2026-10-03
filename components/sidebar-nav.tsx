@@ -5,11 +5,12 @@ import {
   ClipboardList,
   CreditCard,
   Database,
+  ArrowDownToLine,
+  ArrowUpFromLine,
   Home,
   LifeBuoy,
   Mail,
   Menu,
-  Monitor,
   Package,
   Settings,
   ShieldCheck,
@@ -29,7 +30,6 @@ type NavGroup = { label: string; items: NavItem[] };
 
 const primary: NavItem[] = [
   { href: '/', label: 'Início', icon: Home },
-  { href: '/mesa', label: 'Mesa', icon: Monitor },
   { href: '/ordens', label: 'Ordens', icon: Wrench },
   { href: '/clientes', label: 'Clientes', icon: Users },
 ];
@@ -40,7 +40,6 @@ const groups = (isAdmin: boolean): NavGroup[] => [
     items: [
       primary[0],
       primary[1],
-      primary[2],
       { href: '/orcamentos', label: 'Orçamentos', icon: ClipboardList },
     ],
   },
@@ -54,7 +53,7 @@ const groups = (isAdmin: boolean): NavGroup[] => [
   {
     label: 'Relacionamento',
     items: [
-      primary[3],
+      primary[2],
       { href: '/pos-venda', label: 'Pós-venda', icon: Mail },
       { href: '/garantias', label: 'Garantias', icon: ShieldCheck },
     ],
@@ -62,7 +61,10 @@ const groups = (isAdmin: boolean): NavGroup[] => [
   {
     label: 'Gestão',
     items: [
-      { href: '/pagamentos', label: 'Pagamentos', icon: CreditCard },
+      { href: '/contas-receber', label: 'Contas a receber', icon: ArrowDownToLine },
+      { href: '/contas-pagar', label: 'Contas a pagar', icon: ArrowUpFromLine },
+      { href: '/compras', label: 'Compras', icon: Package },
+      { href: '/pagamentos', label: 'Caixa', icon: CreditCard },
       { href: '/minha-assistencia', label: 'Minha assistência', icon: Store },
       { href: '/dados', label: 'Dados e exportação', icon: Database },
       ...(isAdmin ? [{ href: '/contas', label: 'Contas de lojistas', icon: Settings }] : []),
@@ -130,7 +132,7 @@ export default function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
           </div>
         ))}
       </div>
-      <div className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 items-stretch border-t bg-background p-1 md:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 items-stretch border-t bg-background p-1 md:hidden">
         {primary.map((item) => (
           <Item item={item} pathname={pathname} key={item.href} close={() => setMoreOpen(false)} />
         ))}

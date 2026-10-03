@@ -7,9 +7,12 @@ const photo = (name = 'proof.png', type = 'image/png', size = 12) =>
 
 test('photo selection accepts supported files within the five-photo limit', () => {
   const current = [photo('one.png')];
-  const result = addOrderPhotoSelection(current, [photo('two.webp', 'image/webp')]);
+  // Mesmo objeto dos dois lados: File grava lastModified = Date.now(), então
+  // dois `new File` criados em milissegundos diferentes não são deep-equal.
+  const added = photo('two.webp', 'image/webp');
+  const result = addOrderPhotoSelection(current, [added]);
 
-  assert.deepEqual(result.files, [...current, photo('two.webp', 'image/webp')]);
+  assert.deepEqual(result.files, [...current, added]);
   assert.equal(result.error, undefined);
 });
 

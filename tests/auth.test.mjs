@@ -183,7 +183,9 @@ test('deleting an account cascades to all of its data', { skip }, async () => {
   await auth.POST(request({ action: 'forgot-password', username: 'gone' }));
   const { clients, orders } = await import('../lib/repos/index.ts');
   await orders.save(id, 'order-gone', { code: 'OS-1', customer: 'A', device: 'B' });
-  await clients.upsertFromOrder(id, { customer: 'A', phone: '', status: 'Aberto' });
+  // Telefone real: sem ele a OS não cadastra cliente e o teste de exclusão em
+  // cascata deixaria de verificar a tabela de clientes.
+  await clients.upsertFromOrder(id, { customer: 'A', phone: '11966665555', status: 'Aberto' });
   const response = await accounts.DELETE(
     new Request(`https://test.local/api/accounts?id=${id}`, {
       method: 'DELETE',

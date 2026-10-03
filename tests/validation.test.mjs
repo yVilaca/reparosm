@@ -96,8 +96,13 @@ test('treats warrantyDays 0 as unset instead of rejecting the whole order', () =
 
 test('rejects missing required fields', () => {
   assert.equal(validateRecord('order', { code: 'OS-1', device: 'iPhone' }).ok, false);
-  assert.equal(validateRecord('client', { name: 'Ana' }).ok, false);
+  assert.equal(validateRecord('client', { phone: '11999999999' }).ok, false);
   assert.equal(validateRecord('film', { brand: 'Apple' }).ok, false);
+});
+
+test('accepts a client without a phone', () => {
+  assert.equal(validateRecord('client', { name: 'Ana' }).ok, true);
+  assert.equal(validateRecord('client', { name: 'Ana', phone: '' }).ok, true);
 });
 
 test('rejects invalid primitive values', () => {
