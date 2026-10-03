@@ -1,6 +1,11 @@
 // Gives each test file its own throwaway database with every migration applied.
 import pg from 'pg';
 
+// lib/env.ts prefers DATABASE_URL_UNPOOLED over DATABASE_URL. Left set (e.g.
+// after `vercel env pull`), app code under test would bypass the throwaway
+// database below and write to whatever real database it points at.
+delete process.env.DATABASE_URL_UNPOOLED;
+
 export const hasDatabase = Boolean(process.env.DATABASE_URL);
 export const skipWithoutDatabase = hasDatabase
   ? false
