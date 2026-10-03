@@ -61,8 +61,20 @@ before(async () => {
   await db.migrationQuery(
     `INSERT INTO payables (id, account_id, description, supplier, amount, due_date, status)
      VALUES ('b-late', $1, 'Conta de energia', 'Enel', 412.35, $2::date - 2, 'pending'),
-            ('b-future', $1, 'Lote de telas', 'Distribuidora', 2380, $2::date + 5, 'pending'),
-            ('b-paid', $1, 'Internet', 'Vivo', 120, $2::date - 13, 'paid')`,
+            ('b-future', $1, 'Lote de telas', 'Distribuidora', 2380, $2::date + 5, 'pending')`,
+    [A, today],
+  );
+  // Conta paga de verdade: com data, valor e a saída no caixa.
+  await db.migrationQuery(
+    `INSERT INTO cash_entries (id, account_id, kind, description, value, method, date)
+     VALUES ('cash-payable-b-paid', $1, 'out', 'Internet', 120, 'Pix', $2::date - 13)`,
+    [A, today],
+  );
+  await db.migrationQuery(
+    `INSERT INTO payables (id, account_id, description, supplier, amount, due_date, status,
+                           paid_at, paid_on, paid_amount, method, cash_entry_id)
+     VALUES ('b-paid', $1, 'Internet', 'Vivo', 120, $2::date - 13, 'paid',
+             now(), $2::date - 13, 120, 'Pix', 'cash-payable-b-paid')`,
     [A, today],
   );
   await db.migrationQuery(
