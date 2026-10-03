@@ -92,11 +92,11 @@ export async function receivables(accountId: string) {
     code: string;
     customer: string;
     total: string;
-    stage: string;
+    status: string;
   }>(
-    `SELECT o.id, o.code, o.customer, o.total, o.stage
+    `SELECT o.id, o.code, o.customer, o.total, o.status
      FROM orders o ${UNPAID}
-     WHERE o.account_id = $1 AND o.total > 0 AND o.status = 'Concluído' AND c.id IS NULL
+     WHERE o.account_id = $1 AND o.total > 0 AND o.status <> 'Cancelado' AND c.id IS NULL
      ORDER BY o.updated_at DESC`,
     [accountId],
   );
@@ -104,7 +104,9 @@ export async function receivables(accountId: string) {
     orders: items.length,
     amount: items.reduce((sum, row) => sum + money(row.total), 0),
   });
-  const ready = rows.filter((row) => row.stage === 'Retirada');
+  // A cobrança dispara na conclusão: concluída e não paga está pronta para
+  // cobrar; o que ainda está em serviço é a previsão do que vai entrar.
+  const ready = rows.filter((row) => row.status === 'Concluído');
   return {
     ready: {
       ...group(ready),
@@ -115,7 +117,7 @@ export async function receivables(accountId: string) {
         total: money(row.total),
       })),
     },
-    inProgress: group(rows.filter((row) => row.stage !== 'Retirada')),
+    inProgress: group(rows.filter((row) => row.status !== 'Concluído')),
   };
 }
 

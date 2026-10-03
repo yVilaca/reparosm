@@ -57,7 +57,12 @@ const filmRequest = (method, who, body, id) =>
   });
 
 test('resource route validates payloads and scopes ownership', { skip }, async () => {
-  assert.equal((await clients.POST(request('POST', owner, { data: { name: 'Ana' } }))).status, 400);
+  // Payload inválido = sem nome. Telefone é opcional desde que só telefone
+  // real cadastra cliente.
+  assert.equal(
+    (await clients.POST(request('POST', owner, { data: { phone: '11999998888' } }))).status,
+    400,
+  );
   const saved = await clients.POST(
     request('POST', owner, { data: { name: 'Ana Souza', phone: '11999998888' } }),
   );
