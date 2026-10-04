@@ -20,15 +20,16 @@ const base = {
   today: { ...totals(105), methods: [{ method: 'Pix', value: 60 }] },
   movements: [],
   month: { current: totals(1425), previous: totals(1240) },
+  trend: [{ month: '2026-10-01', ...totals(1425), paidOrders: 3, averageTicket: 475 }],
 };
 const render = (props = {}) =>
   renderToStaticMarkup(
     createElement(FeedbackProvider, null, createElement(DashboardRoute, { ...base, ...props })),
   );
 
-test('opens on today, with the date in Portuguese', () => {
+test('opens on the assistance overview, with the date in Portuguese', () => {
   const html = render();
-  assert.match(html, />Hoje</);
+  assert.match(html, />Visão da assistência</);
   assert.match(html, /Sábado, 3 de outubro/);
 });
 
@@ -112,5 +113,33 @@ test('does not divide by zero when last month had nothing', () => {
 test('counts the bench by stage', () => {
   const html = render();
   assert.match(html, /6 aparelhos em serviço/);
-  assert.match(html, /Na bancada/);
+  assert.match(html, /Fluxo dos aparelhos/);
+  assert.ok(html.indexOf('Recebimentos no mês') < html.indexOf('Fluxo dos aparelhos'));
+});
+
+test('highlights monthly financial results and order ticket without calling cash balance profit', () => {
+  const html = render();
+  assert.match(html, /Recebimentos no mês/);
+  assert.match(html, /Saídas no mês/);
+  assert.match(html, /Resultado do caixa/);
+  assert.match(html, /Ticket médio das OS/);
+  assert.match(html, /Evolução do caixa/);
+  assert.match(html, /R\$\s*475,00/);
+  assert.doesNotMatch(html, /Lucro líquido/);
+  assert.ok(html.indexOf('Evolução do caixa') < html.indexOf('Bancada e aprovações'));
+});
+
+test('separates workshop, pickup and management priorities', () => {
+  const html = render({
+    actions: [
+      { kind: 'stalled', id: 'o1', who: 'Cliente urgente', what: 'Moto G54', days: 3 },
+      { kind: 'ready', id: 'o2', who: 'Cliente retirada', what: 'Galaxy A54', days: 2 },
+      { kind: 'overdue', id: 'b1', who: 'Energia vencida', amount: 100, days: 4 },
+    ],
+  });
+  assert.match(html, /Bancada e aprovações/);
+  assert.match(html, /Retiradas e recebimentos/);
+  assert.match(html, /Gestão da loja/);
+  assert.ok(html.indexOf('Cliente urgente') < html.indexOf('Cliente retirada'));
+  assert.ok(html.indexOf('Cliente retirada') < html.indexOf('Energia vencida'));
 });

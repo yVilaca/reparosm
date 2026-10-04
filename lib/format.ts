@@ -1,9 +1,8 @@
+const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
 export function formatMoney(value: number | string | null | undefined): string {
   const number = typeof value === 'number' ? value : Number(value ?? 0);
-  return (Number.isFinite(number) ? number : 0).toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  });
+  return currencyFormatter.format(Number.isFinite(number) ? number : 0);
 }
 
 export function normalizePhone(value: unknown): string {

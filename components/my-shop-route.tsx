@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useFeedback } from '@/components/feedback';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,6 +8,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import PageHeader from '@/components/ui/page-header';
+import IconChip from '@/components/ui/icon-chip';
+import Segmented from '@/components/ui/segmented';
+import { Clock, FileText, Receipt, Store, Users } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -21,6 +23,13 @@ import type { Shop } from '@/lib/types';
 
 type ShopRow = Shop & { id: string };
 const tabs = ['Perfil', 'Horários', 'Equipe', 'Fiscal', 'Documentos'];
+const tabIcons = {
+  Perfil: Store,
+  Horários: Clock,
+  Equipe: Users,
+  Fiscal: Receipt,
+  Documentos: FileText,
+};
 
 export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) {
   const { notify } = useFeedback();
@@ -56,17 +65,10 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
       <PageHeader
         title="Minha assistência"
         description="Dados úteis da assistência organizados em um só lugar."
-        action={
-          <Button asChild variant="outline">
-            <Link href="/">Painel completo</Link>
-          </Button>
-        }
       />
       <Card className="mb-4">
         <CardContent className="flex flex-wrap items-center gap-4">
-          <div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-semibold text-primary-foreground">
-            RS
-          </div>
+          <IconChip icon={Store} size="lg" tone="brand" />
           <div className="flex-1">
             <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               Minha assistência
@@ -76,23 +78,22 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
               {shop?.phone || 'Adicione os dados que aparecerão nos documentos e links.'}
             </p>
           </div>
-          <Badge variant={shop?.name ? 'success' : 'outline'}>
+          <Badge variant={shop?.name ? 'success' : 'warning'}>
             {shop?.name ? 'Perfil completo' : 'Configuração pendente'}
           </Badge>
         </CardContent>
       </Card>
-      <div className="mb-4 flex flex-wrap gap-2">
-        {tabs.map((item) => (
-          <Button
-            key={item}
-            onClick={() => setTab(item)}
-            size="sm"
-            variant={tab === item ? 'default' : 'outline'}
-          >
-            {item}
-          </Button>
-        ))}
-      </div>
+      <Segmented
+        className="mb-4"
+        label="Seções da assistência"
+        onChange={setTab}
+        options={tabs.map((item) => ({
+          value: item,
+          label: item,
+          icon: tabIcons[item as keyof typeof tabIcons],
+        }))}
+        value={tab}
+      />
       <Card className="mb-4">
         <form
           className="grid gap-6 p-6"
@@ -327,6 +328,20 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
                 <h3 className="font-semibold">Textos dos documentos</h3>
                 <p className="text-sm text-muted-foreground">
                   Personalize garantia, rodapé e avaliações.
+                </p>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="shop-customer-print-message">Mensagem da via do cliente</Label>
+                <Textarea
+                  defaultValue={shop?.customerPrintMessage || ''}
+                  id="shop-customer-print-message"
+                  name="customerPrintMessage"
+                  maxLength={500}
+                  placeholder="Ex.: Obrigado pela confiança! Guarde esta via para retirar seu aparelho."
+                />
+                <p className="text-xs text-muted-foreground">
+                  Aparece no topo da segunda via da OS, abaixo da linha de recorte. Até 500
+                  caracteres.
                 </p>
               </div>
               <div className="grid gap-2">

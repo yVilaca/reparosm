@@ -5,40 +5,55 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { FeedbackProvider } from '../components/feedback.tsx';
 import QuotesRoute from '../components/quotes-route.tsx';
 
-test('quote problem stays bounded and wraps in the desktop table', () => {
-  const problem = 'The phone display does not turn on after being dropped';
-  const html = renderToStaticMarkup(
-    createElement(
-      FeedbackProvider,
-      null,
-      createElement(QuotesRoute, {
-        initialQuotes: [
-          {
-            id: 'quote-1',
-            code: 'ORC-1',
-            customer: 'Cliente',
-            phone: '11999999999',
-            device: 'iPhone 15',
-            problem,
-            service: 'Troca de tela',
-            notes: '',
-            labor: 100,
-            parts: 50,
-            total: 150,
-            validUntil: '',
-            status: 'Aguardando',
-            createdAt: '2026-09-28T12:00:00.000Z',
-            updatedAt: '2026-09-28T12:00:00.000Z',
-          },
-        ],
-      }),
-    ),
+const quote = (id, data) => ({
+  id,
+  code: `ORC-${id}`,
+  customer: `Cliente ${id}`,
+  phone: '11999999999',
+  device: 'iPhone 15',
+  service: 'Troca de tela',
+  total: 150,
+  status: 'Aguardando',
+  createdAt: new Date().toISOString(),
+  ...data,
+});
+const render = (initialQuotes) =>
+  renderToStaticMarkup(
+    createElement(FeedbackProvider, null, createElement(QuotesRoute, { initialQuotes })),
   );
-  const descriptionCell = html.match(new RegExp(`<td[^>]*>${problem}</td>`))?.[0];
 
-  assert.ok(descriptionCell, 'the desktop table renders the problem description');
-  assert.match(descriptionCell, /max-w-\[190px\]/);
-  assert.match(descriptionCell, /whitespace-normal/);
-  assert.match(descriptionCell, /break-words/);
-  assert.doesNotMatch(descriptionCell, /whitespace-nowrap/);
+test('a long problem description wraps instead of overflowing', () => {
+  const problem = 'The phone display does not turn on after being dropped';
+  const html = render([quote('1', { problem })]);
+  const line = html.match(new RegExp(`<p[^>]*>[^<]*${problem}</p>`))?.[0];
+  assert.ok(line, 'the problem description is rendered');
+  assert.match(line, /break-words/);
+  assert.doesNotMatch(line, /whitespace-nowrap/);
+});
+
+test('groups quotes by decision, with one visible action and the rest in a menu', () => {
+  const html = render([
+    quote('1', { status: 'Aguardando', total: 1850 }),
+    quote('2', { status: 'Aprovado', total: 340 }),
+    quote('3', { status: 'Recusado', total: 250 }),
+  ]);
+  const order = ['Esperando resposta', 'Aprovados', 'Recusados'].map((title) =>
+    html.indexOf(`aria-label="${title}"`),
+  );
+  assert.ok(order.every((index) => index > 0));
+  assert.deepEqual(
+    order,
+    [...order].sort((a, b) => a - b),
+  );
+  assert.match(html, />Enviar</);
+  assert.equal((html.match(/aria-label="Mais ações: /g) || []).length, 3);
+  // Excluir não fica exposto na lista.
+  assert.doesNotMatch(html, />Excluir</);
+});
+
+test('a quote waiting for two days or more asks to follow up', () => {
+  const old = new Date(Date.now() - 3 * 86_400_000).toISOString();
+  const html = render([quote('9', { createdAt: old })]);
+  assert.match(html, /Esperando há 3 dias/);
+  assert.match(html, />Cobrar</);
 });

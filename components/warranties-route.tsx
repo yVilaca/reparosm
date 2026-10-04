@@ -3,11 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import EmptyState from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
 import PageHeader from '@/components/ui/page-header';
+import FilterPills from '@/components/ui/filter-pills';
+import StatCard from '@/components/ui/stat-card';
+import { Clock, HelpCircle, RotateCcw, Search, ShieldCheck } from 'lucide-react';
+import { badgeFor, warrantyStatusTone } from '@/lib/status-tones';
 import {
   Table,
   TableBody,
@@ -20,15 +23,10 @@ import type { Order } from '@/lib/types';
 import { todayInSaoPaulo, warrantyPeriod } from '@/lib/warranty';
 
 type OrderRow = Order & { id: string };
-type WarrantyBadgeVariant = 'success' | 'warning' | 'destructive' | 'outline';
 type WarrantyStatusFilter = 'all' | 'active' | 'expiring' | 'expired' | 'unknown';
+type WarrantyFilter = WarrantyStatusFilter | 'returns';
 
-function warrantyBadgeVariant(status: string): WarrantyBadgeVariant {
-  if (status === 'active') return 'success';
-  if (status === 'expiring') return 'warning';
-  if (status === 'expired') return 'destructive';
-  return 'outline';
-}
+const warrantyBadgeVariant = (status: string) => badgeFor(warrantyStatusTone(status));
 
 export default function WarrantiesRoute({
   orders,
@@ -69,107 +67,90 @@ export default function WarrantiesRoute({
   // compute a warranty from; surfacing them separately explains why they are not
   // counted as active instead of silently under-reporting "Garantias ativas".
   const unknown = covered.filter((order) => order.period.status === 'unknown').length;
-  const metrics = [
-    { title: 'Garantias ativas', value: String(active), detail: 'Dentro do prazo' },
-    { title: 'Vencem em breve', value: String(expiring), detail: 'Até 15 dias' },
-    {
-      title: 'Garantia desconhecida',
-      value: String(unknown),
-      detail: 'Sem data de entrega registrada',
-    },
-    {
-      title: 'Retornos',
-      value: String(orders.filter((order) => order.priority === 'Garantia').length),
-      detail: 'Em atendimento',
-    },
-    {
-      title: 'Prazo padrão',
-      value: `${defaultWarrantyDays} dias`,
-      detail: 'Novas ordens desta loja',
-    },
-  ];
+  const returns = orders.filter((order) => order.priority === 'Garantia').length;
+  const filter: WarrantyFilter = returnsOnly ? 'returns' : statusFilter;
 
   return (
     <>
       <PageHeader
         title="Garantias"
         description="Acompanhe o prazo de garantia das ordens já entregues."
-        action={
-          <Button asChild variant="outline">
-            <Link href="/">Painel completo</Link>
-          </Button>
-        }
       />
-      <p className="mb-4 text-sm text-muted-foreground">
-        Prazo por OS: <Link href="/ordens">Editar ordem</Link>. Padrão da loja:{' '}
-        <Link href="/minha-assistencia">Minha assistência</Link>.
-      </p>
       <section
         aria-label="Resumo de garantias"
-        className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5"
+        className="mb-3 grid grid-cols-2 gap-3 xl:grid-cols-4"
       >
-        {metrics.map((metric) => (
-          <Card key={metric.title} size="sm">
-            <CardContent className="grid gap-1">
-              <p className="text-sm text-muted-foreground">{metric.title}</p>
-              {/* Value stays in a <strong> tag: tests/warranties-route.test.mjs
-                  regexes for "<strong>(\d+)</strong>" right after the metric title. */}
-              <p className="text-2xl font-semibold tabular-nums">
-                <strong>{metric.value}</strong>
-              </p>
-              <p className="text-xs text-muted-foreground">{metric.detail}</p>
-            </CardContent>
-          </Card>
-        ))}
+        <StatCard
+          detail="Dentro do prazo"
+          icon={ShieldCheck}
+          label="Garantias ativas"
+          tone="success"
+          value={active}
+        />
+        <StatCard
+          detail="Em até 15 dias"
+          icon={Clock}
+          label="Vencem em breve"
+          tone="warning"
+          value={expiring}
+          valueTone={expiring ? 'warning' : undefined}
+        />
+        <StatCard
+          detail="Sem data de entrega registrada"
+          icon={HelpCircle}
+          label="Garantia desconhecida"
+          value={unknown}
+        />
+        <StatCard
+          detail="Aparelhos que voltaram"
+          icon={RotateCcw}
+          label="Retornos"
+          tone="danger"
+          value={returns}
+        />
       </section>
-      <section aria-label="Filtros de garantias" className="mb-4 rounded-xl border bg-card p-4">
-        <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(9rem,auto)_auto] md:items-end">
-          <label className="grid min-w-0 gap-1.5 text-sm font-medium" htmlFor="warranty-search">
-            Buscar
-            <Input
-              id="warranty-search"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="OS, cliente ou aparelho"
-              value={query}
-            />
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium" htmlFor="warranty-status">
-            Status
-            <select
-              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-              id="warranty-status"
-              onChange={(event) => setStatusFilter(event.target.value as WarrantyStatusFilter)}
-              value={statusFilter}
-            >
-              <option value="all">Todos</option>
-              <option value="active">Ativas</option>
-              <option value="expiring">Vencendo</option>
-              <option value="expired">Vencidas</option>
-              <option value="unknown">Prazo pendente</option>
-            </select>
-          </label>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              aria-pressed={returnsOnly}
-              onClick={() => setReturnsOnly((current) => !current)}
-              type="button"
-              variant={returnsOnly ? 'secondary' : 'outline'}
-            >
-              Só retornos
-            </Button>
-            <Button
-              disabled={!query && statusFilter === 'all' && !returnsOnly}
-              onClick={() => {
-                setQuery('');
-                setStatusFilter('all');
-                setReturnsOnly(false);
-              }}
-              type="button"
-              variant="ghost"
-            >
-              Limpar
-            </Button>
-          </div>
+      <p className="mb-6 text-sm text-muted-foreground">
+        Prazo padrão da loja:{' '}
+        <strong className="text-foreground">{defaultWarrantyDays} dias</strong> (altere em{' '}
+        <Link className="underline underline-offset-4" href="/minha-assistencia">
+          Minha assistência
+        </Link>
+        ). Para uma OS específica, edite a ordem.
+      </p>
+      <section
+        aria-label="Filtros de garantias"
+        className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
+      >
+        <FilterPills<WarrantyFilter>
+          label="Mostrar garantias"
+          onChange={(value) => {
+            setReturnsOnly(value === 'returns');
+            setStatusFilter(value === 'returns' ? 'all' : value);
+          }}
+          options={[
+            { value: 'all', label: 'Todas' },
+            { value: 'active', label: 'Ativas' },
+            { value: 'expiring', label: 'Vencendo' },
+            { value: 'expired', label: 'Vencidas' },
+            { value: 'unknown', label: 'Prazo pendente' },
+            { value: 'returns', label: 'Retornos', icon: RotateCcw },
+          ]}
+          value={filter}
+        />
+        <div className="relative lg:w-72">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            aria-label="Buscar por OS, cliente ou aparelho"
+            className="pl-8"
+            id="warranty-search"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Buscar OS, cliente ou aparelho"
+            type="search"
+            value={query}
+          />
         </div>
       </section>
       {covered.length ? (
@@ -219,11 +200,9 @@ export default function WarrantiesRoute({
                     <TableHeader>
                       <TableRow>
                         <TableHead>OS</TableHead>
-                        <TableHead>Cliente</TableHead>
-                        <TableHead>Aparelho</TableHead>
+                        <TableHead>Cliente e aparelho</TableHead>
                         <TableHead>Serviço</TableHead>
                         <TableHead>Entrega</TableHead>
-                        <TableHead>Prazo</TableHead>
                         <TableHead>Vencimento</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
@@ -232,14 +211,27 @@ export default function WarrantiesRoute({
                       {filtered.map((order) => (
                         <TableRow key={order.id}>
                           <TableCell className="font-medium">{order.code}</TableCell>
-                          <TableCell>{order.customer}</TableCell>
-                          <TableCell>{order.device}</TableCell>
-                          <TableCell>{order.problem || order.service || '—'}</TableCell>
-                          <TableCell>{dateLabel(order.deliveredAt)}</TableCell>
                           <TableCell>
-                            {order.warrantyDays ? `${order.warrantyDays} dias` : 'Pendente'}
+                            <p className="font-medium">{order.customer}</p>
+                            <p className="text-xs text-muted-foreground">{order.device}</p>
                           </TableCell>
-                          <TableCell>{dateLabel(order.period.expiresAt)}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {order.problem || order.service || '—'}
+                          </TableCell>
+                          {/* O que falta já está na etiqueta de status: aqui só um traço. */}
+                          <TableCell>
+                            {order.deliveredAt ? dateLabel(order.deliveredAt) : '—'}
+                          </TableCell>
+                          <TableCell>
+                            <p>
+                              {order.period.expiresAt ? dateLabel(order.period.expiresAt) : '—'}
+                            </p>
+                            {order.warrantyDays ? (
+                              <p className="text-xs text-muted-foreground">
+                                {order.warrantyDays} dias
+                              </p>
+                            ) : null}
+                          </TableCell>
                           <TableCell>
                             <Badge variant={warrantyBadgeVariant(order.period.status)}>
                               {statusLabel(order.period.status, order.deliveredAt)}

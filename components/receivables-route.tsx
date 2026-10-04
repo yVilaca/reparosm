@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import OrderPaymentDialog from '@/components/order-payment-dialog';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import EmptyState from '@/components/ui/empty-state';
 import PageHeader from '@/components/ui/page-header';
@@ -12,9 +13,11 @@ import { formatMoney } from '@/lib/format';
 import type { ReceivableOrder, ReceivableGroup } from '@/lib/repos/cash';
 
 export default function ReceivablesRoute({
+  pending,
   ready,
   inProgress,
 }: {
+  pending: ReceivableGroup & { list: ReceivableOrder[] };
   ready: ReceivableGroup & { list: ReceivableOrder[] };
   inProgress: ReceivableGroup;
 }) {
@@ -24,7 +27,7 @@ export default function ReceivablesRoute({
     <>
       <PageHeader
         title="Contas a receber"
-        description="Ordens concluídas que ainda aguardam o recebimento do cliente."
+        description="Todas as OS com valor a receber, em andamento ou concluídas."
         action={
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline">
@@ -40,22 +43,22 @@ export default function ReceivablesRoute({
         <Card size="sm">
           <CardContent className="grid gap-1">
             <p className="text-sm text-muted-foreground">A receber</p>
-            <strong className="text-xl tabular-nums">{formatMoney(ready.amount)}</strong>
-            <p className="text-xs text-muted-foreground">{ready.orders} OS concluídas</p>
+            <strong className="text-xl tabular-nums">{formatMoney(pending.amount)}</strong>
+            <p className="text-xs text-muted-foreground">{pending.orders} OS sem pagamento</p>
           </CardContent>
         </Card>
         <Card size="sm">
           <CardContent className="grid gap-1">
-            <p className="text-sm text-muted-foreground">Aguardando conclusão</p>
+            <p className="text-sm text-muted-foreground">Em andamento</p>
             <strong className="text-xl tabular-nums">{formatMoney(inProgress.amount)}</strong>
-            <p className="text-xs text-muted-foreground">{inProgress.orders} OS fora da cobrança</p>
+            <p className="text-xs text-muted-foreground">{inProgress.orders} OS sem pagamento</p>
           </CardContent>
         </Card>
         <Card size="sm">
           <CardContent className="grid gap-1">
-            <p className="text-sm text-muted-foreground">Regra</p>
-            <strong className="text-xl">Status concluído</strong>
-            <p className="text-xs text-muted-foreground">Entra aqui ao concluir a OS</p>
+            <p className="text-sm text-muted-foreground">Concluídas</p>
+            <strong className="text-xl tabular-nums">{formatMoney(ready.amount)}</strong>
+            <p className="text-xs text-muted-foreground">{ready.orders} OS sem pagamento</p>
           </CardContent>
         </Card>
       </section>
@@ -65,21 +68,24 @@ export default function ReceivablesRoute({
           <CardDescription>Registre o pagamento para lançar a entrada no caixa.</CardDescription>
         </CardHeader>
         <CardContent>
-          {ready.list.length ? (
+          {pending.list.length ? (
             <div className="grid gap-3">
-              {ready.list.map((order) => (
+              {pending.list.map((order) => (
                 <article
                   className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4"
                   key={order.id}
                 >
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1 basis-48">
                     <Link
-                      className="font-medium underline-offset-4 hover:underline"
+                      className="break-words font-medium underline-offset-4 hover:underline"
                       href={`/ordens?busca=${encodeURIComponent(order.code)}`}
                     >
                       {order.code} · {order.customer}
                     </Link>
-                    <p className="text-sm text-muted-foreground">Total da OS</p>
+                    <p className="break-words text-sm text-muted-foreground">{order.device}</p>
+                    <Badge className="mt-1" variant="secondary">
+                      {order.status}
+                    </Badge>
                   </div>
                   <strong className="tabular-nums">{formatMoney(order.total)}</strong>
                   <Button onClick={() => setCharging(order)} size="sm">
@@ -89,10 +95,7 @@ export default function ReceivablesRoute({
               ))}
             </div>
           ) : (
-            <EmptyState
-              title="Nada pendente"
-              description="As ordens concluídas já estão recebidas ou não têm valor a cobrar."
-            />
+            <EmptyState title="Nada pendente" description="Nenhuma OS ativa com valor a receber." />
           )}
         </CardContent>
       </Card>

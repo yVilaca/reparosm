@@ -4,6 +4,11 @@ import { todayInSaoPaulo } from '@/lib/warranty';
 
 export type CashTotals = { income: number; expense: number; balance: number };
 export type MethodTotal = { method: string; value: number };
+export type MonthlyCashTotals = CashTotals & {
+  month: string;
+  paidOrders: number;
+  averageTicket: number;
+};
 
 /**
  * Data de competência: a informada pelo usuário ou, na falta dela, o dia em
@@ -79,8 +84,56 @@ export async function month(accountId: string, asOfDate = todayInSaoPaulo()) {
   return { current, previous };
 }
 
+/** Six calendar months, including zero-activity months; current month ends at asOfDate. */
+export async function trend(
+  accountId: string,
+  asOfDate = todayInSaoPaulo(),
+): Promise<MonthlyCashTotals[]> {
+  const rows = await tenantQueryFor(accountId)<{
+    month: string;
+    income: string;
+    expense: string;
+    paid_orders: string;
+    average_ticket: string;
+  }>(
+    `WITH months AS (
+      SELECT generate_series(date_trunc('month', $2::date) - interval '5 months',
+        date_trunc('month', $2::date), interval '1 month')::date AS month
+    )
+    SELECT m.month::text AS month,
+      COALESCE(SUM(c.value) FILTER (WHERE c.kind = 'in'), 0) AS income,
+      COALESCE(SUM(c.value) FILTER (WHERE c.kind = 'out'), 0) AS expense,
+      COUNT(c.id) FILTER (WHERE c.kind = 'in' AND c.order_id IS NOT NULL) AS paid_orders,
+      COALESCE(AVG(c.value) FILTER (WHERE c.kind = 'in' AND c.order_id IS NOT NULL), 0) AS average_ticket
+    FROM months m LEFT JOIN cash_entries c ON c.account_id = $1
+      AND ${COMPETENCE} >= m.month AND ${COMPETENCE} < m.month + interval '1 month'
+      AND ${COMPETENCE} <= $2::date
+    GROUP BY m.month ORDER BY m.month`,
+    [accountId, asOfDate],
+  );
+  return rows.map((row) => {
+    const income = money(row.income),
+      expense = money(row.expense);
+    return {
+      month: row.month,
+      income,
+      expense,
+      balance: income - expense,
+      paidOrders: Number(row.paid_orders),
+      averageTicket: money(row.average_ticket),
+    };
+  });
+}
+
 export type ReceivableGroup = { orders: number; amount: number };
-export type ReceivableOrder = { id: string; code: string; customer: string; total: number };
+export type ReceivableOrder = {
+  id: string;
+  code: string;
+  customer: string;
+  device: string;
+  status: string;
+  total: number;
+};
 
 const UNPAID = `LEFT JOIN cash_entries c
     ON c.account_id = o.account_id AND c.order_id = o.id AND c.kind = 'in'`;
@@ -91,10 +144,11 @@ export async function receivables(accountId: string) {
     id: string;
     code: string;
     customer: string;
+    device: string;
     total: string;
     status: string;
   }>(
-    `SELECT o.id, o.code, o.customer, o.total, o.status
+    `SELECT o.id, o.code, o.customer, o.device, o.total, o.status
      FROM orders o ${UNPAID}
      WHERE o.account_id = $1 AND o.total > 0 AND o.status <> 'Cancelado' AND c.id IS NULL
      ORDER BY o.updated_at DESC`,
@@ -104,18 +158,13 @@ export async function receivables(accountId: string) {
     orders: items.length,
     amount: items.reduce((sum, row) => sum + money(row.total), 0),
   });
-  // A cobrança dispara na conclusão: concluída e não paga está pronta para
-  // cobrar; o que ainda está em serviço é a previsão do que vai entrar.
+  const list = rows.map((row) => ({ ...row, total: money(row.total) }));
   const ready = rows.filter((row) => row.status === 'Concluído');
   return {
+    pending: { ...group(rows), list },
     ready: {
       ...group(ready),
-      list: ready.map((row) => ({
-        id: row.id,
-        code: row.code,
-        customer: row.customer,
-        total: money(row.total),
-      })),
+      list: list.filter((row) => row.status === 'Concluído'),
     },
     inProgress: group(rows.filter((row) => row.status !== 'Concluído')),
   };

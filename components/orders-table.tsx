@@ -1,22 +1,13 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useState } from 'react';
-import { useFeedback } from '@/components/feedback';
+import { type Dispatch, type SetStateAction } from 'react';
+import OrderActions from '@/components/order-actions';
 import OrderPaymentStatus from '@/components/order-payment-status';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import EmptyState from '@/components/ui/empty-state';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -26,24 +17,21 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { formatMoney, hasValidWhatsapp, whatsappUrl } from '@/lib/format';
+import { formatMoney } from '@/lib/format';
+import { badgeFor, isNotablePriority, orderPriorityTone, orderStageTone } from '@/lib/status-tones';
 import type { Order } from '@/lib/types';
 
 type OrderRow = Order & { id: string };
-type OrderStageVariant = 'default' | 'success' | 'warning' | 'secondary';
-type OrderPriorityVariant = 'destructive' | 'warning' | 'secondary';
+// Cores com significado fixo: veja lib/status-tones.ts.
+export const orderStageVariant = (stage: string | undefined) => badgeFor(orderStageTone(stage));
+export const orderPriorityVariant = (priority: string | undefined) =>
+  badgeFor(orderPriorityTone(priority));
 
-export function orderStageVariant(stage: string | undefined): OrderStageVariant {
-  if (stage === 'Retirada') return 'success';
-  if (stage === 'Aguardando aprovação' || stage === 'Teste final') return 'warning';
-  if (stage === 'Recebido' || stage === 'Em reparo') return 'default';
-  return 'secondary';
-}
-
-export function orderPriorityVariant(priority: string | undefined): OrderPriorityVariant {
-  if (priority === 'Urgente') return 'destructive';
-  if (priority === 'Garantia') return 'warning';
-  return 'secondary';
+/** Só a prioridade que foge do normal vira etiqueta. */
+function PriorityBadge({ priority }: { priority?: string }) {
+  return isNotablePriority(priority) ? (
+    <Badge variant={orderPriorityVariant(priority)}>{priority}</Badge>
+  ) : null;
 }
 
 export default function OrdersTable({
@@ -53,20 +41,19 @@ export default function OrdersTable({
   onEdit,
   onCharge,
   onRemoved,
+  selectedIds,
+  setSelectedIds,
 }: {
   orders: OrderRow[];
+  selectedIds: Set<string>;
+  setSelectedIds: Dispatch<SetStateAction<Set<string>>>;
   emptyMessage?: string;
   onCreate?: () => void;
   onEdit?: (order: OrderRow) => void;
   onCharge?: (order: OrderRow) => void;
   onRemoved?: (id: string) => void;
 }) {
-  const { notify, confirm } = useFeedback();
-  const router = useRouter();
-  const [busy, setBusy] = useState('');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const selectedOrders = orders.filter((order) => selectedIds.has(order.id));
-  const selectedOrder = selectedOrders.length === 1 ? selectedOrders[0] : null;
   const allSelected = orders.length > 0 && selectedOrders.length === orders.length;
 
   const toggleSelected = (id: string) =>
@@ -83,57 +70,6 @@ export default function OrdersTable({
       else orders.forEach((order) => next.add(order.id));
       return next;
     });
-  const print = (order: OrderRow) =>
-    window.open(
-      `/ordens/${encodeURIComponent(order.id)}/imprimir`,
-      '_blank',
-      'noopener,noreferrer',
-    );
-  const send = (order: OrderRow) => {
-    const phone = order.phone || '';
-    if (!hasValidWhatsapp(phone)) {
-      notify('Cadastre um WhatsApp válido nesta ordem.', 'error');
-      return;
-    }
-    const message = `Olá, ${order.customer}! Atualização da ${order.code}: seu ${order.device} está na etapa “${order.stage || 'Recebido'}”.`;
-    window.open(whatsappUrl(phone, message), '_blank', 'noopener,noreferrer');
-    void fetch('/api/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        data: {
-          customer: order.customer,
-          phone,
-          kind: 'Atualização da OS',
-          message,
-          status: 'Aberto no WhatsApp',
-          sentAt: new Date().toISOString(),
-        },
-      }),
-    });
-  };
-  const remove = async (order: OrderRow) => {
-    if (!(await confirm(`Excluir definitivamente a ordem ${order.code}?`))) return;
-    setBusy(order.id);
-    try {
-      const response = await fetch(`/api/orders?id=${encodeURIComponent(order.id)}`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) throw new Error('Não foi possível excluir a ordem.');
-      onRemoved?.(order.id);
-      setSelectedIds((current) => {
-        const next = new Set(current);
-        next.delete(order.id);
-        return next;
-      });
-      notify('Ordem excluída.', 'success');
-      router.refresh();
-    } catch (error) {
-      notify(error instanceof Error ? error.message : 'Não foi possível excluir a ordem.', 'error');
-    } finally {
-      setBusy('');
-    }
-  };
 
   if (!orders.length)
     return (
@@ -171,7 +107,13 @@ export default function OrdersTable({
               ? `${selectedOrders.length} ${selectedOrders.length === 1 ? 'selecionada' : 'selecionadas'}`
               : 'Selecione uma ordem'}
           </span>
-          {bulkActions()}
+          <OrderActions
+            selectedOrders={selectedOrders}
+            setSelectedIds={setSelectedIds}
+            onEdit={onEdit}
+            onCharge={onCharge}
+            onRemoved={onRemoved}
+          />
         </div>
       </CardHeader>
       <CardContent>
@@ -193,8 +135,10 @@ export default function OrdersTable({
                         type="checkbox"
                       />
                       <div className="min-w-0">
-                        <p className="text-xs text-muted-foreground">OS</p>
-                        <h3 className="truncate font-semibold">{order.code}</h3>
+                        <h3 className="flex items-center gap-2 font-semibold">
+                          <span className="truncate">{order.code}</span>
+                          <PriorityBadge priority={order.priority} />
+                        </h3>
                       </div>
                     </div>
                     <Badge variant={orderStageVariant(order.stage || 'Recebido')}>
@@ -209,13 +153,7 @@ export default function OrdersTable({
                       {order.device || 'Aparelho não informado'}
                     </p>
                   </div>
-                  <div className="flex items-end justify-between gap-3 border-t pt-3">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Prioridade</p>
-                      <Badge variant={orderPriorityVariant(order.priority || 'Normal')}>
-                        {order.priority || 'Normal'}
-                      </Badge>
-                    </div>
+                  <div className="flex items-end justify-end gap-3 border-t pt-3">
                     <div className="text-right">
                       <p className="text-xs text-muted-foreground">Total</p>
                       <p className="font-semibold tabular-nums">
@@ -249,10 +187,8 @@ export default function OrdersTable({
                   />
                 </TableHead>
                 <TableHead>OS</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Aparelho</TableHead>
+                <TableHead>Cliente e aparelho</TableHead>
                 <TableHead>Etapa</TableHead>
-                <TableHead>Prioridade</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead>Pagamento</TableHead>
                 <TableHead className="text-right">Custo</TableHead>
@@ -274,17 +210,19 @@ export default function OrdersTable({
                       type="checkbox"
                     />
                   </TableCell>
-                  <TableCell className="font-medium">{order.code}</TableCell>
-                  <TableCell>{order.customer || '—'}</TableCell>
-                  <TableCell>{order.device || '—'}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2 font-medium">
+                      {order.code}
+                      <PriorityBadge priority={order.priority} />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <p className="font-medium">{order.customer || '—'}</p>
+                    <p className="text-xs text-muted-foreground">{order.device || '—'}</p>
+                  </TableCell>
                   <TableCell>
                     <Badge variant={orderStageVariant(order.stage || 'Recebido')}>
                       {order.stage || 'Recebido'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={orderPriorityVariant(order.priority || 'Normal')}>
-                      {order.priority || 'Normal'}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
@@ -293,10 +231,15 @@ export default function OrdersTable({
                   <TableCell>
                     {(() => {
                       const payment = paymentBadge(order);
-                      return <Badge variant={payment.variant}>{payment.label}</Badge>;
+                      // Sem valor não há o que cobrar: um traço basta.
+                      return payment ? (
+                        <Badge variant={payment.variant}>{payment.label}</Badge>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      );
                     })()}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
+                  <TableCell className="text-right text-muted-foreground tabular-nums">
                     {formatMoney(Number(order.cost || 0))}
                   </TableCell>
                 </TableRow>
@@ -310,63 +253,10 @@ export default function OrdersTable({
 
   function paymentBadge(order: OrderRow) {
     const total = Number(order.total || 0);
-    if (total <= 0) return { label: 'Sem cobrança', variant: 'secondary' as const };
+    if (total <= 0) return null;
     if (!order.payment) return { label: 'Pendente', variant: 'warning' as const };
     const value = Number(order.payment.value || 0);
     if (value < total) return { label: 'Parcial', variant: 'warning' as const };
     return { label: value > total ? 'Acima' : 'Recebido', variant: 'success' as const };
-  }
-
-  function bulkActions() {
-    const hasSelection = selectedOrders.length > 0;
-    const canCharge = Boolean(
-      selectedOrder && onCharge && !selectedOrder.payment && Number(selectedOrder.total || 0) > 0,
-    );
-
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button disabled={!hasSelection} size="sm" variant="outline">
-            Ações
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-44">
-          <DropdownMenuLabel>
-            {selectedOrders.length === 1
-              ? `Ações da ${selectedOrder?.code}`
-              : `${selectedOrders.length} ordens selecionadas`}
-          </DropdownMenuLabel>
-          <DropdownMenuItem
-            disabled={!hasSelection}
-            onSelect={() => selectedOrders.forEach((order) => print(order))}
-          >
-            Imprimir OS
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={!hasSelection} onSelect={() => selectedOrders.forEach(send)}>
-            WhatsApp
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={!selectedOrder || !onEdit}
-            onSelect={() => selectedOrder && onEdit?.(selectedOrder)}
-          >
-            Editar
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={!canCharge}
-            onSelect={() => selectedOrder && onCharge?.(selectedOrder)}
-          >
-            Registrar recebimento
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            disabled={!selectedOrder || busy === selectedOrder.id}
-            onSelect={() => selectedOrder && void remove(selectedOrder)}
-            variant="destructive"
-          >
-            {selectedOrder && busy === selectedOrder.id ? 'Excluindo…' : 'Excluir'}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
   }
 }

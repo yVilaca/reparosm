@@ -1,11 +1,22 @@
 'use client';
 
-import Link from 'next/link';
 import { useState } from 'react';
 import { useFeedback } from '@/components/feedback';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import IconChip from '@/components/ui/icon-chip';
+import type { Tone } from '@/components/ui/tone';
+import {
+  CheckCircle2,
+  HeartHandshake,
+  MessageCircle,
+  Send,
+  ShieldCheck,
+  Star,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import PageHeader from '@/components/ui/page-header';
@@ -36,6 +47,15 @@ type SaveAfterSales = (
   data: Automation | Message,
   id?: string,
 ) => Promise<void>;
+
+// Cada automação no tom do momento a que se refere (em andamento, pronto, garantia...).
+const templateLook: Record<string, { icon: LucideIcon; tone: Tone }> = {
+  'Atualização do reparo': { icon: Wrench, tone: 'info' },
+  'Aparelho pronto': { icon: CheckCircle2, tone: 'success' },
+  'Avaliação no Google': { icon: Star, tone: 'warning' },
+  Acompanhamento: { icon: HeartHandshake, tone: 'info' },
+  'Lembrete de garantia': { icon: ShieldCheck, tone: 'warning' },
+};
 
 const templates = [
   [
@@ -183,34 +203,17 @@ export default function AfterSalesRoute({
     <>
       <PageHeader
         title="Pós-venda"
-        description="Mensagens e automações carregadas no servidor para a conta atual."
-        action={
-          <Button asChild variant="outline">
-            <Link href="/">Painel completo</Link>
-          </Button>
-        }
+        description="Mande mensagens pelo WhatsApp e acompanhe o que foi enviado."
       />
-      <Card className="mb-4 gap-3 bg-primary text-primary-foreground">
-        <CardContent className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold tracking-wide uppercase opacity-80">
-              Central do WhatsApp
-            </p>
-            <h2 className="text-lg font-semibold">Prepare, envie e acompanhe mensagens</h2>
-            <p className="text-sm opacity-90">Envio manual com um clique, direto pelo WhatsApp.</p>
+      <Card className="mb-6">
+        <CardHeader className="flex flex-row items-start gap-3">
+          <IconChip icon={MessageCircle} tone="brand" />
+          <div className="grid gap-1">
+            <CardTitle>Nova mensagem</CardTitle>
+            <CardDescription>
+              A mensagem abre pronta no WhatsApp para você confirmar o envio.
+            </CardDescription>
           </div>
-          <div className="text-right">
-            <strong className="text-2xl">{messages.length}</strong>
-            <p className="text-sm opacity-90">contatos registrados</p>
-          </div>
-        </CardContent>
-      </Card>
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>Nova mensagem</CardTitle>
-          <CardDescription>
-            A mensagem abre pronta no WhatsApp para você confirmar o envio.
-          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -278,21 +281,38 @@ export default function AfterSalesRoute({
               </p>
             </div>
             <Button onClick={send} type="button">
-              Abrir no WhatsApp →
+              <Send aria-hidden="true" />
+              Abrir no WhatsApp
             </Button>
           </div>
         </CardContent>
       </Card>
-      <h2 className="mb-3 text-lg font-semibold">Automações preparadas</h2>
-      <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <h2 className="mb-1 text-base font-semibold">Lembretes automáticos</h2>
+      <p className="mb-3 text-sm text-muted-foreground">
+        Ligue os que quiser: eles ficam prontos para o envio automático.
+      </p>
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {templates.map((item, index) => {
           const enabled = !!existing(item[0])?.enabled;
           const toggleId = `automation-toggle-${index}`;
           return (
             <Card key={item[0]}>
               <CardContent className="grid gap-2">
-                <p className="text-xs text-muted-foreground">{item[1]}</p>
-                <h3 className="font-semibold">{item[0]}</h3>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <IconChip
+                      icon={templateLook[item[0]]?.icon || MessageCircle}
+                      tone={templateLook[item[0]]?.tone || 'neutral'}
+                    />
+                    <div>
+                      <h3 className="font-semibold">{item[0]}</h3>
+                      <p className="text-xs text-muted-foreground">{item[1]}</p>
+                    </div>
+                  </div>
+                  <Badge variant={enabled ? 'success' : 'neutral'}>
+                    {enabled ? 'Ligado' : 'Desligado'}
+                  </Badge>
+                </div>
                 <p className="text-sm text-muted-foreground">{item[2]}</p>
                 <div className="flex items-center gap-2 border-t pt-3">
                   <Input
@@ -303,7 +323,7 @@ export default function AfterSalesRoute({
                     type="checkbox"
                   />
                   <Label className="font-normal" htmlFor={toggleId}>
-                    {enabled ? 'Ativa para a API' : 'Ativar lembrete'}
+                    {enabled ? 'Desligar lembrete' : 'Ligar lembrete'}
                   </Label>
                 </div>
               </CardContent>
@@ -314,7 +334,12 @@ export default function AfterSalesRoute({
       {messages.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Histórico de mensagens</CardTitle>
+            <CardTitle>
+              Mensagens enviadas
+              <span className="ml-1.5 text-sm font-normal text-muted-foreground tabular-nums">
+                {messages.length}
+              </span>
+            </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="grid gap-3 md:hidden">
@@ -326,7 +351,7 @@ export default function AfterSalesRoute({
                   <article className="grid gap-1 rounded-lg border p-4" key={message.id}>
                     <div className="flex items-center justify-between gap-2">
                       <strong>{message.customer}</strong>
-                      <Badge variant="secondary">{message.status}</Badge>
+                      <Badge variant="neutral">{message.status}</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">{message.phone}</p>
                     <div className="flex justify-between text-sm text-muted-foreground">
@@ -362,7 +387,7 @@ export default function AfterSalesRoute({
                           {new Date(message.sentAt || '').toLocaleString('pt-BR')}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary">{message.status}</Badge>
+                          <Badge variant="neutral">{message.status}</Badge>
                         </TableCell>
                       </TableRow>
                     ))}

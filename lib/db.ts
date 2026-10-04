@@ -33,8 +33,7 @@ async function runAsRuntime<T>(
     const activeClient = client;
     const run: Query = async <R extends Row>(text: string, params: unknown[] = []) =>
       (await activeClient.query(text, params)).rows as R[];
-    await client.query('BEGIN');
-    await client.query('SET LOCAL ROLE reparosm_runtime');
+    await client.query('BEGIN; SET LOCAL ROLE reparosm_runtime');
     if (setting) await run('SELECT set_config($1, $2, true)', [...setting]);
     const result = await fn(run);
     await client.query('COMMIT');
@@ -100,15 +99,13 @@ export const sessionTransaction: ScopedTransaction = (tokenHash, fn) => {
 /** Sets the account scope only after checking it against the active session row. */
 export async function setSessionAccountContext(run: Query, accountId: string) {
   const [session] = await run<{ account_id: string }>(
-    `SELECT account_id FROM sessions
+    `SELECT set_config('app.session_account_id', account_id, true) AS account_id FROM sessions
      WHERE token_hash = NULLIF(current_setting('app.session_token_hash', true), '')
+       AND account_id = $1
        AND expires_at > now()`,
+    [requiredContext(accountId, 'accountId')],
   );
   if (!session || session.account_id !== accountId) throw new Error('session account mismatch.');
-  await run('SELECT set_config($1, $2, true)', [
-    'app.session_account_id',
-    requiredContext(accountId, 'accountId'),
-  ]);
 }
 
 /** Runs lockout queries with access to one exact username/IP pair. */

@@ -16,8 +16,9 @@ export default async function OrdersPage({
   const params = await searchParams;
   const startCreating = Boolean(params.nova);
   const initialQuery = Array.isArray(params.busca) ? params.busca[0] || '' : params.busca || '';
+  const requestedView = Array.isArray(params.view) ? params.view[0] : params.view;
   const initialView =
-    (Array.isArray(params.view) ? params.view[0] : params.view) === 'kanban' ? 'kanban' : 'grid';
+    requestedView === 'kanban' || requestedView === 'grid' ? requestedView : undefined;
   const [records, shop, partRecords] = await Promise.all([
     orders.list(account.id),
     shops.get(account.id, 'shop-main'),

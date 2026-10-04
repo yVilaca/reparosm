@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useState } from 'react';
 import PartModal, { type PartRow, type SavePart } from '@/components/part-modal';
 import { useFeedback } from '@/components/feedback';
@@ -10,6 +9,23 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import EmptyState from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
 import PageHeader from '@/components/ui/page-header';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import RowMenu from '@/components/ui/row-menu';
+import Segmented from '@/components/ui/segmented';
+import SoftBanner from '@/components/ui/soft-banner';
+import StatCard from '@/components/ui/stat-card';
+import { toneText } from '@/components/ui/tone';
+import {
+  AlertTriangle,
+  Boxes,
+  ExternalLink,
+  Link2,
+  Package,
+  Plus,
+  Store,
+  Wallet,
+} from 'lucide-react';
+import { badgeFor, stockTone } from '@/lib/status-tones';
 import {
   Table,
   TableBody,
@@ -20,6 +36,39 @@ import {
 } from '@/components/ui/table';
 import { formatMoney } from '@/lib/format';
 import type { Part } from '@/lib/types';
+
+const LOW_STOCK = 4;
+const stockLabel = (stock: number) =>
+  stock <= 0 ? 'Sem estoque' : stock <= LOW_STOCK ? 'Estoque baixo' : 'Disponível';
+const StockBadge = ({ stock }: { stock: number }) => (
+  <Badge className="w-fit" variant={badgeFor(stockTone(stock, LOW_STOCK))}>
+    {stockLabel(stock)}
+  </Badge>
+);
+
+/** Editar à vista; excluir fica no menu. */
+function PartActions({
+  part,
+  onEdit,
+  onRemove,
+}: {
+  part: PartRow;
+  onEdit: (part: PartRow) => void;
+  onRemove: (part: PartRow) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <Button onClick={() => onEdit(part)} size="sm" variant="outline">
+        Editar
+      </Button>
+      <RowMenu label={part.name}>
+        <DropdownMenuItem onSelect={() => onRemove(part)} variant="destructive">
+          Excluir
+        </DropdownMenuItem>
+      </RowMenu>
+    </div>
+  );
+}
 
 type StockView = 'catalog' | 'inventory';
 
@@ -102,31 +151,27 @@ export default function StockRoute({
     }
   };
   const openStore = () => window.open(storeUrl, '_blank', 'noopener,noreferrer');
-  const title = initialView === 'inventory' ? 'Estoque' : 'Peças & Vitrine';
+  const title = 'Estoque e vitrine';
   return (
     <>
       <PageHeader
         title={title}
-        description="Produtos e estoque carregados no servidor para a conta atual."
+        description="Seus produtos, quanto tem de cada um e o que aparece na vitrine online."
         action={
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-            <Button asChild className="w-full sm:w-auto" variant="outline">
-              <Link href="/">Painel completo</Link>
-            </Button>
-            <Button asChild className="w-full sm:w-auto" variant="outline">
-              <Link
-                href={
-                  initialView === 'inventory' ? '/estoque?view=catalog' : '/estoque?view=inventory'
-                }
-              >
-                {initialView === 'inventory' ? 'Peças & Vitrine' : 'Estoque'}
-              </Link>
-            </Button>
-            <Button className="w-full sm:w-auto" onClick={create}>
-              Adicionar produto
-            </Button>
-          </div>
+          <Button onClick={create}>
+            <Plus aria-hidden="true" />
+            Adicionar produto
+          </Button>
         }
+      />
+      <Segmented
+        className="mb-4"
+        label="Visão dos produtos"
+        options={[
+          { value: 'catalog', label: 'Vitrine', icon: Store, href: '/estoque?view=catalog' },
+          { value: 'inventory', label: 'Estoque', icon: Boxes, href: '/estoque?view=inventory' },
+        ]}
+        value={initialView === 'inventory' ? 'inventory' : 'catalog'}
       />
       {initialView === 'inventory' ? (
         <Inventory items={parts} onCreate={create} onEdit={edit} onRemove={remove} />
@@ -173,34 +218,44 @@ function Catalog({
   const storeUrl = `/vitrine?loja=${encodeURIComponent(accountId)}`;
   return (
     <>
-      <Card className="mb-4 gap-3 bg-primary text-primary-foreground">
-        <CardContent className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold tracking-wide uppercase opacity-80">
-              Vitrine online
-            </p>
-            <h2 className="text-lg font-semibold">Minha vitrine de produtos</h2>
-            <p className="text-sm opacity-90">{published.length} produtos publicados</p>
-            <code className="text-xs opacity-80">{storeUrl}</code>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={onOpenStore} size="sm" variant="secondary">
-              Abrir vitrine ↗
+      <SoftBanner
+        action={
+          <>
+            <Button onClick={onOpenStore} size="sm" variant="outline">
+              <ExternalLink aria-hidden="true" />
+              Abrir vitrine
             </Button>
-            <Button onClick={onCopyStore} size="sm" variant="secondary">
+            <Button onClick={onCopyStore} size="sm" variant="outline">
+              <Link2 aria-hidden="true" />
               Copiar link
             </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </>
+        }
+        className="mb-4"
+        description={
+          <>
+            {published.length}{' '}
+            {published.length === 1 ? 'produto publicado' : 'produtos publicados'} ·{' '}
+            <code className="text-xs">{storeUrl}</code>
+          </>
+        }
+        icon={Store}
+        title="Sua vitrine online"
+      />
       {items.length ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((part) => (
             <Card key={part.id}>
               <CardContent className="grid gap-2">
-                <span className="text-xs font-medium text-muted-foreground">{part.category}</span>
+                <span className="text-xs font-medium text-muted-foreground">
+                  {part.category || 'Sem categoria'}
+                </span>
                 <h3 className="font-semibold">{part.name}</h3>
-                <p className="text-sm text-muted-foreground">{part.stock} unidades</p>
+                <p className={`text-sm ${toneText[stockTone(part.stock, LOW_STOCK)]}`}>
+                  {part.stock <= 0
+                    ? 'Sem estoque'
+                    : `${part.stock} ${part.stock === 1 ? 'unidade' : 'unidades'}`}
+                </p>
                 <strong className="text-lg">{formatMoney(part.price)}</strong>
                 <div className="flex items-center gap-2 border-t pt-3">
                   <Input
@@ -210,27 +265,10 @@ function Catalog({
                     onChange={(event) => onTogglePublished(part, event.target.checked)}
                     type="checkbox"
                   />
-                  <label className="text-sm" htmlFor={`part-published-${part.id}`}>
-                    Publicar na vitrine
+                  <label className="flex-1 text-sm" htmlFor={`part-published-${part.id}`}>
+                    Na vitrine
                   </label>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    className="flex-1"
-                    onClick={() => onEdit(part)}
-                    size="sm"
-                    variant="outline"
-                  >
-                    Editar
-                  </Button>
-                  <Button
-                    className="flex-1"
-                    onClick={() => onRemove(part)}
-                    size="sm"
-                    variant="destructive"
-                  >
-                    Excluir
-                  </Button>
+                  <PartActions onEdit={onEdit} onRemove={onRemove} part={part} />
                 </div>
               </CardContent>
             </Card>
@@ -262,32 +300,35 @@ function Inventory({
     (sum, part) => sum + Number(part.stock || 0) * Number(part.cost || 0),
     0,
   );
-  const metrics = [
-    {
-      title: 'Itens em estoque',
-      value: String(items.reduce((sum, part) => sum + part.stock, 0)),
-      detail: 'Unidades disponíveis',
-    },
-    { title: 'Valor investido', value: formatMoney(total), detail: 'Baseado no custo' },
-    {
-      title: 'Estoque baixo',
-      value: String(items.filter((part) => part.stock < 5).length),
-      detail: 'Produtos com menos de 5',
-    },
-    { title: 'Produtos cadastrados', value: String(items.length), detail: 'Todos os tipos' },
-  ];
+  const low = items.filter((part) => part.stock <= LOW_STOCK).length;
   return (
     <>
-      <section aria-label="Resumo de estoque" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((metric) => (
-          <Card key={metric.title} size="sm">
-            <CardContent className="grid gap-1">
-              <p className="text-sm text-muted-foreground">{metric.title}</p>
-              <p className="text-2xl font-semibold tabular-nums">{metric.value}</p>
-              <p className="text-xs text-muted-foreground">{metric.detail}</p>
-            </CardContent>
-          </Card>
-        ))}
+      <section
+        aria-label="Resumo de estoque"
+        className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4"
+      >
+        <StatCard
+          detail="Unidades disponíveis"
+          icon={Package}
+          label="Itens em estoque"
+          value={items.reduce((sum, part) => sum + part.stock, 0)}
+        />
+        <StatCard
+          detail="Pelo custo"
+          icon={Wallet}
+          label="Valor investido"
+          tone="info"
+          value={formatMoney(total)}
+        />
+        <StatCard
+          detail={`Com ${LOW_STOCK} unidades ou menos`}
+          icon={AlertTriangle}
+          label="Estoque baixo"
+          tone="warning"
+          value={low}
+          valueTone={low ? 'warning' : undefined}
+        />
+        <StatCard detail="Todos os tipos" icon={Boxes} label="Produtos" value={items.length} />
       </section>
       {items.length ? (
         <Card>
@@ -319,26 +360,9 @@ function Inventory({
                       <strong>{formatMoney(Number(part.price) - Number(part.cost || 0))}</strong>
                     </p>
                   </div>
-                  <Badge className="w-fit" variant={part.stock < 5 ? 'destructive' : 'success'}>
-                    {part.stock < 5 ? 'Estoque baixo' : 'Disponível'}
-                  </Badge>
-                  <div className="flex gap-2">
-                    <Button
-                      className="flex-1"
-                      onClick={() => onEdit(part)}
-                      size="sm"
-                      variant="outline"
-                    >
-                      Editar
-                    </Button>
-                    <Button
-                      className="flex-1"
-                      onClick={() => onRemove(part)}
-                      size="sm"
-                      variant="destructive"
-                    >
-                      Excluir
-                    </Button>
+                  <div className="flex items-center justify-between gap-2">
+                    <StockBadge stock={part.stock} />
+                    <PartActions onEdit={onEdit} onRemove={onRemove} part={part} />
                   </div>
                 </article>
               ))}
@@ -369,19 +393,10 @@ function Inventory({
                         {formatMoney(Number(part.price) - Number(part.cost || 0))}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={part.stock < 5 ? 'destructive' : 'success'}>
-                          {part.stock < 5 ? 'Estoque baixo' : 'Disponível'}
-                        </Badge>
+                        <StockBadge stock={part.stock} />
                       </TableCell>
                       <TableCell>
-                        <div className="flex gap-2">
-                          <Button onClick={() => onEdit(part)} size="sm" variant="outline">
-                            Editar
-                          </Button>
-                          <Button onClick={() => onRemove(part)} size="sm" variant="destructive">
-                            Excluir
-                          </Button>
-                        </div>
+                        <PartActions onEdit={onEdit} onRemove={onRemove} part={part} />
                       </TableCell>
                     </TableRow>
                   ))}

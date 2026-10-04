@@ -1,30 +1,43 @@
 'use client';
 
-import Link from 'next/link';
 import { useState } from 'react';
 import { useFeedback } from '@/components/feedback';
 import QuoteModal, { type QuoteRow, type SaveQuote } from '@/components/quote-modal';
-import { Badge } from '@/components/ui/badge';
+import { CheckCircle2, Clock, FileText, MessageCircle, Plus, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import EmptyState from '@/components/ui/empty-state';
+import IconChip from '@/components/ui/icon-chip';
+import { ListGroup, ListRow } from '@/components/ui/list-group';
 import PageHeader from '@/components/ui/page-header';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import RowMenu from '@/components/ui/row-menu';
+import StatCard from '@/components/ui/stat-card';
 import { formatMoney, hasValidWhatsapp, whatsappUrl } from '@/lib/format';
-import type { Quote } from '@/lib/types';
+import { quoteStatusTone } from '@/lib/status-tones';
+import { todayInSaoPaulo } from '@/lib/warranty';
+import type { Quote, QuoteStatus } from '@/lib/types';
 
-function quoteStatusVariant(status: string | undefined): 'success' | 'destructive' | 'secondary' {
-  if (status === 'Aprovado') return 'success';
-  if (status === 'Recusado') return 'destructive';
-  return 'secondary';
-}
+const groups: { status: QuoteStatus; title: string }[] = [
+  { status: 'Aguardando', title: 'Esperando resposta' },
+  { status: 'Aprovado', title: 'Aprovados' },
+  { status: 'Recusado', title: 'Recusados' },
+];
+const statusIcon = { Aguardando: Clock, Aprovado: CheckCircle2, Recusado: XCircle };
+
+/** Dias desde a criação, em dias de São Paulo. */
+const daysSince = (iso: string | undefined, today: string) => {
+  if (!iso) return null;
+  const day = new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+  return Math.max(0, Math.round((Date.parse(today) - Date.parse(day)) / 86_400_000));
+};
+const waiting = (days: number | null) =>
+  days === null
+    ? 'Esperando resposta'
+    : days === 0
+      ? 'Enviado hoje'
+      : `Esperando há ${days} ${days === 1 ? 'dia' : 'dias'}`;
+const sum = (rows: QuoteRow[]) =>
+  rows.reduce((total, quote) => total + Math.round(Number(quote.total || 0) * 100), 0) / 100;
 
 export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow[] }) {
   const { notify, confirm } = useFeedback();
@@ -101,29 +114,15 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
     }
     window.open(whatsappUrl(quote.phone, message), '_blank', 'noopener,noreferrer');
   };
-  const actions = (quote: QuoteRow) => (
-    <div className="flex flex-wrap gap-2">
-      <Button
-        onClick={() => window.open(link(quote), '_blank', 'noopener,noreferrer')}
-        size="sm"
-        variant="outline"
-      >
-        Abrir
-      </Button>
-      <Button onClick={() => edit(quote)} size="sm" variant="outline">
-        Editar
-      </Button>
-      <Button onClick={() => copy(quote)} size="sm" variant="outline">
-        Copiar link
-      </Button>
-      <Button onClick={() => send(quote)} size="sm" variant="outline">
-        WhatsApp
-      </Button>
-      <Button onClick={() => remove(quote)} size="sm" variant="destructive">
-        Excluir
-      </Button>
-    </div>
-  );
+  const open = (quote: QuoteRow) => window.open(link(quote), '_blank', 'noopener,noreferrer');
+  const today = todayInSaoPaulo();
+  const byStatus = (status: QuoteStatus) =>
+    quotes
+      .filter((quote) => (quote.status || 'Aguardando') === status)
+      .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+  const pending = byStatus('Aguardando');
+  const approved = byStatus('Aprovado');
+  const refused = byStatus('Recusado');
 
   return (
     <>
@@ -131,85 +130,120 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
         title="Orçamentos"
         description="Crie propostas e acompanhe a decisão do cliente."
         action={
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-            <Button asChild className="w-full sm:w-auto" variant="outline">
-              <Link href="/">Painel completo</Link>
-            </Button>
-            <Button className="w-full sm:w-auto" onClick={create}>
-              Novo orçamento
-            </Button>
-          </div>
+          <Button onClick={create}>
+            <Plus aria-hidden="true" />
+            Novo orçamento
+          </Button>
         }
       />
       {quotes.length ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>{quotes.length} orçamentos</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <div className="grid gap-3 md:hidden">
-              {quotes.map((quote) => (
-                <article className="grid gap-3 rounded-lg border p-4" key={quote.id}>
-                  <div className="flex items-center justify-between gap-3">
-                    <strong>{quote.code || 'Orçamento sem código'}</strong>
-                    <Badge variant={quoteStatusVariant(quote.status)}>
-                      {quote.status || 'Aguardando'}
-                    </Badge>
-                  </div>
-                  <div className="grid gap-1">
-                    <h3 className="font-medium">{quote.customer}</h3>
-                    <p className="text-sm text-muted-foreground">WhatsApp: {quote.phone || '—'}</p>
-                    <p className="text-sm text-muted-foreground">Aparelho: {quote.device || '—'}</p>
-                    <p className="text-sm">
-                      {quote.problem || quote.service || 'Sem descrição do serviço'}
-                    </p>
-                  </div>
-                  <div className="flex justify-between gap-3 border-t pt-3">
-                    <span className="text-sm text-muted-foreground">Total</span>
-                    <strong>{formatMoney(quote.total)}</strong>
-                  </div>
-                  {actions(quote)}
-                </article>
-              ))}
-            </div>
-            <div className="hidden overflow-x-auto md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>WhatsApp</TableHead>
-                    <TableHead>Aparelho</TableHead>
-                    <TableHead>Problema</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {quotes.map((quote) => (
-                    <TableRow key={quote.id}>
-                      <TableCell className="font-medium">{quote.code || '—'}</TableCell>
-                      <TableCell>{quote.customer}</TableCell>
-                      <TableCell>{quote.phone || '—'}</TableCell>
-                      <TableCell>{quote.device || '—'}</TableCell>
-                      <TableCell className="max-w-[190px] whitespace-normal break-words">
-                        {quote.problem || quote.service || '—'}
-                      </TableCell>
-                      <TableCell>{formatMoney(quote.total)}</TableCell>
-                      <TableCell>
-                        <Badge variant={quoteStatusVariant(quote.status)}>
-                          {quote.status || 'Aguardando'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{actions(quote)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+        <>
+          <section aria-label="Resumo dos orçamentos" className="mb-6 grid grid-cols-3 gap-3">
+            <StatCard
+              detail={`${formatMoney(sum(pending))} em jogo`}
+              icon={Clock}
+              label="Esperando"
+              tone="warning"
+              value={pending.length}
+            />
+            <StatCard
+              detail={formatMoney(sum(approved))}
+              icon={CheckCircle2}
+              label="Aprovados"
+              tone="success"
+              value={approved.length}
+            />
+            <StatCard
+              detail={formatMoney(sum(refused))}
+              icon={XCircle}
+              label="Recusados"
+              tone="danger"
+              value={refused.length}
+            />
+          </section>
+          <div className="grid gap-6">
+            {groups.map(({ status, title }) => {
+              const rows = byStatus(status);
+              if (!rows.length) return null;
+              const tone = quoteStatusTone(status);
+              return (
+                <ListGroup
+                  aside={<span>{formatMoney(sum(rows))}</span>}
+                  count={rows.length}
+                  key={status}
+                  title={title}
+                >
+                  {rows.map((quote) => {
+                    const days = daysSince(quote.createdAt, today);
+                    const late = status === 'Aguardando' && (days ?? 0) >= 2;
+                    return (
+                      <ListRow
+                        actions={
+                          <>
+                            {status === 'Aguardando' ? (
+                              <Button
+                                className="w-28"
+                                onClick={() => send(quote)}
+                                size="sm"
+                                variant={late ? 'default' : 'outline'}
+                              >
+                                <MessageCircle aria-hidden="true" />
+                                {late ? 'Cobrar' : 'Enviar'}
+                              </Button>
+                            ) : (
+                              <Button
+                                className="w-28"
+                                onClick={() => open(quote)}
+                                size="sm"
+                                variant="outline"
+                              >
+                                <FileText aria-hidden="true" />
+                                Abrir
+                              </Button>
+                            )}
+                            <RowMenu label={quote.code || quote.customer}>
+                              {status === 'Aguardando' ? (
+                                <DropdownMenuItem onSelect={() => open(quote)}>
+                                  Abrir orçamento
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem onSelect={() => send(quote)}>
+                                  Enviar pelo WhatsApp
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem onSelect={() => void copy(quote)}>
+                                Copiar link
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => edit(quote)}>
+                                Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onSelect={() => void remove(quote)}
+                                variant="destructive"
+                              >
+                                Excluir
+                              </DropdownMenuItem>
+                            </RowMenu>
+                          </>
+                        }
+                        details={[quote.code, quote.device, quote.problem || quote.service]
+                          .filter(Boolean)
+                          .join(' · ')}
+                        key={quote.id}
+                        leading={<IconChip icon={statusIcon[status]} tone={tone} />}
+                        note={status === 'Aguardando' ? waiting(days) : status}
+                        noteTone={late ? 'warning' : status === 'Aguardando' ? undefined : tone}
+                        title={quote.customer}
+                        value={formatMoney(quote.total)}
+                      />
+                    );
+                  })}
+                </ListGroup>
+              );
+            })}
+          </div>
+        </>
       ) : (
         <EmptyState
           title="Nenhum orçamento"

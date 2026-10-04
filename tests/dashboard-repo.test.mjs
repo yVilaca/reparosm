@@ -91,6 +91,50 @@ before(async () => {
 });
 after(async () => db?.drop());
 
+test(
+  'financial trend includes empty months, tenant isolation, receipt tickets and date boundaries',
+  { skip },
+  async () => {
+    const { trend } = await import('../lib/repos/cash.ts');
+    await db.migrationQuery(
+      "INSERT INTO accounts (id, username, name, role, status, password_hash) VALUES ('account-trend', 'trend', 'Trend', 'merchant', 'active', 'x')",
+    );
+    await db.migrationQuery(
+      "INSERT INTO orders (id, account_id, code, customer, device, status, total) VALUES ('order-trend', 'account-trend', 'OS-TREND', 'Teste', 'Aparelho', 'Concluído', 250)",
+    );
+    await db.migrationQuery(`INSERT INTO cash_entries (id, account_id, kind, description, value, date, order_id, created_at) VALUES
+    ('trend-old', 'account-trend', 'in', 'Fora do período', 999, '2026-04-30', NULL, now()),
+    ('trend-sep-in', 'account-trend', 'in', 'Setembro', 100, '2026-09-02', NULL, now()),
+    ('trend-sep-out', 'account-trend', 'out', 'Setembro', 20, '2026-09-03', NULL, now()),
+    ('trend-no-date', 'account-trend', 'in', 'Sem data', 80, NULL, NULL, '2026-10-01T01:00:00Z'),
+    ('trend-os', 'account-trend', 'in', 'OS', 250, '2026-10-02', 'order-trend', now()),
+    ('trend-extra', 'account-trend', 'in', 'Avulso', 150, '2026-10-03', NULL, now()),
+    ('trend-out', 'account-trend', 'out', 'Despesa', 75, '2026-10-03', NULL, now()),
+    ('trend-future', 'account-trend', 'in', 'Futuro', 900, '2026-10-04', NULL, now()),
+    ('trend-foreign', 'account-other', 'in', 'Outra loja', 9000, '2026-10-03', NULL, now())`);
+    const rows = await trend('account-trend', '2026-10-03');
+    assert.equal(rows.length, 6);
+    assert.deepEqual(
+      rows.map((row) => row.month),
+      ['2026-05-01', '2026-06-01', '2026-07-01', '2026-08-01', '2026-09-01', '2026-10-01'],
+    );
+    assert.ok(
+      rows
+        .slice(0, 4)
+        .every((row) => row.income === 0 && row.expense === 0 && row.averageTicket === 0),
+    );
+    assert.equal(rows[4].income, 180);
+    assert.deepEqual(rows[5], {
+      month: '2026-10-01',
+      income: 400,
+      expense: 75,
+      balance: 325,
+      paidOrders: 1,
+      averageTicket: 250,
+    });
+  },
+);
+
 const kindsById = (actions) => Object.fromEntries(actions.map((item) => [item.id, item.kind]));
 
 test('lists only the things that need someone to act', { skip }, async () => {

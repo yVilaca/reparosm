@@ -35,8 +35,8 @@ test('counts pre-existing deliveries with an unknown warranty date separately fr
     }),
   );
   assert.match(html, /Garantia desconhecida/);
-  const unknownMetric = html.match(/Garantia desconhecida[\s\S]*?<strong>(\d+)<\/strong>/);
+  const unknownMetric = html.match(/Garantia desconhecida[\s\S]*?<strong[^>]*>(\d+)<\/strong>/);
   assert.equal(unknownMetric?.[1], '1');
-  const activeMetric = html.match(/Garantias ativas[\s\S]*?<strong>(\d+)<\/strong>/);
+  const activeMetric = html.match(/Garantias ativas[\s\S]*?<strong[^>]*>(\d+)<\/strong>/);
   assert.equal(activeMetric?.[1], '0');
 });

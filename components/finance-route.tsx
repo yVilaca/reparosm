@@ -11,11 +11,18 @@ import MoneyModal, {
   type MoneyRow,
   type SaveMoney,
 } from '@/components/money-modal';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import EmptyState from '@/components/ui/empty-state';
 import PageHeader from '@/components/ui/page-header';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import IconChip from '@/components/ui/icon-chip';
+import { ListGroup, ListRow } from '@/components/ui/list-group';
+import RowMenu from '@/components/ui/row-menu';
+import Segmented from '@/components/ui/segmented';
+import StatCard from '@/components/ui/stat-card';
+import { toneText } from '@/components/ui/tone';
+import { ArrowDownLeft, ArrowUpRight, Wallet } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -23,14 +30,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { formatMoney } from '@/lib/format';
 import type { CashHistoryRow, CashPeriod, CashTotals, MethodTotal } from '@/lib/repos/cash';
 
@@ -82,13 +81,32 @@ function SummaryMetric({
 
 function TotalsGrid({ totals }: { totals: CashTotals }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-3">
-      <SummaryMetric label="Entradas" value={formatMoney(totals.income)} />
-      <SummaryMetric label="Saídas" value={formatMoney(totals.expense)} />
-      <SummaryMetric label="Saldo" value={formatMoney(totals.balance)} />
+    <div className="grid grid-cols-3 gap-3">
+      <StatCard
+        icon={ArrowDownLeft}
+        label="Entradas"
+        tone="success"
+        value={formatMoney(totals.income)}
+      />
+      <StatCard
+        icon={ArrowUpRight}
+        label="Saídas"
+        tone="danger"
+        value={formatMoney(totals.expense)}
+      />
+      <StatCard
+        icon={Wallet}
+        label="Saldo"
+        value={formatMoney(totals.balance)}
+        valueTone={totals.balance < 0 ? 'danger' : undefined}
+      />
     </div>
   );
 }
+
+const brDate = (value: string) => (value ? value.split('-').reverse().join('/') : '');
+// A saída de uma conta paga só se corrige em Receber e pagar.
+const fromPayable = (row: { id: string }) => row.id.startsWith('cash-payable-');
 
 function Methods({ methods }: { methods: MethodTotal[] }) {
   return (
@@ -235,39 +253,27 @@ export default function FinanceRoute({
   return (
     <>
       <PageHeader
-        title="Financeiro"
-        description="Caixa de hoje, pendências e lançamentos da assistência."
+        title="Caixa"
+        description="O que entrou e o que saiu, hoje e no mês."
         action={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-            <Button asChild className="w-full sm:w-auto" variant="outline">
-              <Link href="/">Painel completo</Link>
-            </Button>
             <Button
               className="w-full sm:w-auto"
               onClick={() => create('expense')}
               variant="outline"
             >
-              Despesa
+              <ArrowUpRight aria-hidden="true" />
+              Lançar saída
             </Button>
             <Button className="w-full sm:w-auto" onClick={() => create('payment')}>
-              Recebimento
+              <ArrowDownLeft aria-hidden="true" />
+              Lançar entrada
             </Button>
           </div>
         }
       />
 
-      <nav aria-label="Seções do financeiro" className="grid grid-cols-3 gap-2">
-        {sections.map((item) => (
-          <Button
-            aria-pressed={section === item.value}
-            key={item.value}
-            onClick={() => setSection(item.value)}
-            variant={section === item.value ? 'default' : 'outline'}
-          >
-            {item.label}
-          </Button>
-        ))}
-      </nav>
+      <Segmented label="Seções do caixa" onChange={setSection} options={sections} value={section} />
 
       {section === 'overview' && (
         <div className="mt-4 grid gap-4">
@@ -283,66 +289,59 @@ export default function FinanceRoute({
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle>A receber</CardTitle>
-              <CardDescription>Ordens sem recebimento vinculado.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-5 lg:grid-cols-2">
-              <div className="grid gap-3 rounded-lg border p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium">Concluídas</p>
-                    <p className="text-sm text-muted-foreground">
-                      {summary.receivables.ready.orders} OS
-                    </p>
-                  </div>
-                  <strong className="tabular-nums">
-                    {formatMoney(summary.receivables.ready.amount)}
-                  </strong>
+            <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <IconChip icon={ArrowDownLeft} tone="success" />
+                <div className="grid gap-1">
+                  <CardTitle>A receber</CardTitle>
+                  <CardDescription>
+                    {formatMoney(summary.receivables.ready.amount)} em{' '}
+                    {summary.receivables.ready.orders}{' '}
+                    {summary.receivables.ready.orders === 1 ? 'OS concluída' : 'OS concluídas'} ·{' '}
+                    {formatMoney(summary.receivables.inProgress.amount)} ainda no conserto
+                  </CardDescription>
                 </div>
-                {summary.receivables.ready.list.length ? (
-                  <ul className="grid gap-2 border-t pt-3 text-sm">
-                    {summary.receivables.ready.list.map((order) => (
-                      <li
-                        className="grid gap-2 sm:flex sm:items-center sm:justify-between"
-                        key={order.id}
-                      >
-                        <div className="flex min-w-0 items-center gap-2">
-                          <Link
-                            className="min-w-0 truncate font-medium underline-offset-4 hover:underline"
-                            href={`/ordens?busca=${encodeURIComponent(order.code)}`}
-                          >
-                            {order.code} · {order.customer}
-                          </Link>
-                          <span className="shrink-0 tabular-nums">{formatMoney(order.total)}</span>
-                        </div>
+              </div>
+              <Button asChild size="sm" variant="outline">
+                <Link href="/receber-e-pagar?ver=receber">Ver tudo</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {summary.receivables.ready.list.length ? (
+                <ul className="divide-y overflow-hidden rounded-lg ring-1 ring-foreground/10">
+                  {summary.receivables.ready.list.map((order) => (
+                    <ListRow
+                      actions={
                         <Button
-                          className="w-full sm:w-auto"
+                          aria-label={`Registrar recebimento da ${order.code}`}
+                          className="w-20"
                           onClick={() => setCharging(order)}
                           size="sm"
-                          type="button"
-                          variant="outline"
                         >
-                          Registrar recebimento
+                          Receber
                         </Button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="border-t pt-3 text-sm text-muted-foreground">Nenhuma OS pronta.</p>
-                )}
-              </div>
-              <div className="grid gap-3 rounded-lg border p-4">
-                <div>
-                  <p className="font-medium">Ainda não concluídas</p>
-                  <p className="text-sm text-muted-foreground">
-                    {summary.receivables.inProgress.orders} OS sem recebimento
-                  </p>
-                </div>
-                <strong className="text-2xl tabular-nums">
-                  {formatMoney(summary.receivables.inProgress.amount)}
-                </strong>
-              </div>
+                      }
+                      details={
+                        <Link
+                          className="underline-offset-4 hover:underline"
+                          href={`/ordens?busca=${encodeURIComponent(order.code)}`}
+                        >
+                          {order.code}
+                        </Link>
+                      }
+                      key={order.id}
+                      leading={<IconChip icon={ArrowDownLeft} tone="success" />}
+                      title={order.customer}
+                      value={`+${formatMoney(order.total)}`}
+                      valueClassName={toneText.success}
+                    />
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma OS concluída esperando pagamento.
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -444,132 +443,87 @@ export default function FinanceRoute({
           </CardHeader>
           <CardContent>
             {sorted.length ? (
-              <>
-                <div className="grid gap-3 md:hidden">
-                  {sorted.map((row) => (
-                    <article className="grid gap-3 rounded-lg border p-4" key={row.id}>
-                      <div className="flex items-center justify-between gap-3">
-                        <Badge variant={row.kind === 'payment' ? 'success' : 'destructive'}>
-                          {row.kind === 'payment' ? 'Receita' : 'Despesa'}
-                        </Badge>
-                        <strong
-                          className={
-                            row.kind === 'expense'
-                              ? 'text-destructive'
-                              : 'text-emerald-600 dark:text-emerald-400'
-                          }
-                        >
-                          {row.kind === 'expense' ? '- ' : '+ '}
-                          {formatMoney(row.value)}
-                        </strong>
-                      </div>
-                      <div>
-                        <h3 className="font-medium">{row.description}</h3>
-                        {row.order ? (
-                          <Link
-                            className="text-sm text-primary underline-offset-4 hover:underline"
-                            href={`/ordens?busca=${encodeURIComponent(row.order.code)}`}
-                          >
-                            {row.order.code}
-                          </Link>
+              <ListGroup
+                aside={
+                  <>
+                    <span className={toneText.success}>
+                      +
+                      {formatMoney(
+                        sorted
+                          .filter((row) => row.kind === 'payment')
+                          .reduce((sum, row) => sum + Number(row.value || 0), 0),
+                      )}
+                    </span>
+                    <span>
+                      −
+                      {formatMoney(
+                        sorted
+                          .filter((row) => row.kind === 'expense')
+                          .reduce((sum, row) => sum + Number(row.value || 0), 0),
+                      )}
+                    </span>
+                  </>
+                }
+                count={sorted.length}
+                title={periods.find((item) => item.value === period)?.label || 'Lançamentos'}
+              >
+                {sorted.map((row) => {
+                  const entry = row.kind === 'payment';
+                  return (
+                    <ListRow
+                      actions={
+                        fromPayable(row) ? (
+                          <Button asChild size="sm" variant="outline">
+                            <Link href="/receber-e-pagar?ver=pagar">Ver a conta</Link>
+                          </Button>
                         ) : (
-                          row.reference && (
-                            <p className="text-sm text-muted-foreground">{row.reference}</p>
-                          )
-                        )}
-                      </div>
-                      <div className="flex justify-between gap-3 text-sm text-muted-foreground">
-                        <span>{row.method}</span>
-                        <span>{row.date}</span>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          className="flex-1"
-                          onClick={() => edit(row)}
-                          size="sm"
-                          variant="outline"
-                        >
-                          Editar
-                        </Button>
-                        <Button
-                          className="flex-1"
-                          onClick={() => void remove(row)}
-                          size="sm"
-                          variant="destructive"
-                        >
-                          Excluir
-                        </Button>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-                <div className="hidden overflow-x-auto md:block">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Tipo</TableHead>
-                        <TableHead>Descrição</TableHead>
-                        <TableHead>Forma</TableHead>
-                        <TableHead>Data</TableHead>
-                        <TableHead>Valor</TableHead>
-                        <TableHead>Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sorted.map((row) => (
-                        <TableRow key={row.id}>
-                          <TableCell>
-                            <Badge variant={row.kind === 'payment' ? 'success' : 'destructive'}>
-                              {row.kind === 'payment' ? 'Receita' : 'Despesa'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <p className="font-medium">{row.description}</p>
-                            {row.order ? (
-                              <Link
-                                className="text-xs text-primary underline-offset-4 hover:underline"
-                                href={`/ordens?busca=${encodeURIComponent(row.order.code)}`}
-                              >
-                                {row.order.code}
-                              </Link>
-                            ) : (
-                              row.reference && (
-                                <p className="text-xs text-muted-foreground">{row.reference}</p>
-                              )
-                            )}
-                          </TableCell>
-                          <TableCell>{row.method}</TableCell>
-                          <TableCell>{row.date}</TableCell>
-                          <TableCell
-                            className={
-                              row.kind === 'expense'
-                                ? 'font-medium text-destructive'
-                                : 'font-medium text-emerald-600 dark:text-emerald-400'
-                            }
-                          >
-                            {row.kind === 'expense' ? '- ' : '+ '}
-                            {formatMoney(row.value)}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
-                              <Button onClick={() => edit(row)} size="sm" variant="outline">
-                                Editar
-                              </Button>
-                              <Button
-                                onClick={() => void remove(row)}
-                                size="sm"
+                          <>
+                            <Button onClick={() => edit(row)} size="sm" variant="outline">
+                              Editar
+                            </Button>
+                            <RowMenu label={row.description}>
+                              <DropdownMenuItem
+                                onSelect={() => void remove(row)}
                                 variant="destructive"
                               >
                                 Excluir
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </>
+                              </DropdownMenuItem>
+                            </RowMenu>
+                          </>
+                        )
+                      }
+                      details={
+                        <>
+                          {row.order ? (
+                            <Link
+                              className="underline-offset-4 hover:underline"
+                              href={`/ordens?busca=${encodeURIComponent(row.order.code)}`}
+                            >
+                              {row.order.code}
+                            </Link>
+                          ) : (
+                            row.reference
+                          )}
+                          {(row.order || row.reference) && row.method ? ' · ' : ''}
+                          {row.method}
+                        </>
+                      }
+                      key={row.id}
+                      leading={
+                        <IconChip
+                          icon={entry ? ArrowDownLeft : ArrowUpRight}
+                          tone={entry ? 'success' : 'danger'}
+                        />
+                      }
+                      note={brDate(String(row.date || ''))}
+                      srPrefix={entry ? 'Entrada: ' : 'Saída: '}
+                      title={row.description}
+                      value={`${entry ? '+' : '−'}${formatMoney(row.value)}`}
+                      valueClassName={entry ? toneText.success : undefined}
+                    />
+                  );
+                })}
+              </ListGroup>
             ) : (
               <EmptyState
                 title="Sem lançamentos neste período"

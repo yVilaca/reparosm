@@ -1,11 +1,13 @@
 'use client';
 
-import Link from 'next/link';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import PageHeader from '@/components/ui/page-header';
+import IconChip from '@/components/ui/icon-chip';
+import type { Tone } from '@/components/ui/tone';
+import { ArrowDownLeft, Package, Wrench, type LucideIcon } from 'lucide-react';
 import { formatMoney as money } from '@/lib/format';
 import type { Order, Part, Payment } from '@/lib/types';
 
@@ -67,18 +69,25 @@ export default function BusinessAssistantRoute({
   const insights = [
     {
       title: 'Serviços',
+      icon: Wrench as LucideIcon,
+      tone: 'info' as Tone,
       text: orders.length
         ? `${orders.length} ordens cadastradas, sendo ${orders.filter((order) => order.stage !== 'Retirada').length} ainda em fluxo.`
         : 'Crie ordens para receber análises de desempenho.',
     },
     {
       title: 'Estoque',
+      icon: Package as LucideIcon,
+      // Estoque crítico pede atenção; sem nada crítico, está tudo bem.
+      tone: (low.length ? 'warning' : 'success') as Tone,
       text: low.length
         ? `${low.length} itens estão com estoque abaixo de 5 unidades.`
         : 'Nenhum item está em nível crítico.',
     },
     {
       title: 'Financeiro',
+      icon: ArrowDownLeft as LucideIcon,
+      tone: 'success' as Tone,
       text: revenue
         ? `A receita registrada é ${money(revenue)}.`
         : 'Registre recebimentos para acompanhar receita e margem.',
@@ -89,11 +98,6 @@ export default function BusinessAssistantRoute({
       <PageHeader
         title="Assistente IA"
         description="Resumo local baseado nos dados da sua assistência."
-        action={
-          <Button asChild variant="outline">
-            <Link href="/">Painel completo</Link>
-          </Button>
-        }
       />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
         <Card>
@@ -103,9 +107,12 @@ export default function BusinessAssistantRoute({
           </CardHeader>
           <CardContent className="grid gap-3">
             {insights.map((insight) => (
-              <article className="grid gap-1 rounded-lg border p-3" key={insight.title}>
-                <strong className="text-sm">{insight.title}</strong>
-                <p className="text-sm text-muted-foreground">{insight.text}</p>
+              <article className="flex items-start gap-3 rounded-lg border p-3" key={insight.title}>
+                <IconChip icon={insight.icon} tone={insight.tone} />
+                <div className="grid gap-0.5">
+                  <strong className="text-sm">{insight.title}</strong>
+                  <p className="text-sm text-muted-foreground">{insight.text}</p>
+                </div>
               </article>
             ))}
           </CardContent>
