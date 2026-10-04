@@ -1,7 +1,6 @@
 'use client';
 
-import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useFeedback } from '@/components/feedback';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,38 +16,67 @@ import EmptyState from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import PageHeader from '@/components/ui/page-header';
+import FilterPills from '@/components/ui/filter-pills';
+import { Plus, Search } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import type { Film } from '@/lib/types';
+import { filmCatalog } from '@/lib/film-catalog';
 
 type FilmRow = Film & { id: string; editable: boolean };
+const collator = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' });
+const pageSize = 36;
+// Valor do filtro "Minha loja" (não colide com nenhuma marca).
+const MINE = '__minha-loja__';
+const catalog = filmCatalog.map((record) => ({ id: record.id, ...record.data, editable: false }));
 
 export default function FilmsRoute({ initialFilms }: { initialFilms: FilmRow[] }) {
   const { notify } = useFeedback();
-  const [films, setFilms] = useState(initialFilms);
+  const [films, setFilms] = useState(() => [...initialFilms, ...catalog]);
   const [search, setSearch] = useState('');
   const [brand, setBrand] = useState('Todas');
   const [mineOnly, setMineOnly] = useState(false);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<FilmRow | null>(null);
   const [draft, setDraft] = useState<Film | null>(null);
-  const collator = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' });
-  const brands = [
-    'Todas',
-    ...Array.from(new Set(films.map((film) => film.brand).filter(Boolean))).sort(collator.compare),
-  ];
-  const found = films
-    .filter(
-      (film) =>
-        (!mineOnly || film.editable) &&
-        (brand === 'Todas' || film.brand === brand) &&
-        `${film.brand} ${film.model} ${film.compatible}`
-          .toLowerCase()
-          .includes(search.toLowerCase()),
-    )
-    .sort(
-      (left, right) =>
-        collator.compare(left.brand, right.brand) || collator.compare(left.model, right.model),
-    );
+  const [page, setPage] = useState(0);
+  const brands = useMemo(
+    () => [
+      'Todas',
+      ...Array.from(new Set(films.map((film) => film.brand).filter(Boolean))).sort(
+        collator.compare,
+      ),
+    ],
+    [films],
+  );
+  const customizedModels = useMemo(
+    () =>
+      new Set(
+        films
+          .filter((film) => film.editable)
+          .map((film) => JSON.stringify([film.brand, film.model])),
+      ),
+    [films],
+  );
+  const found = useMemo(
+    () =>
+      films
+        .filter(
+          (film) =>
+            (!mineOnly || film.editable) &&
+            (brand === 'Todas' || film.brand === brand) &&
+            `${film.brand} ${film.model} ${film.compatible}`
+              .toLowerCase()
+              .includes(search.toLowerCase()),
+        )
+        .sort(
+          (left, right) =>
+            collator.compare(left.brand, right.brand) || collator.compare(left.model, right.model),
+        ),
+    [films, search, brand, mineOnly],
+  );
+  const lastPage = Math.max(0, Math.ceil(found.length / pageSize) - 1);
+  const currentPage = Math.min(page, lastPage);
+  const visible = found.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
   const hasShopFilms = films.some((film) => film.editable);
   const save = async (data: Film, id?: string) => {
     try {
@@ -112,16 +140,12 @@ export default function FilmsRoute({ initialFilms }: { initialFilms: FilmRow[] }
     <>
       <PageHeader
         title="Películas"
-        description='Filtre "Minha loja" para editar seus itens; personalize os demais com "Adicionar à loja".'
+        description="Descubra qual película serve em cada aparelho."
         action={
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-            <Button asChild className="w-full sm:w-auto" variant="outline">
-              <Link href="/">Painel completo</Link>
-            </Button>
-            <Button className="w-full sm:w-auto" onClick={create}>
-              Nova compatibilidade
-            </Button>
-          </div>
+          <Button onClick={create}>
+            <Plus aria-hidden="true" />
+            Nova compatibilidade
+          </Button>
         }
       />
       <Card className="mb-4">
@@ -134,55 +158,81 @@ export default function FilmsRoute({ initialFilms }: { initialFilms: FilmRow[] }
         <CardContent className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="film-search">Buscar películas</Label>
-            <Input
-              id="film-search"
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Ex.: A03, iPhone 13, Moto G54..."
-              value={search}
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              aria-pressed={mineOnly}
-              onClick={() => {
-                setMineOnly((value) => !value);
-                setBrand('Todas');
-              }}
-              size="sm"
-              variant={mineOnly ? 'default' : 'outline'}
-            >
-              Minha loja ({films.filter((film) => film.editable).length})
-            </Button>
-            {brands.map((item) => (
-              <Button
-                aria-pressed={brand === item}
-                key={item}
-                onClick={() => {
-                  setBrand(item);
-                  setMineOnly(false);
+            <div className="relative">
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                className="pl-8"
+                id="film-search"
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(0);
                 }}
-                size="sm"
-                variant={brand === item ? 'default' : 'outline'}
-              >
-                {item}
-              </Button>
-            ))}
+                placeholder="Ex.: A03, iPhone 13, Moto G54..."
+                type="search"
+                value={search}
+              />
+            </div>
           </div>
+          <FilterPills
+            label="Filtrar por marca"
+            onChange={(item) => {
+              setMineOnly(item === MINE);
+              setBrand(item === MINE ? 'Todas' : item);
+              setPage(0);
+            }}
+            options={[
+              {
+                value: MINE,
+                label: 'Minha loja',
+                count: films.filter((film) => film.editable).length,
+              },
+              ...brands.map((item) => ({ value: item, label: item })),
+            ]}
+            value={mineOnly ? MINE : brand}
+          />
         </CardContent>
       </Card>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground" aria-live="polite">
+          {found.length} compatibilidades · Página {currentPage + 1} de {lastPage + 1}
+        </p>
+        {lastPage > 0 && (
+          <nav aria-label="Páginas de películas" className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={currentPage === 0}
+              onClick={() => setPage(currentPage - 1)}
+            >
+              Anterior
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={currentPage === lastPage}
+              onClick={() => setPage(currentPage + 1)}
+            >
+              Próxima
+            </Button>
+          </nav>
+        )}
+      </div>
       {found.length ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {found.map((film) => {
-            const customized = films.some(
-              (own) => own.editable && own.brand === film.brand && own.model === film.model,
-            );
+          {visible.map((film) => {
+            const customized = customizedModels.has(JSON.stringify([film.brand, film.model]));
             return (
               <Card key={film.id}>
                 <CardContent className="grid gap-2">
                   <span className="text-xs font-medium text-muted-foreground">{film.brand}</span>
                   <h3 className="font-semibold">{film.model}</h3>
-                  <p className="text-sm text-muted-foreground">Também compatível com:</p>
-                  <strong className="text-sm">{film.compatible}</strong>
+                  <p className="text-sm text-muted-foreground">
+                    Serve também em{' '}
+                    <span className="font-medium text-foreground">{film.compatible}</span>
+                  </p>
                   <div className="flex items-center justify-between gap-2 border-t pt-3">
                     <span className="text-xs text-muted-foreground">
                       {film.size || 'Película frontal'}
@@ -201,7 +251,7 @@ export default function FilmsRoute({ initialFilms }: { initialFilms: FilmRow[] }
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline">Catálogo</Badge>
+                        <Badge variant="neutral">Catálogo</Badge>
                         {customized ? (
                           <Badge variant="success">Personalizada</Badge>
                         ) : (

@@ -257,6 +257,9 @@ const validateShop = (value: unknown): ValidationResult<Shop> => {
   if (urlValue(data, 'logo') === null) return { ok: false, error: 'URL do logo inválida.' };
   if (!validateBooleans(data, ['showLaborOnPrint'], []))
     return { ok: false, error: 'Preferências de impressão inválidas.' };
+  const message = stringValue(data, 'customerPrintMessage');
+  if (message === null || (message && message.length > 500))
+    return { ok: false, error: 'A mensagem da via do cliente deve ter até 500 caracteres.' };
   return { ok: true, data: data as Shop };
 };
 

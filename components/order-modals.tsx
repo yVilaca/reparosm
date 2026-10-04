@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type ChangeEvent } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
 import { useFeedback } from '@/components/feedback';
 import OrderPhotos from '@/components/order-photos';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -746,6 +748,8 @@ function OrderProductsPicker({
   value: OrderItem[];
   onChange: (items: OrderItem[]) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
   const selected = (partId: string) => value.find((item) => item.partId === partId);
   const toggle = (part: PartRow, checked: boolean) => {
     if (checked) {
@@ -760,54 +764,134 @@ function OrderProductsPicker({
   const visibleParts = parts.filter(
     (part) => Number(part.stock || 0) > 0 || value.some((item) => item.partId === part.id),
   );
+  const normalize = (text: string) =>
+    text
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLocaleLowerCase('pt-BR');
+  const query = normalize(search.trim());
+  const matches = visibleParts.filter((part) =>
+    normalize(`${part.name} ${part.sku || ''} ${part.category || ''}`).includes(query),
+  );
 
   return (
     <div className="grid min-w-0 gap-3 rounded-lg border bg-muted/20 p-4 sm:col-span-2">
-      <div>
-        <p className="text-sm font-medium">Produtos do estoque</p>
-        <p className="text-xs text-muted-foreground">
-          Associe à OS os produtos vendidos. O preço é salvo como histórico da venda.
-        </p>
-      </div>
-      {visibleParts.length ? (
-        <div className="grid min-w-0 gap-2 sm:grid-cols-2">
-          {visibleParts.map((part) => {
-            const item = selected(part.id);
-            return (
-              <div
-                className="flex min-w-0 items-center gap-3 rounded-lg border bg-background p-3"
-                key={part.id}
-              >
-                <Input
-                  aria-label={`Adicionar ${part.name}`}
-                  checked={Boolean(item)}
-                  className="size-4 shrink-0"
-                  onChange={(event) => toggle(part, event.target.checked)}
-                  type="checkbox"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{part.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {money(part.price)} · {part.stock} em estoque
-                  </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium">Produtos do estoque</p>
+          <p className="text-xs text-muted-foreground">
+            Adicione os produtos usados ou vendidos nesta OS.
+          </p>
+        </div>
+        <Dialog
+          open={open}
+          onOpenChange={(next) => {
+            setOpen(next);
+            if (next) setSearch('');
+          }}
+        >
+          <DialogTrigger asChild>
+            <Button type="button" variant="outline" size="sm">
+              <Plus className="size-4" />
+              Adicionar produto
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Escolher produtos do estoque</DialogTitle>
+              <DialogDescription>
+                Selecione um ou mais produtos. Eles serão incluídos ao salvar a OS.
+              </DialogDescription>
+            </DialogHeader>
+            <Input
+              aria-label="Buscar produtos"
+              placeholder="Buscar por nome, código ou categoria"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            <p role="status" className="text-xs text-muted-foreground">
+              {matches.length} produtos encontrados · {value.length} selecionados
+            </p>
+            <div className="max-h-[45dvh] min-h-0 overflow-y-auto overscroll-contain">
+              {matches.length ? (
+                <div className="grid gap-2">
+                  {matches.map((part) => (
+                    <label
+                      key={part.id}
+                      className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 hover:bg-muted/50"
+                    >
+                      <Input
+                        type="checkbox"
+                        aria-label={`Adicionar ${part.name}`}
+                        checked={Boolean(selected(part.id))}
+                        className="size-4 shrink-0"
+                        onChange={(event) => toggle(part, event.target.checked)}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block break-words text-sm font-medium">{part.name}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {[part.sku, part.category].filter(Boolean).join(' · ')}
+                        </span>
+                        <span className="block text-xs text-muted-foreground">
+                          {money(part.price)} · {part.stock} em estoque
+                        </span>
+                      </span>
+                    </label>
+                  ))}
                 </div>
-                {item && (
-                  <Input
-                    aria-label={`Quantidade de ${part.name}`}
-                    className="w-20"
-                    min="1"
-                    onChange={(event) => quantity(part.id, Math.max(1, Number(event.target.value)))}
-                    type="number"
-                    value={item.quantity}
-                  />
-                )}
+              ) : (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  {query
+                    ? 'Nenhum produto encontrado. Tente outro nome, código ou categoria.'
+                    : 'Nenhum produto disponível no estoque.'}
+                </p>
+              )}
+            </div>
+            <Button type="button" onClick={() => setOpen(false)}>
+              Concluir seleção
+            </Button>
+          </DialogContent>
+        </Dialog>
+      </div>
+      {value.length ? (
+        <div className="grid min-w-0 gap-2">
+          {value.map((item) => (
+            <div
+              className="flex min-w-0 flex-wrap items-center gap-3 rounded-lg border bg-background p-3"
+              key={item.partId}
+            >
+              <div className="min-w-0 flex-1">
+                <p className="break-words text-sm font-medium">{item.name}</p>
+                <p className="text-xs text-muted-foreground">{money(item.unitPrice)} por unidade</p>
               </div>
-            );
-          })}
+              <Input
+                aria-label={`Quantidade de ${item.name}`}
+                className="w-20"
+                min="1"
+                step="1"
+                onChange={(event) => quantity(item.partId, Math.max(1, Number(event.target.value)))}
+                type="number"
+                value={item.quantity}
+              />
+              <span className="text-sm font-medium tabular-nums">
+                {money(item.quantity * item.unitPrice)}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Remover ${item.name}`}
+                title="Remover produto da OS"
+                onClick={() => onChange(value.filter((current) => current.partId !== item.partId))}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
+          ))}
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Nenhum produto disponível no estoque. Você ainda pode informar o valor das peças abaixo.
+          Nenhum produto adicionado. Você também pode informar o valor das peças abaixo.
         </p>
       )}
       {value.length > 0 && (

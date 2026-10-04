@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { formatMoney } from '@/lib/format';
 import type { OrderPayment } from '@/lib/types';
+import { Banknote } from 'lucide-react';
 
 export default function OrderPaymentStatus({
   order,
@@ -13,14 +14,19 @@ export default function OrderPaymentStatus({
   if (total <= 0) return null;
   if (!order.payment)
     return (
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-amber-700 dark:text-amber-300">Pagamento pendente</span>
-        {onCharge && (
-          <Button onClick={onCharge} size="sm" type="button" variant="outline">
-            Registrar recebimento
-          </Button>
-        )}
-      </div>
+      onCharge && (
+        <Button
+          aria-label="Registrar recebimento"
+          title="Registrar recebimento"
+          className="text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
+          onClick={onCharge}
+          size="icon"
+          type="button"
+          variant="outline"
+        >
+          <Banknote aria-hidden="true" />
+        </Button>
+      )
     );
   const matches = Number(order.payment.value) === total;
   return (

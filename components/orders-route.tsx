@@ -1,11 +1,11 @@
 'use client';
 
-import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { useFeedback } from '@/components/feedback';
 import OrderPaymentDialog from '@/components/order-payment-dialog';
 import OrderPaymentStatus from '@/components/order-payment-status';
 import OrdersTable from '@/components/orders-table';
+import OrderActions from '@/components/order-actions';
 import {
   OrderCreateModal,
   OrderEditModal,
@@ -16,21 +16,31 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import Filters, { type Filter, type FilterField } from '@/components/ui/filters';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import PageHeader from '@/components/ui/page-header';
+import Segmented from '@/components/ui/segmented';
+import { toneDot } from '@/components/ui/tone';
+import { Columns3, Plus, Rows3 } from 'lucide-react';
+import { badgeFor, isNotablePriority, orderPriorityTone, orderStageTone } from '@/lib/status-tones';
 import { formatMoney } from '@/lib/format';
 import type { Order, OrderPayment, OrderStage } from '@/lib/types';
 import { uploadOrderPhotos } from '@/lib/order-photo-upload';
 
 type OrderView = 'grid' | 'kanban';
+
+const orderViewStorageKey = 'reparosm:orders:view';
+const subscribeOrderView = (onChange: () => void) => {
+  window.addEventListener('storage', onChange);
+  return () => window.removeEventListener('storage', onChange);
+};
+const storedOrderView = (): OrderView => {
+  try {
+    return window.localStorage.getItem(orderViewStorageKey) === 'kanban' ? 'kanban' : 'grid';
+  } catch {
+    return 'grid';
+  }
+};
 
 const orderStages: OrderStage[] = [
   'Recebido',
@@ -40,43 +50,86 @@ const orderStages: OrderStage[] = [
   'Teste final',
   'Retirada',
 ];
-const stages = ['Todas', ...orderStages];
-const priorities = ['Todas', 'Normal', 'Urgente', 'Garantia'];
+const filterFields: FilterField[] = [
+  { key: 'search', label: 'Busca' },
+  { key: 'code', label: 'OS' },
+  { key: 'customer', label: 'Cliente' },
+  { key: 'device', label: 'Aparelho' },
+  { key: 'phone', label: 'WhatsApp' },
+  { key: 'stage', label: 'Etapa', options: orderStages },
+  { key: 'priority', label: 'Prioridade', options: ['Normal', 'Urgente', 'Garantia'] },
+];
+
+export function matchesOrderFilters(order: OrderRow, filters: Filter[]) {
+  return filters.every(({ field, value }) => {
+    if (field === 'stage') return (order.stage || 'Recebido') === value;
+    if (field === 'priority') return (order.priority || 'Normal') === value;
+    const text =
+      field === 'search'
+        ? `${order.code} ${order.customer} ${order.device} ${order.phone}`
+        : String(order[field as 'code' | 'customer' | 'device' | 'phone'] || '');
+    return text.toLocaleLowerCase('pt-BR').includes(value.trim().toLocaleLowerCase('pt-BR'));
+  });
+}
 
 export default function OrdersRoute({
   initialOrders,
   initialParts = [],
   defaultWarrantyDays = 90,
   initialQuery = '',
-  initialView = 'grid',
+  initialView,
+  startCreating = false,
 }: {
   initialOrders: OrderRow[];
   initialParts?: PartRow[];
   defaultWarrantyDays?: number;
   initialQuery?: string;
   initialView?: OrderView;
+  startCreating?: boolean;
 }) {
   const { notify } = useFeedback();
   const [orders, setOrders] = useState(initialOrders),
-    [modal, setModal] = useState<'create' | 'edit' | null>(null),
+    [modal, setModal] = useState<'create' | 'edit' | null>(startCreating ? 'create' : null),
     [editing, setEditing] = useState<OrderRow | null>(null),
     [charging, setCharging] = useState<{ id: string; code: string; total: number } | null>(null),
-    [query, setQuery] = useState(initialQuery),
-    [stage, setStage] = useState('Todas'),
-    [priority, setPriority] = useState('Todas'),
-    [view, setView] = useState<OrderView>(initialView);
-  const visible = orders.filter((order) => {
-    const search = query.trim().toLowerCase();
-    const matchesQuery =
-      !search ||
-      `${order.code} ${order.customer} ${order.device} ${order.phone}`
-        .toLowerCase()
-        .includes(search);
-    const matchesStage = stage === 'Todas' || (order.stage || 'Recebido') === stage;
-    const matchesPriority = priority === 'Todas' || (order.priority || 'Normal') === priority;
-    return matchesQuery && matchesStage && matchesPriority;
-  });
-  const filtered = Boolean(query || stage !== 'Todas' || priority !== 'Todas');
+    [filters, setFilters] = useState<Filter[]>(
+      initialQuery ? [{ field: 'search', value: initialQuery }] : [],
+    ),
+    [movingId, setMovingId] = useState<string | null>(null),
+    [dropStage, setDropStage] = useState<OrderStage | null>(null),
+    [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set()),
+    [selectedView, setSelectedView] = useState<OrderView | null>(null);
+  const savedView = useSyncExternalStore(
+    subscribeOrderView,
+    storedOrderView,
+    (): OrderView => 'grid',
+  );
+  const view = selectedView ?? initialView ?? savedView;
+  const setView = (nextView: OrderView) => {
+    setSelectedView(nextView);
+    try {
+      window.localStorage.setItem(orderViewStorageKey, nextView);
+    } catch {
+      // A preferência ainda funciona nesta página quando o navegador bloqueia o storage.
+    }
+  };
+  const visible = orders.filter((order) => matchesOrderFilters(order, filters));
+  const filtered = filters.length > 0;
+  const selectedOrders = visible.filter((order) => selectedIds.has(order.id));
+  const allSelected = visible.length > 0 && selectedOrders.length === visible.length;
+  const toggleSelected = (id: string) =>
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const toggleAll = () =>
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      visible.forEach((order) => (allSelected ? next.delete(order.id) : next.add(order.id)));
+      return next;
+    });
   const save: SaveOrder = async (data: Order, id?: string, photos: File[] = []) => {
     try {
       const response = await fetch('/api/orders', {
@@ -128,119 +181,59 @@ export default function OrdersRoute({
   };
   const startCharging = (order: OrderRow) =>
     setCharging({ id: order.id, code: order.code, total: Number(order.total || 0) });
+  const moveTo = async (order: OrderRow, nextStage: OrderStage) => {
+    if (movingId || (order.stage || 'Recebido') === nextStage) return;
+    setMovingId(order.id);
+    try {
+      await save({ ...order, stage: nextStage }, order.id);
+    } catch {
+      // save já informa a falha; a ordem permanece na etapa anterior.
+    } finally {
+      setMovingId(null);
+      setDropStage(null);
+    }
+  };
   const move = (order: OrderRow, direction: number) => {
     const current = orderStages.indexOf((order.stage || 'Recebido') as OrderStage);
     const next = Math.max(0, Math.min(orderStages.length - 1, current + direction));
-    if (next === current) return;
-    void save({ ...order, stage: orderStages[next] }, order.id);
-  };
-  const clearFilters = () => {
-    setQuery('');
-    setStage('Todas');
-    setPriority('Todas');
+    void moveTo(order, orderStages[next]);
   };
 
   return (
     <>
       <PageHeader
         title="Ordens de serviço"
-        description="Nova OS: adicione fotos na etapa Aparelho. Garantia: Editar OS. Impressão: botão Imprimir OS."
+        description="Acompanhe e organize os atendimentos da assistência."
         action={
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-            <div
-              className="flex rounded-lg border p-1"
-              role="group"
-              aria-label="Visualização das ordens"
-            >
-              {(['grid', 'kanban'] as const).map((option) => (
-                <Button
-                  aria-pressed={view === option}
-                  className="flex-1 sm:flex-none"
-                  key={option}
-                  onClick={() => setView(option)}
-                  size="sm"
-                  type="button"
-                  variant={view === option ? 'default' : 'ghost'}
-                >
-                  {option === 'grid' ? 'Grid' : 'Kanban'}
-                </Button>
-              ))}
-            </div>
-            <Button asChild className="w-full sm:w-auto" variant="outline">
-              <Link href="/">Painel completo</Link>
-            </Button>
-            <Button className="w-full sm:w-auto" onClick={create}>
-              Nova ordem
-            </Button>
-          </div>
+          <Button onClick={create}>
+            <Plus aria-hidden="true" />
+            Nova ordem
+          </Button>
         }
       />
-
-      <Card className="mb-4">
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
-          <div className="space-y-1">
-            <CardTitle>Encontre uma ordem</CardTitle>
-            <CardDescription>Busque por OS, cliente ou aparelho.</CardDescription>
-          </div>
-          <div className="flex items-center gap-3">
-            <p aria-live="polite" className="text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">{visible.length}</span> de{' '}
-              {orders.length} ordens
-            </p>
-            {filtered && (
-              <Button onClick={clearFilters} size="sm" variant="ghost">
-                Limpar filtros
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(16rem,1.5fr)_minmax(12rem,1fr)_minmax(12rem,1fr)]">
-          <div className="grid gap-2">
-            <Label htmlFor="orders-search">Buscar</Label>
-            <Input
-              autoComplete="off"
-              id="orders-search"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Número, cliente ou aparelho"
-              value={query}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="orders-stage">Etapa</Label>
-            <Select onValueChange={setStage} value={stage}>
-              <SelectTrigger id="orders-stage">
-                <SelectValue placeholder="Todas as etapas" />
-              </SelectTrigger>
-              <SelectContent>
-                {stages.map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {item}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="orders-priority">Prioridade</Label>
-            <Select onValueChange={setPriority} value={priority}>
-              <SelectTrigger id="orders-priority">
-                <SelectValue placeholder="Todas as prioridades" />
-              </SelectTrigger>
-              <SelectContent>
-                {priorities.map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {item}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="mb-4 grid gap-3">
+        <Segmented<OrderView>
+          label="Visualização das ordens"
+          onChange={setView}
+          options={[
+            { value: 'grid', label: 'Lista', icon: Rows3 },
+            { value: 'kanban', label: 'Quadro', icon: Columns3 },
+          ]}
+          value={view}
+        />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Filters fields={filterFields} value={filters} onChange={setFilters} />
+          <p aria-live="polite" className="text-xs text-muted-foreground">
+            {visible.length} de {orders.length} ordens
+          </p>
+        </div>
+      </div>
 
       {view === 'grid' ? (
         <OrdersTable
           orders={visible}
+          selectedIds={selectedIds}
+          setSelectedIds={setSelectedIds}
           emptyMessage={
             orders.length && filtered ? 'Nenhuma ordem corresponde aos filtros.' : undefined
           }
@@ -251,9 +244,38 @@ export default function OrdersRoute({
         />
       ) : (
         <Card>
-          <CardHeader>
-            <CardTitle>Fluxo de atendimento</CardTitle>
-            <CardDescription>{visible.length} ordens nos filtros atuais.</CardDescription>
+          <CardHeader className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle>Fluxo de atendimento</CardTitle>
+              <CardDescription>{selectedOrders.length} selecionada(s)</CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2 text-sm">
+                <Input
+                  className="size-4"
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleAll}
+                  disabled={!visible.length}
+                />
+                Selecionar todas
+              </label>
+              {selectedIds.size > 0 && (
+                <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                  Limpar seleção
+                </Button>
+              )}
+              <OrderActions
+                selectedOrders={selectedOrders}
+                setSelectedIds={setSelectedIds}
+                onEdit={edit}
+                onCharge={startCharging}
+                onRemoved={(id) =>
+                  setOrders((current) => current.filter((order) => order.id !== id))
+                }
+                disabled={Boolean(movingId)}
+              />
+            </div>
           </CardHeader>
           <CardContent className="overflow-x-auto pb-4">
             {visible.length ? (
@@ -261,31 +283,78 @@ export default function OrdersRoute({
                 {orderStages.map((column) => {
                   const inStage = visible.filter((order) => (order.stage || 'Recebido') === column);
                   return (
-                    <section className="grid w-72 shrink-0 content-start gap-3" key={column}>
+                    <section
+                      className={`grid min-h-48 w-72 shrink-0 content-start gap-3 rounded-lg p-2 transition-colors ${dropStage === column ? 'bg-primary/5 ring-2 ring-primary' : ''}`}
+                      key={column}
+                      aria-label={`Etapa ${column}`}
+                      onDragOver={(event) => {
+                        if (
+                          !event.dataTransfer.types.includes('application/x-reparosm-order') ||
+                          movingId
+                        )
+                          return;
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = 'move';
+                        setDropStage(column);
+                      }}
+                      onDragLeave={(event) => {
+                        if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+                          setDropStage(null);
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        setDropStage(null);
+                        const id = event.dataTransfer.getData('application/x-reparosm-order');
+                        const order = orders.find((item) => item.id === id);
+                        if (order) void moveTo(order, column);
+                      }}
+                    >
                       <div className="flex items-center justify-between gap-2">
-                        <h2 className="text-sm font-semibold">{column}</h2>
-                        <Badge variant="secondary">{inStage.length}</Badge>
+                        <h2 className="flex items-center gap-2 text-sm font-semibold">
+                          <span
+                            aria-hidden="true"
+                            className={`size-2 rounded-full ${toneDot[orderStageTone(column)]}`}
+                          />
+                          {column}
+                        </h2>
+                        <Badge variant="neutral">{inStage.length}</Badge>
                       </div>
                       {inStage.length ? (
                         inStage.map((order) => (
                           <article
-                            className="grid gap-2 rounded-lg border bg-card p-3"
+                            className={`grid gap-2 rounded-lg border bg-card p-3 ${movingId === order.id ? 'opacity-50' : 'cursor-grab active:cursor-grabbing'}`}
                             key={order.id}
+                            draggable={!movingId}
+                            aria-busy={movingId === order.id}
+                            onDragStart={(event) => {
+                              event.dataTransfer.setData('application/x-reparosm-order', order.id);
+                              event.dataTransfer.effectAllowed = 'move';
+                            }}
+                            onDragEnd={() => setDropStage(null)}
                           >
                             <div className="flex items-center justify-between gap-2">
-                              <strong className="text-sm">{order.code}</strong>
-                              <Badge variant="secondary">{order.priority || 'Normal'}</Badge>
+                              <label className="flex items-center gap-2">
+                                <Input
+                                  type="checkbox"
+                                  className="size-4"
+                                  checked={selectedIds.has(order.id)}
+                                  onChange={() => toggleSelected(order.id)}
+                                  aria-label={`Selecionar ordem ${order.code}`}
+                                />
+                                <strong className="text-sm">{order.code}</strong>
+                              </label>
+                              {isNotablePriority(order.priority) && (
+                                <Badge variant={badgeFor(orderPriorityTone(order.priority))}>
+                                  {order.priority}
+                                </Badge>
+                              )}
                             </div>
                             <p className="text-sm font-medium">{order.device}</p>
                             <p className="text-sm text-muted-foreground">{order.customer}</p>
-                            <OrderPaymentStatus
-                              onCharge={() => startCharging(order)}
-                              order={order}
-                            />
                             <div className="flex items-center justify-between gap-2 border-t pt-2">
                               <Button
                                 aria-label={`Voltar etapa de ${order.code}`}
-                                disabled={column === orderStages[0]}
+                                disabled={Boolean(movingId) || column === orderStages[0]}
                                 onClick={() => move(order, -1)}
                                 size="icon"
                                 title="Voltar etapa"
@@ -299,7 +368,7 @@ export default function OrdersRoute({
                               </span>
                               <Button
                                 aria-label={`Avançar etapa de ${order.code}`}
-                                disabled={column === orderStages.at(-1)}
+                                disabled={Boolean(movingId) || column === orderStages.at(-1)}
                                 onClick={() => move(order, 1)}
                                 size="icon"
                                 title="Avançar etapa"
@@ -309,14 +378,25 @@ export default function OrdersRoute({
                                 →
                               </Button>
                             </div>
-                            <Button
-                              onClick={() => edit(order)}
-                              size="sm"
-                              type="button"
-                              variant="outline"
-                            >
-                              Editar OS
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                className="flex-1"
+                                onClick={() => edit(order)}
+                                size="sm"
+                                type="button"
+                                variant="outline"
+                                disabled={movingId === order.id}
+                              >
+                                Editar OS
+                              </Button>
+                              {!order.payment && (
+                                <OrderPaymentStatus
+                                  onCharge={() => startCharging(order)}
+                                  order={order}
+                                />
+                              )}
+                            </div>
+                            {order.payment && <OrderPaymentStatus order={order} />}
                           </article>
                         ))
                       ) : (

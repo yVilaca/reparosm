@@ -51,6 +51,20 @@ test('splits receivables into completed and still in service', { skip }, async (
   assert.equal(result.inProgress.amount, 200);
 });
 
+test(
+  'lists all unpaid orders with an amount to collect, including work in progress',
+  { skip },
+  async () => {
+    const result = await cash.receivables('account-rec');
+    assert.equal(result.pending.orders, 3);
+    assert.equal(result.pending.amount, 670);
+    assert.deepEqual(result.pending.list.map((item) => item.code).sort(), ['OS-1', 'OS-2', 'OS-8']);
+    const working = result.pending.list.find((item) => item.code === 'OS-2');
+    assert.equal(working.status, 'Aberto');
+    assert.equal(working.device, 'iPhone');
+  },
+);
+
 // Review Focus: a diferença é de 1 centavo; comparar em float no JavaScript
 // erraria.
 test('separates directional differences without netting them', { skip }, async () => {

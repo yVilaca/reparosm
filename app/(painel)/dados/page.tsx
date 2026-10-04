@@ -1,13 +1,21 @@
-import DataToolsRoute from '@/components/data-tools-route';
+import DataToolsRoute, { type ExportCounts } from '@/components/data-tools-route';
 import { filmCatalog } from '@/lib/film-catalog';
-import { tableRepos } from '@/lib/repos';
+import { tenantQuery } from '@/lib/db';
 import { requireServerAccount } from '@/lib/server-auth';
 
 export default async function DataPage() {
   const account = await requireServerAccount();
-  const records = (
-    await Promise.all(Object.values(tableRepos).map((repo) => repo!.list(account.id)))
-  ).flat();
-  const catalog = filmCatalog.map((record) => ({ ...record, type: 'film' as const }));
-  return <DataToolsRoute records={[...records, ...catalog]} />;
+  const [counts] = await tenantQuery<ExportCounts>(
+    account.id,
+    `SELECT
+    (SELECT count(*)::int FROM clients WHERE account_id = $1) AS client,
+    (SELECT count(*)::int FROM orders WHERE account_id = $1) AS "order",
+    (SELECT count(*)::int FROM cash_entries WHERE account_id = $1 AND kind = 'in') AS payment,
+    (SELECT count(*)::int FROM cash_entries WHERE account_id = $1 AND kind = 'out') AS expense,
+    (SELECT count(*)::int FROM parts WHERE account_id = $1) AS part,
+    (SELECT count(*)::int FROM quotes WHERE account_id = $1) AS quote,
+    (SELECT count(*)::int FROM films WHERE account_id = $1) AS film`,
+    [account.id],
+  );
+  return <DataToolsRoute counts={{ ...counts, film: (counts.film || 0) + filmCatalog.length }} />;
 }

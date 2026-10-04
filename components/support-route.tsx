@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useState } from 'react';
 import { useFeedback } from '@/components/feedback';
 import { Button } from '@/components/ui/button';
@@ -24,14 +23,36 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import type { Tutorial } from '@/lib/types';
+import IconChip from '@/components/ui/icon-chip';
+import SoftBanner from '@/components/ui/soft-banner';
+import {
+  ArrowDownUp,
+  ClipboardList,
+  LifeBuoy,
+  Package,
+  Plus,
+  Rocket,
+  ShieldCheck,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react';
 
 type TutorialRow = Tutorial & { id: string };
 
+const guideIcons: Record<string, LucideIcon> = {
+  Começando: Rocket,
+  'Ordens de serviço': Wrench,
+  Estoque: Package,
+  Financeiro: ArrowDownUp,
+  Orçamentos: ClipboardList,
+  Garantias: ShieldCheck,
+};
+
 const guides = [
   ['Começando', 'Cadastre sua assistência e o primeiro cliente.'],
-  ['Ordens de serviço', 'Crie uma OS, registre custos e acompanhe no Grid ou Kanban.'],
+  ['Ordens de serviço', 'Crie uma OS, registre custos e acompanhe na lista ou no quadro.'],
   ['Estoque', 'Cadastre produtos, custos, preços e disponibilidade.'],
-  ['Financeiro', 'Registre entradas e despesas para acompanhar o resultado.'],
+  ['Financeiro', 'Receba as OS, pague as contas e acompanhe o caixa.'],
   ['Orçamentos', 'Envie propostas e registre a decisão do cliente.'],
   ['Garantias', 'Acompanhe aparelhos entregues e retornos.'],
 ] as const;
@@ -85,26 +106,20 @@ export default function SupportRoute({ initialTutorials }: { initialTutorials: T
     <>
       <PageHeader
         title="Tutoriais & suporte"
-        description="Guias e vídeos carregados no servidor para a conta atual."
-        action={
-          <Button asChild variant="outline">
-            <Link href="/">Painel completo</Link>
-          </Button>
-        }
+        description="Guias rápidos e vídeos para usar o ReparoSM no dia a dia."
       />
-      <Card className="mb-4 gap-3 bg-primary text-primary-foreground">
-        <CardContent className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold tracking-wide uppercase opacity-80">
-              Central de ajuda
-            </p>
-            <h2 className="text-lg font-semibold">Aprenda a usar o ReparoSM</h2>
-          </div>
-          <Button onClick={open} size="sm" variant="secondary">
+      <SoftBanner
+        action={
+          <Button onClick={open} size="sm" variant="outline">
+            <Plus aria-hidden="true" />
             Adicionar vídeo
           </Button>
-        </CardContent>
-      </Card>
+        }
+        className="mb-6"
+        description="Guias rápidos e vídeos da sua assistência num lugar só."
+        icon={LifeBuoy}
+        title="Aprenda a usar o ReparoSM"
+      />
       {tutorials.length > 0 && (
         <>
           <h2 className="mb-3 text-lg font-semibold">Vídeos da assistência</h2>
@@ -144,12 +159,15 @@ export default function SupportRoute({ initialTutorials }: { initialTutorials: T
       <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {guides.map((guide, index) => (
           <Card key={guide[0]}>
-            <CardContent className="grid gap-2">
-              <span className="text-xs font-medium text-muted-foreground">
-                GUIA RÁPIDO · {index + 1}
-              </span>
-              <h3 className="font-semibold">{guide[0]}</h3>
-              <p className="text-sm text-muted-foreground">{guide[1]}</p>
+            <CardContent className="flex items-start gap-3">
+              <IconChip icon={guideIcons[guide[0]] || LifeBuoy} />
+              <div className="grid gap-1">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Guia rápido {index + 1}
+                </span>
+                <h3 className="font-semibold">{guide[0]}</h3>
+                <p className="text-sm text-muted-foreground">{guide[1]}</p>
+              </div>
             </CardContent>
           </Card>
         ))}

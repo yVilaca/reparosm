@@ -3,6 +3,123 @@
   margin: 12mm;
 }
 
+.compact-sheet {
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  width: 186mm;
+  height: 273mm;
+  margin: 0 auto 24px;
+  background: white;
+  color: black;
+  border: 1px solid #ddd;
+  box-sizing: border-box;
+  font:
+    9.5pt/1.25 Arial,
+    sans-serif;
+}
+.compact-copy {
+  min-height: 0;
+  padding: 5mm 3mm;
+  overflow: hidden;
+}
+.compact-content {
+  transform-origin: top center;
+  overflow-wrap: anywhere;
+}
+.compact-message {
+  margin: 0 0 3mm;
+  font-weight: 600;
+  white-space: pre-line;
+}
+.compact-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 3mm;
+  border-bottom: 1px solid #aaa;
+  padding-bottom: 2mm;
+  margin-bottom: 3mm;
+}
+.compact-header p {
+  margin: 0;
+}
+.compact-logo {
+  max-height: 9mm;
+  max-width: 30mm;
+  object-fit: contain;
+  margin-bottom: 1mm;
+}
+.compact-number {
+  flex-shrink: 0;
+  text-align: right;
+}
+.compact-number h1 {
+  margin: 0;
+  font-size: 14pt;
+  font-weight: 700;
+}
+.compact-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2mm 4mm;
+  margin: 0 0 3mm;
+}
+.compact-details {
+  display: grid;
+  gap: 2mm;
+  margin: 0 0 3mm;
+}
+.compact-copy dt {
+  font-size: 8pt;
+  color: #444;
+}
+.compact-copy dd {
+  margin: 0;
+  font-weight: 600;
+  white-space: pre-line;
+}
+.compact-totals {
+  border-top: 1px solid #aaa;
+  padding-top: 2mm;
+}
+.compact-terms {
+  font-size: 8pt;
+  white-space: pre-line;
+  margin: 0 0 3mm;
+}
+.compact-signatures {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6mm;
+  padding-top: 5mm;
+  text-align: center;
+  font-size: 8pt;
+}
+.compact-signatures > div {
+  border-top: 1px solid #666;
+  padding-top: 1mm;
+}
+.compact-signatures p {
+  margin: 0;
+}
+.compact-cut {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed #666;
+  text-align: center;
+}
+.compact-cut span {
+  position: absolute;
+  top: -2.5mm;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 2mm;
+  background: white;
+  font-size: 8pt;
+}
+
 /* Printing from a dark-themed session otherwise leaves the browser's default
    canvas (the page area beyond the laid-out content, and any native UI the
    print pipeline paints) dark: color-scheme, not an element's background,
@@ -17,5 +134,16 @@
   .print-copy-break {
     break-after: page;
     page-break-after: always;
+  }
+  .compact-sheet {
+    margin: 0;
+    border: 0;
+    break-inside: avoid;
+    break-after: page;
+    page-break-after: always;
+  }
+  .compact-sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
   }
 }

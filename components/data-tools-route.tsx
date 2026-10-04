@@ -1,12 +1,27 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useFeedback } from '@/components/feedback';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import PageHeader from '@/components/ui/page-header';
+import IconChip from '@/components/ui/icon-chip';
+import { ListGroup, ListRow } from '@/components/ui/list-group';
+import SoftBanner from '@/components/ui/soft-banner';
+import type { Tone } from '@/components/ui/tone';
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  ClipboardList,
+  Download,
+  FileBarChart,
+  Package,
+  Smartphone,
+  Users,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -24,6 +39,17 @@ const labels: Partial<Record<BusinessRecordType, string>> = {
   part: 'Estoque',
   quote: 'Orçamentos',
   film: 'Películas',
+};
+
+// Entradas e saídas seguem a regra de cor do dinheiro; o resto fica neutro.
+const looks: Partial<Record<BusinessRecordType, { icon: LucideIcon; tone: Tone }>> = {
+  client: { icon: Users, tone: 'neutral' },
+  order: { icon: Wrench, tone: 'neutral' },
+  payment: { icon: ArrowDownLeft, tone: 'success' },
+  expense: { icon: ArrowUpRight, tone: 'danger' },
+  part: { icon: Package, tone: 'neutral' },
+  quote: { icon: ClipboardList, tone: 'neutral' },
+  film: { icon: Smartphone, tone: 'neutral' },
 };
 
 const resources: Record<BusinessRecordType, string> = {
@@ -45,9 +71,25 @@ const parseCsv = (line: string) =>
     .split(/;(?=(?:[^"]*"[^"]*")*[^"]*$)/)
     .map((value) => value.replace(/^"|"$/g, '').replaceAll('""', '"'));
 
-export default function DataToolsRoute({ records }: { records: StoredRecord[] }) {
+export type ExportCounts = Partial<Record<BusinessRecordType, number>>;
+
+export async function loadExportRecords(kind: BusinessRecordType): Promise<StoredRecord[]> {
+  const response = await fetch(`/api/${resources[kind]}`, { cache: 'no-store' });
+  const result = (await response.json()) as { records?: StoredRecord[]; error?: string };
+  if (!response.ok || !Array.isArray(result.records))
+    throw new Error(result.error || 'Não foi possível carregar os dados para exportar.');
+  if (kind !== 'film') return result.records;
+  const { filmCatalog } = await import('@/lib/film-catalog');
+  return [
+    ...result.records,
+    ...filmCatalog.map((record) => ({ ...record, type: 'film' as const })),
+  ];
+}
+
+export default function DataToolsRoute({ counts }: { counts: ExportCounts }) {
   const { notify } = useFeedback();
   const [type, setType] = useState<BusinessRecordType>('client');
+  const [exporting, setExporting] = useState<BusinessRecordType | null>(null);
   const save = async (recordType: BusinessRecordType, data: DataObject) => {
     const response = await fetch(`/api/${resources[recordType]}`, {
       method: 'POST',
@@ -57,27 +99,38 @@ export default function DataToolsRoute({ records }: { records: StoredRecord[] })
     const result = (await response.json()) as { error?: string };
     if (!response.ok) throw new Error(result.error || 'Não foi possível importar o registro.');
   };
-  const csv = (kind: BusinessRecordType) => {
-    const rows = records
-      .filter((record) => record.type === kind)
-      .map((record) => ({ id: record.id, ...record.data }) as DataObject & { id: string });
-    if (!rows.length) {
-      notify(`Não há ${(labels[kind] || 'registros').toLowerCase()} para exportar.`, 'info');
-      return;
-    }
-    const keys = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
-    const escape = (value: unknown) =>
-      `"${String(Array.isArray(value) ? value.join(' | ') : (value ?? '')).replaceAll('"', '""')}"`;
-    const content =
-      '\uFEFF' +
-      [keys.join(';'), ...rows.map((row) => keys.map((key) => escape(row[key])).join(';'))].join(
-        '\n',
+  const csv = async (kind: BusinessRecordType) => {
+    if (exporting) return;
+    setExporting(kind);
+    try {
+      const rows = (await loadExportRecords(kind)).map(
+        (record) => ({ id: record.id, ...record.data }) as DataObject & { id: string },
       );
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }));
-    link.download = `reparosm-${kind}-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+      if (!rows.length) {
+        notify(`Não há ${(labels[kind] || 'registros').toLowerCase()} para exportar.`, 'info');
+        return;
+      }
+      const keys = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
+      const escape = (value: unknown) =>
+        `"${String(Array.isArray(value) ? value.join(' | ') : (value ?? '')).replaceAll('"', '""')}"`;
+      const content =
+        '\uFEFF' +
+        [keys.join(';'), ...rows.map((row) => keys.map((key) => escape(row[key])).join(';'))].join(
+          '\n',
+        );
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }));
+      link.download = `reparosm-${kind}-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : 'Não foi possível exportar os dados.',
+        'error',
+      );
+    } finally {
+      setExporting(null);
+    }
   };
   const importCsv = (file: File) => {
     const reader = new FileReader();
@@ -113,43 +166,46 @@ export default function DataToolsRoute({ records }: { records: StoredRecord[] })
       <PageHeader
         title="Dados & exportação"
         description="Exporte, importe e preserve os dados da assistência."
+      />
+      <SoftBanner
         action={
-          <Button asChild variant="outline">
-            <Link href="/">Painel completo</Link>
+          <Button onClick={() => window.open('/relatorio', '_blank')} size="sm" variant="outline">
+            <FileBarChart aria-hidden="true" />
+            Gerar relatório PDF
           </Button>
         }
+        className="mb-6"
+        description="Tudo da loja num documento só, pronto para imprimir ou guardar."
+        icon={FileBarChart}
+        title="Relatório completo da loja"
       />
-      <Card className="mb-4 gap-3 bg-primary text-primary-foreground">
-        <CardContent className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold tracking-wide uppercase opacity-80">
-              Central de dados
-            </p>
-            <h2 className="text-lg font-semibold">Exportar, importar e gerar relatórios</h2>
-            <p className="text-sm opacity-90">
-              Exporte cópias, importe planilhas CSV e gere o relatório completo da loja.
-            </p>
-          </div>
-          <Button onClick={() => window.open('/relatorio', '_blank')} size="sm" variant="secondary">
-            Gerar relatório PDF ↗
-          </Button>
-        </CardContent>
-      </Card>
-      <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {Object.entries(labels).map(([kind, label]) => (
-          <Card key={kind}>
-            <CardContent className="grid gap-2">
-              <span className="text-xs font-medium text-muted-foreground">ARQUIVO CSV</span>
-              <h3 className="font-semibold">{String(label)}</h3>
-              <p className="text-sm text-muted-foreground">
-                {records.filter((record) => record.type === kind).length} registros disponíveis
-              </p>
-              <Button onClick={() => csv(kind as BusinessRecordType)} size="sm" variant="outline">
-                Baixar CSV
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="mb-6">
+        <ListGroup hint="Abre no Excel ou no Google Planilhas" title="Baixar planilhas (CSV)">
+          {Object.entries(labels).map(([kind, label]) => {
+            const look = looks[kind as BusinessRecordType];
+            const total = counts[kind as BusinessRecordType] || 0;
+            return (
+              <ListRow
+                actions={
+                  <Button
+                    aria-label={`Baixar CSV de ${String(label)}`}
+                    disabled={exporting !== null}
+                    onClick={() => void csv(kind as BusinessRecordType)}
+                    size="sm"
+                    variant="outline"
+                  >
+                    <Download aria-hidden="true" />
+                    {exporting === kind ? 'Preparando…' : 'Baixar'}
+                  </Button>
+                }
+                details={`${total} ${total === 1 ? 'registro' : 'registros'}`}
+                key={kind}
+                leading={look && <IconChip icon={look.icon} tone={look.tone} />}
+                title={String(label)}
+              />
+            );
+          })}
+        </ListGroup>
       </div>
       <Card>
         <CardHeader>

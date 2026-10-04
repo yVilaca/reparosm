@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useState } from 'react';
 import ClientModal, {
   clientStatuses,
@@ -10,7 +9,6 @@ import ClientModal, {
 import { useFeedback } from '@/components/feedback';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import EmptyState from '@/components/ui/empty-state';
 import {
   Table,
@@ -29,15 +27,27 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import PageHeader from '@/components/ui/page-header';
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import RowMenu from '@/components/ui/row-menu';
+import StatCard from '@/components/ui/stat-card';
+import { toneChip } from '@/components/ui/tone';
+import { MessageCircle, Plus, Search, Star, UserCheck, Users, Wrench } from 'lucide-react';
+import { cn } from 'cn';
+import { badgeFor, clientStatusTone } from '@/lib/status-tones';
 import { hasValidWhatsapp, whatsappUrl } from '@/lib/format';
 import type { Client, ClientStatus } from '@/lib/types';
 
-export function clientStatusVariant(status: string | undefined) {
-  if (status === 'Em atendimento') return 'default';
-  if (status === 'Concluído') return 'success';
-  if (status === 'Aguardando') return 'warning';
-  return 'secondary';
-}
+// Cores com significado fixo: veja lib/status-tones.ts.
+export const clientStatusVariant = (status: string | undefined) =>
+  badgeFor(clientStatusTone(status));
+
+const initials = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || '?';
 
 export default function ClientsRoute({ initialClients }: { initialClients: ClientRow[] }) {
   const { notify, confirm } = useFeedback();
@@ -126,204 +136,148 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
   const visible = clients.filter((client) =>
     `${client.name} ${client.phone}`.toLowerCase().includes(search.toLowerCase()),
   );
-  const metrics = [
-    { title: 'Clientes', value: clients.length, detail: 'Cadastrados diretamente' },
-    {
-      title: 'Em atendimento',
-      value: clients.filter((client) => client.status === 'Em atendimento').length,
-      detail: 'Com acompanhamento',
-    },
-    {
-      title: 'Concluídos',
-      value: clients.filter((client) => client.status === 'Concluído').length,
-      detail: 'Atendimentos finalizados',
-    },
-    { title: 'VIP', value: clients.filter((client) => client.vip).length, detail: 'Prioritários' },
-  ];
+  const count = (status: ClientStatus) =>
+    clients.filter((client) => client.status === status).length;
 
   return (
     <>
       <PageHeader
         title="Clientes"
-        description="Consulte contatos, acompanhe atendimentos e mantenha os dados atualizados."
+        description="Contatos, atendimentos e conversa pelo WhatsApp."
         action={
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-            <Button asChild className="w-full sm:w-auto" variant="outline">
-              <Link href="/">Painel completo</Link>
-            </Button>
-            <Button className="w-full sm:w-auto" onClick={create}>
-              Novo cliente
-            </Button>
-          </div>
+          <Button onClick={create}>
+            <Plus aria-hidden="true" />
+            Novo cliente
+          </Button>
         }
       />
 
-      <section aria-label="Resumo de clientes" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((metric) => (
-          <Card key={metric.title} size="sm">
-            <CardContent className="grid gap-1">
-              <p className="text-sm text-muted-foreground">{metric.title}</p>
-              <p className="text-2xl font-semibold tabular-nums">{metric.value}</p>
-              <p className="text-xs text-muted-foreground">{metric.detail}</p>
-            </CardContent>
-          </Card>
-        ))}
+      <section
+        aria-label="Resumo de clientes"
+        className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4"
+      >
+        <StatCard icon={Users} label="Clientes" value={clients.length} detail="Cadastrados" />
+        <StatCard
+          icon={Wrench}
+          label="Em atendimento"
+          tone="info"
+          value={count('Em atendimento')}
+          detail="Com aparelho na loja"
+        />
+        <StatCard
+          icon={UserCheck}
+          label="Concluídos"
+          tone="success"
+          value={count('Concluído')}
+          detail="Atendimento finalizado"
+        />
+        <StatCard
+          icon={Star}
+          label="VIP"
+          tone="warning"
+          value={clients.filter((client) => client.vip).length}
+          detail="Atendimento prioritário"
+        />
       </section>
 
       {clients.length ? (
-        <>
-          <Card className="my-4">
-            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
-              <div className="space-y-1">
-                <CardTitle>Diretório de clientes</CardTitle>
-                <CardDescription>Busque pelo nome ou telefone cadastrado.</CardDescription>
-              </div>
-              <div className="flex items-center gap-3">
-                <p aria-live="polite" className="text-sm text-muted-foreground">
+        <section aria-label="Clientes" className="grid gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p aria-live="polite" className="text-sm text-muted-foreground">
+              {search ? (
+                <>
                   <span className="font-medium text-foreground">{visible.length}</span> de{' '}
                   {clients.length} clientes
-                </p>
-                {search && (
-                  <Button onClick={() => setSearch('')} size="sm" variant="ghost">
-                    Limpar
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid max-w-md gap-2">
-                <label className="text-sm font-medium" htmlFor="client-search">
-                  Buscar clientes
-                </label>
-                <Input
-                  autoComplete="off"
-                  id="client-search"
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Nome ou telefone"
-                  value={search}
-                />
-              </div>
-            </CardContent>
-          </Card>
+                </>
+              ) : (
+                `${clients.length} ${clients.length === 1 ? 'cliente' : 'clientes'}`
+              )}
+            </p>
+            <div className="relative sm:w-72">
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                aria-label="Buscar clientes por nome ou telefone"
+                autoComplete="off"
+                className="pl-8"
+                id="client-search"
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar nome ou telefone"
+                type="search"
+                value={search}
+              />
+            </div>
+          </div>
 
           {visible.length ? (
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-3">
-                <CardTitle>Clientes</CardTitle>
-                <span className="text-sm text-muted-foreground">
-                  {visible.length} {visible.length === 1 ? 'cadastro' : 'cadastros'}
-                </span>
-              </CardHeader>
-              <CardContent>
-                <ul aria-label="Clientes encontrados" className="grid gap-3 md:hidden">
-                  {visible.map((client) => (
-                    <li key={client.id}>
-                      <Card className="gap-3" size="sm">
-                        <CardContent className="grid gap-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <h3 className="truncate font-semibold">{client.name}</h3>
-                              {client.vip && <Badge variant="warning">VIP</Badge>}
-                            </div>
-                            <ClientStatusControl client={client} onChange={change} />
-                          </div>
-                          <div className="min-w-0 text-sm">
-                            <p className="truncate font-medium">{client.phone}</p>
-                            {client.email && (
-                              <p className="truncate text-muted-foreground">{client.email}</p>
-                            )}
-                          </div>
-                          <div className="grid gap-1 border-t pt-3 text-xs text-muted-foreground">
-                            <p>Documento: {client.document || 'não informado'}</p>
-                            <p className="line-clamp-2">Observações: {client.notes || 'nenhuma'}</p>
-                          </div>
-                          <div className="flex flex-wrap gap-2 border-t pt-3">
-                            <Button onClick={() => chat(client)} size="sm">
-                              Conversar
-                            </Button>
-                            <Button onClick={() => edit(client)} size="sm" variant="outline">
-                              Editar
-                            </Button>
-                            <Button onClick={() => void remove(client)} size="sm" variant="ghost">
-                              Excluir
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </li>
-                  ))}
-                </ul>
+            <>
+              <ul
+                aria-label="Clientes encontrados"
+                className="divide-y overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10 md:hidden"
+              >
+                {visible.map((client) => (
+                  <li className="grid gap-3 px-4 py-3" key={client.id}>
+                    <ClientIdentity client={client} />
+                    <div className="flex items-center justify-between gap-2 pl-11">
+                      <ClientStatusControl client={client} onChange={change} />
+                      <ClientActions
+                        chat={chat}
+                        client={client}
+                        edit={edit}
+                        remove={(item) => void remove(item)}
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
 
-                <div className="hidden md:block">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Cliente</TableHead>
-                        <TableHead>Contato</TableHead>
-                        <TableHead>Documento</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Observações</TableHead>
-                        <TableHead>Mensagem</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
+              <div className="hidden overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10 md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="pl-4">Cliente</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Observações</TableHead>
+                      <TableHead className="pr-4 text-right">
+                        <span className="sr-only">Ações</span>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {visible.map((client) => (
+                      <TableRow key={client.id}>
+                        <TableCell className="pl-4">
+                          <ClientIdentity client={client} />
+                        </TableCell>
+                        <TableCell>
+                          <ClientStatusControl client={client} onChange={change} />
+                        </TableCell>
+                        <TableCell className="max-w-64 truncate text-muted-foreground">
+                          {client.notes || '—'}
+                        </TableCell>
+                        <TableCell className="pr-4">
+                          <ClientActions
+                            chat={chat}
+                            client={client}
+                            edit={edit}
+                            remove={(item) => void remove(item)}
+                          />
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {visible.map((client) => (
-                        <TableRow key={client.id}>
-                          <TableCell>
-                            <div className="grid gap-1">
-                              <span className="font-medium">{client.name}</span>
-                              {client.vip && (
-                                <Badge className="w-fit" variant="warning">
-                                  VIP
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="grid gap-1">
-                              <span>{client.phone}</span>
-                              {client.email && (
-                                <span className="text-xs text-muted-foreground">
-                                  {client.email}
-                                </span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>{client.document || '—'}</TableCell>
-                          <TableCell>
-                            <ClientStatusControl client={client} onChange={change} />
-                          </TableCell>
-                          <TableCell className="max-w-56 truncate">{client.notes || '—'}</TableCell>
-                          <TableCell>
-                            <Button onClick={() => chat(client)} size="sm" variant="outline">
-                              Conversar
-                            </Button>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex justify-end gap-1">
-                              <Button onClick={() => edit(client)} size="sm" variant="ghost">
-                                Editar
-                              </Button>
-                              <Button onClick={() => void remove(client)} size="sm" variant="ghost">
-                                Excluir
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           ) : (
             <EmptyState
               description="Tente buscar por outro nome ou telefone."
               title="Nenhum cliente encontrado"
             />
           )}
-        </>
+        </section>
       ) : (
         <EmptyState
           action={<Button onClick={create}>Cadastrar cliente</Button>}
@@ -340,6 +294,64 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
   );
 }
 
+function ClientIdentity({ client }: { client: ClientRow }) {
+  const contact = [client.phone, client.email, client.document].filter(Boolean).join(' · ');
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <span
+        aria-hidden="true"
+        className={cn(
+          'grid size-8 shrink-0 place-items-center rounded-full text-xs font-semibold',
+          toneChip.neutral,
+        )}
+      >
+        {initials(client.name)}
+      </span>
+      <div className="min-w-0">
+        <p className="flex items-center gap-2 font-medium">
+          <span className="truncate">{client.name}</span>
+          {client.vip && (
+            <Badge variant="warning">
+              <Star aria-hidden="true" />
+              VIP
+            </Badge>
+          )}
+        </p>
+        <p className="truncate text-sm text-muted-foreground">{contact || 'Sem contato'}</p>
+      </div>
+    </div>
+  );
+}
+
+function ClientActions({
+  client,
+  chat,
+  edit,
+  remove,
+}: {
+  client: ClientRow;
+  chat: (client: ClientRow) => void;
+  edit: (client: ClientRow) => void;
+  remove: (client: ClientRow) => void;
+}) {
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <Button onClick={() => chat(client)} size="sm" variant="outline">
+        <MessageCircle aria-hidden="true" />
+        Conversar
+      </Button>
+      <RowMenu label={client.name}>
+        <DropdownMenuItem onSelect={() => edit(client)}>Editar</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => remove(client)} variant="destructive">
+          Excluir
+        </DropdownMenuItem>
+      </RowMenu>
+    </div>
+  );
+}
+
+/** O status é a própria etiqueta: clicar nela troca o status. */
 function ClientStatusControl({
   client,
   onChange,
@@ -349,24 +361,24 @@ function ClientStatusControl({
 }) {
   const status = client.status || 'Novo';
   return (
-    <div className="flex items-center gap-1">
-      <Badge variant={clientStatusVariant(status)}>{status}</Badge>
-      <Select value={status} onValueChange={(value) => onChange(client, value as ClientStatus)}>
-        <SelectTrigger
-          aria-label={`Alterar status de ${client.name}`}
-          className="size-8 p-0"
-          size="sm"
-        >
-          <SelectValue className="sr-only" />
-        </SelectTrigger>
-        <SelectContent>
-          {clientStatuses.map((item) => (
-            <SelectItem key={item} value={item}>
-              {item}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <Select value={status} onValueChange={(value) => onChange(client, value as ClientStatus)}>
+      <SelectTrigger
+        aria-label={`Status de ${client.name}: ${status}. Alterar`}
+        className={cn(
+          'h-6 w-fit gap-1 rounded-full border-transparent px-2.5 text-xs font-medium shadow-none',
+          toneChip[clientStatusTone(status)],
+        )}
+        size="sm"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {clientStatuses.map((item) => (
+          <SelectItem key={item} value={item}>
+            {item}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

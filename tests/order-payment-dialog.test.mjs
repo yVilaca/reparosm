@@ -41,8 +41,8 @@ test('shows a recovery action for an unpaid order with value', () => {
       onCharge: () => {},
     }),
   );
-  assert.match(html, /Pagamento pendente/);
-  assert.match(html, /Registrar recebimento/);
+  assert.doesNotMatch(html, /Pagamento pendente/);
+  assert.match(html, /aria-label="Registrar recebimento"/);
 });
 
 test('does not render a payment indicator for a zero-total order', () => {

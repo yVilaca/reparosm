@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import Link from 'next/link';
 import { useFeedback } from '@/components/feedback';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -130,9 +129,6 @@ export default function AccountsRoute({
         description="Gestão administrativa dos ambientes multiempresa."
         action={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-            <Button asChild className="w-full sm:w-auto" variant="outline">
-              <Link href="/">Painel completo</Link>
-            </Button>
             <Button className="w-full sm:w-auto" onClick={() => setModal(true)}>
               Nova conta
             </Button>

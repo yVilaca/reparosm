@@ -161,6 +161,106 @@ test('paying a payable creates one linked cash outflow', { skip }, async () => {
 });
 
 test(
+  'recurring accounts keep one open occurrence and create the next only after payment',
+  { skip },
+  async () => {
+    const data = {
+      description: 'Aluguel recorrente',
+      source: 'fixed',
+      recurrence: 'monthly',
+      amount: 900,
+      dueDate: '2027-01-31',
+    };
+    const createdResponse = await payableRoute.POST(request('payables', A, 'POST', { data }));
+    assert.equal(createdResponse.status, 201);
+    const { record } = await createdResponse.json();
+    assert.equal(record.data.recurrence, 'monthly');
+    const count = async () =>
+      db.migrationQuery(
+        'SELECT status, due_date::text AS due_date FROM payables WHERE account_id = $1 AND description = $2 ORDER BY due_date',
+        [A.id, data.description],
+      );
+    assert.deepEqual(await count(), [{ status: 'pending', due_date: '2027-01-31' }]);
+    const cashCount = async () =>
+      (
+        await db.migrationQuery(
+          'SELECT count(*)::int AS count FROM cash_entries WHERE account_id = $1 AND description = $2',
+          [A.id, data.description],
+        )
+      )[0].count;
+    assert.equal(await cashCount(), 0);
+    const denied = await payableRoute.PATCH(
+      request('payables', B, 'PATCH', { id: record.id, method: 'Pix' }),
+    );
+    assert.equal(denied.status, 403);
+    const responses = await Promise.all(
+      [1, 2].map(() =>
+        payableRoute.PATCH(request('payables', A, 'PATCH', { id: record.id, method: 'Pix' })),
+      ),
+    );
+    assert.ok(responses.every((response) => response.status === 200));
+    const answers = await Promise.all(responses.map((response) => response.json()));
+    const next = answers.find((answer) => answer.nextRecord).nextRecord;
+    assert.equal(next.data.dueDate, '2027-02-28');
+    assert.equal(next.data.recurrence, 'monthly');
+    assert.equal(next.data.status, 'pending');
+    assert.equal(await cashCount(), 1);
+    assert.deepEqual(await count(), [
+      { status: 'paid', due_date: '2027-01-31' },
+      { status: 'pending', due_date: '2027-02-28' },
+    ]);
+    // Updating the amount keeps the original day (31), even during February.
+    const edit = await payableRoute.POST(
+      request('payables', A, 'POST', { id: next.id, data: { ...next.data, amount: 950 } }),
+    );
+    assert.equal(edit.status, 201);
+    const paidNext = await (
+      await payableRoute.PATCH(request('payables', A, 'PATCH', { id: next.id, method: 'Pix' }))
+    ).json();
+    assert.equal(paidNext.nextRecord.data.dueDate, '2027-03-31');
+    assert.equal(paidNext.nextRecord.data.amount, 950);
+    // Stop repeating on the current open account without affecting payment history.
+    const stop = await payableRoute.POST(
+      request('payables', A, 'POST', {
+        id: paidNext.nextRecord.id,
+        data: { ...paidNext.nextRecord.data, recurrence: undefined },
+      }),
+    );
+    assert.equal(stop.status, 201);
+    const last = await payableRoute.PATCH(
+      request('payables', A, 'PATCH', { id: paidNext.nextRecord.id, method: 'Pix' }),
+    );
+    assert.equal(last.status, 200);
+    assert.equal((await last.json()).nextRecord, undefined);
+    assert.equal((await count()).length, 3);
+    assert.equal(await cashCount(), 3);
+  },
+);
+
+test('payables reject invalid recurrence configuration and dates', { skip }, async () => {
+  for (const extra of [
+    { recurrence: 'daily' },
+    { source: 'purchase', recurrence: 'monthly' },
+    { recurrence: 'monthly', dueDate: '' },
+    { dueDate: '2026-02-31' },
+    { recurrence: 'monthly', dueDate: '9999-12-31' },
+  ]) {
+    const response = await payableRoute.POST(
+      request('payables', A, 'POST', {
+        data: {
+          description: 'Inválida',
+          amount: 50,
+          source: 'fixed',
+          dueDate: '2026-10-03',
+          ...extra,
+        },
+      }),
+    );
+    assert.equal(response.status, 400);
+  }
+});
+
+test(
   'orders snapshot the shop warranty and the server records the delivery date',
   { skip },
   async () => {
