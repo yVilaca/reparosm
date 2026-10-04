@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowDownLeft, ArrowUpRight, MoreHorizontal, Plus, Search } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Plus, Search } from 'lucide-react';
 import { cn } from 'cn';
 import { openWhatsapp } from '@/components/dashboard-actions';
 import { useFeedback } from '@/components/feedback';
@@ -16,17 +16,17 @@ import PayablePayDialog, {
   type PayableRow,
 } from '@/components/payable-pay-dialog';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import EmptyState from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
+import IconChip from '@/components/ui/icon-chip';
+import { ListGroup, ListRow } from '@/components/ui/list-group';
 import PageHeader from '@/components/ui/page-header';
+import RowMenu from '@/components/ui/row-menu';
+import FilterPills from '@/components/ui/filter-pills';
+import Segmented from '@/components/ui/segmented';
+import StatCard from '@/components/ui/stat-card';
+import { toneText, type Tone } from '@/components/ui/tone';
 import {
   groupAgenda,
   groupHistory,
@@ -49,7 +49,6 @@ import type { PayableRecord } from '@/lib/repos/payables';
 export type Direction = 'receive' | 'pay';
 type Filter = 'all' | Direction;
 type Tab = 'open' | 'done';
-type Tone = 'danger' | 'warning' | undefined;
 
 export const RECEIVE_PAY_PATH = '/receber-e-pagar';
 
@@ -379,61 +378,26 @@ export default function ReceivePayRoute({
       </section>
 
       <div className="mb-4 grid gap-3 lg:flex lg:items-center lg:justify-between">
-        <div
-          aria-label="Mostrar"
-          className="inline-flex justify-self-start rounded-lg bg-muted p-1"
-          role="group"
-        >
-          {(
-            [
-              ['open', 'Em aberto', openCount],
-              ['done', 'Pagos e recebidos', doneCount],
-            ] as const
-          ).map(([value, label, count]) => (
-            <button
-              aria-pressed={tab === value}
-              className={cn(
-                'rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
-                tab === value
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-              key={value}
-              onClick={() => setTab(value)}
-              type="button"
-            >
-              {label}
-              <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">{count}</span>
-            </button>
-          ))}
-        </div>
+        <Segmented<Tab>
+          label="Mostrar"
+          onChange={setTab}
+          options={[
+            { value: 'open', label: 'Em aberto', count: openCount },
+            { value: 'done', label: 'Pagos e recebidos', count: doneCount },
+          ]}
+          value={tab}
+        />
         <div className="grid gap-3 sm:flex sm:items-center">
-          <div aria-label="Filtrar por direção" className="flex gap-1.5" role="group">
-            {(
-              [
-                ['all', 'Tudo'],
-                ['receive', 'Receber'],
-                ['pay', 'Pagar'],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                aria-pressed={filter === value}
-                className={cn(
-                  'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
-                  filter === value
-                    ? 'border-foreground bg-foreground text-background'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                )}
-                key={value}
-                onClick={() => setFilter(value)}
-                type="button"
-              >
-                {value === 'receive' && <ArrowDownLeft aria-hidden="true" className="size-3.5" />}
-                {value === 'pay' && <ArrowUpRight aria-hidden="true" className="size-3.5" />}
-                {label}
-              </button>
-            ))}
-          </div>
+          <FilterPills<Filter>
+            label="Filtrar por direção"
+            onChange={setFilter}
+            options={[
+              { value: 'all', label: 'Tudo' },
+              { value: 'receive', label: 'Receber', icon: ArrowDownLeft },
+              { value: 'pay', label: 'Pagar', icon: ArrowUpRight },
+            ]}
+            value={filter}
+          />
           <div className="relative sm:w-72">
             <Search
               aria-hidden="true"
@@ -707,31 +671,12 @@ const directionStyle = {
   receive: {
     icon: ArrowDownLeft,
     label: 'Receber',
-    badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-    amount: 'text-emerald-700 dark:text-emerald-300',
+    tone: 'success',
+    amount: toneText.success,
     sign: '+',
   },
-  pay: {
-    icon: ArrowUpRight,
-    label: 'Pagar',
-    badge: 'bg-rose-500/10 text-rose-700 dark:text-rose-300',
-    amount: '',
-    sign: '−',
-  },
+  pay: { icon: ArrowUpRight, label: 'Pagar', tone: 'danger', amount: '', sign: '−' },
 } as const;
-
-function DirectionIcon({ direction, className }: { direction: Direction; className?: string }) {
-  const style = directionStyle[direction];
-  const Icon = style.icon;
-  return (
-    <span
-      aria-hidden="true"
-      className={cn('grid size-8 shrink-0 place-items-center rounded-full', style.badge, className)}
-    >
-      <Icon className="size-4" />
-    </span>
-  );
-}
 
 function SummaryCard({
   direction,
@@ -744,41 +689,30 @@ function SummaryCard({
   value: string;
   lines: (string | { text: string; tone: Tone } | null)[];
 }) {
+  const style = directionStyle[direction];
   return (
-    <Card size="sm">
-      <CardContent className="grid gap-1">
-        <div className="flex items-center gap-2">
-          <DirectionIcon className="size-6 [&_svg]:size-3.5" direction={direction} />
-          <p className="text-sm text-muted-foreground">{label}</p>
-        </div>
-        <strong className="mt-1 text-lg tabular-nums sm:text-2xl">{value}</strong>
-        {lines.map((line) =>
-          !line ? null : typeof line === 'string' ? (
-            <p className="text-xs text-muted-foreground" key={line}>
-              {line}
-            </p>
-          ) : (
-            <p
-              className={cn('text-xs font-medium', line.tone === 'danger' && 'text-destructive')}
-              key={line.text}
-            >
-              {line.text}
-            </p>
-          ),
-        )}
-      </CardContent>
-    </Card>
+    <StatCard
+      detail={lines.map((line) =>
+        !line ? null : typeof line === 'string' ? (
+          <p key={line}>{line}</p>
+        ) : (
+          <p className={cn('font-medium', toneText[line.tone])} key={line.text}>
+            {line.text}
+          </p>
+        ),
+      )}
+      icon={style.icon}
+      label={label}
+      tone={style.tone}
+      value={value}
+    />
   );
 }
 
 function Group({
-  title,
-  hint,
-  count,
   receive,
   pay,
-  tone,
-  children,
+  ...props
 }: {
   title: string;
   hint?: string;
@@ -789,24 +723,17 @@ function Group({
   children: ReactNode;
 }) {
   return (
-    <section aria-label={title} className="grid gap-2">
-      <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-1">
-        <h2 className={cn('text-sm font-semibold', tone === 'danger' && 'text-destructive')}>
-          {title}
-          <span className="ml-1.5 font-normal text-muted-foreground tabular-nums">{count}</span>
-          {hint && <span className="ml-2 text-xs font-normal text-muted-foreground">{hint}</span>}
-        </h2>
-        <p className="flex gap-3 text-sm font-medium tabular-nums">
+    <ListGroup
+      {...props}
+      aside={
+        <>
           {receive > 0 && (
             <span className={directionStyle.receive.amount}>+{formatMoney(receive)}</span>
           )}
           {pay > 0 && <span>−{formatMoney(pay)}</span>}
-        </p>
-      </header>
-      <ul className="divide-y overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
-        {children}
-      </ul>
-    </section>
+        </>
+      }
+    />
   );
 }
 
@@ -830,59 +757,22 @@ function Row({
   menu: ReactNode;
 }) {
   const style = directionStyle[direction];
-  const context = details.filter(Boolean).join(' · ');
-  // No celular: ícone e título na primeira linha; valor e ações juntos na segunda.
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
-      <div className="flex min-w-0 basis-full items-center gap-3 sm:flex-1 sm:basis-64">
-        <DirectionIcon direction={direction} />
-        <div className="min-w-0">
-          <p className="font-medium break-words">
-            <span className="sr-only">{style.label}: </span>
-            {title}
-          </p>
-          {context && <p className="text-sm break-words text-muted-foreground">{context}</p>}
-        </div>
-      </div>
-      <div className="min-w-0 flex-1 pl-11 sm:flex-none sm:pl-0 sm:text-right">
-        <p className={cn('font-semibold tabular-nums', style.amount)}>
-          {style.sign}
-          {formatMoney(amount)}
-        </p>
-        {note && (
-          <p
-            className={cn(
-              'text-xs',
-              noteTone === 'danger'
-                ? 'font-medium text-destructive'
-                : noteTone === 'warning'
-                  ? 'font-medium text-amber-700 dark:text-amber-300'
-                  : 'text-muted-foreground',
-            )}
-          >
-            {note}
-          </p>
-        )}
-      </div>
-      <div className="ml-auto flex items-center gap-1">
-        {primary}
-        {menu}
-      </div>
-    </li>
-  );
-}
-
-function RowMenu({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button aria-label={`Mais ações: ${label}`} size="icon-sm" variant="ghost">
-          <MoreHorizontal aria-hidden="true" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-48">
-        {children}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <ListRow
+      actions={
+        <>
+          {primary}
+          {menu}
+        </>
+      }
+      details={details.filter(Boolean).join(' · ') || undefined}
+      leading={<IconChip icon={style.icon} tone={style.tone} />}
+      note={note}
+      noteTone={noteTone}
+      srPrefix={`${style.label}: `}
+      title={title}
+      value={`${style.sign}${formatMoney(amount)}`}
+      valueClassName={style.amount}
+    />
   );
 }
