@@ -9,6 +9,7 @@ import {
   type Timestamp,
 } from '@/lib/repos/rows';
 import type { Order } from '@/lib/types';
+import { normalizeOrderStage } from '@/lib/order-stages';
 
 type OrderRow = {
   id: string;
@@ -82,7 +83,7 @@ const toOrder = (row: OrderRow) =>
       notes: row.notes,
       technician: row.technician,
       priority: row.priority,
-      stage: row.stage,
+      stage: normalizeOrderStage(row.stage),
       status: row.status,
       labor: money(row.labor),
       parts: money(row.parts),

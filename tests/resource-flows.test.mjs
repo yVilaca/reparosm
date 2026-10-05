@@ -43,6 +43,33 @@ before(async () => {
 
 after(async () => db?.drop());
 
+test('a quick sale goes directly to received without creating an order', { skip }, async () => {
+  const payments = await import('../app/api/payments/route.ts');
+  const receipts = await import('../lib/repos/receivable-orders.ts');
+  const response = await payments.POST(
+    request('payments', A, 'POST', {
+      data: {
+        description: 'Película balcão',
+        value: 35,
+        method: 'Pix',
+        date: '2026-10-04',
+      },
+    }),
+  );
+  assert.equal(response.status, 201);
+  const { record } = await response.json();
+  const sale = (await receipts.received(A.id, '2026-10-01')).find((row) => row.id === record.id);
+  assert.equal(sale.customer, 'Película balcão');
+  assert.equal(sale.orderId, null);
+  assert.equal(sale.value, 35);
+  assert.equal(sale.method, 'Pix');
+  assert.equal(sale.date, '2026-10-04');
+  assert.ok(!(await receipts.received(B.id, '2026-10-01')).some((row) => row.id === record.id));
+  const removed = await payments.DELETE(request('payments', A, 'DELETE', null, record.id));
+  assert.equal(removed.status, 200);
+  assert.ok(!(await receipts.received(A.id, '2026-10-01')).some((row) => row.id === record.id));
+});
+
 const request = (path, who, method, body, id) =>
   new Request(`https://test.local/api/${path}${id ? `?id=${encodeURIComponent(id)}` : ''}`, {
     method,
@@ -289,7 +316,7 @@ test(
     const deliveredResponse = await orderRoute.POST(
       request('orders', A, 'POST', {
         id: created.record.id,
-        data: { ...created.record.data, stage: 'Retirada', deliveredAt: '2000-01-01' },
+        data: { ...created.record.data, stage: 'Concluído', deliveredAt: '2000-01-01' },
       }),
     );
     const delivered = await deliveredResponse.json();

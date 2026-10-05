@@ -39,7 +39,7 @@ export default function WarrantiesRoute({
   const covered = orders
     .filter(
       (order) =>
-        order.stage === 'Retirada' || order.status === 'Concluído' || Boolean(order.deliveredAt),
+        order.stage === 'Concluído' || order.status === 'Concluído' || Boolean(order.deliveredAt),
     )
     .map((order) => ({
       ...order,

@@ -6,6 +6,7 @@ import * as shops from '@/lib/repos/shops';
 import { notifyOrder } from '@/lib/whatsapp';
 import { resolveDeliveredAt, warrantyDaysFromSetting } from '@/lib/warranty';
 import type { Order, Quote } from '@/lib/types';
+import { normalizeOrderStage } from '@/lib/order-stages';
 
 export function orderFromQuote(
   quote: Quote,
@@ -44,15 +45,27 @@ export async function saveOrder(accountId: string, id: string, order: Order) {
     // The display code is server-assigned and immutable: keep it on update,
     // generate the next one for the account on creation. Never trust the client.
     const code = previous ? previous.data.code : await orders.nextCode(accountId, run);
-    const stage = order.stage || 'Recebido';
+    const stage = normalizeOrderStage(order.stage);
     // A missing/cleared warrantyDays (0, normalized away by validation) always means
     // "use the shop's current default" — it never falls back to the order's own
     // previous value, since the only way to get here is the field being cleared.
     const warrantyDays = Number.isInteger(order.warrantyDays)
       ? order.warrantyDays
       : warrantyDaysFromSetting((await shops.get(accountId, 'shop-main', run))?.data.warranty);
-    const deliveredAt = resolveDeliveredAt(previous?.data.deliveredAt, previous?.data.stage, stage);
-    const savedOrder = { ...order, code, stage, warrantyDays, deliveredAt };
+    const deliveredAt =
+      stage === 'Concluído' &&
+      previous?.data.stage === 'Retirada' &&
+      previous.data.status === 'Concluído' &&
+      previous.data.deliveredAt
+        ? previous.data.deliveredAt
+        : resolveDeliveredAt(previous?.data.deliveredAt, previous?.data.stage, stage);
+    const status =
+      stage === 'Concluído'
+        ? 'Concluído'
+        : previous?.data.stage === 'Concluído' && order.status === 'Concluído'
+          ? 'Aberto'
+          : order.status;
+    const savedOrder = { ...order, code, stage, status, warrantyDays, deliveredAt };
     const initialRecord = await orders.save(accountId, id, savedOrder, run);
     if (!initialRecord) return null;
     const itemTotals =

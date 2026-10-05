@@ -34,7 +34,7 @@ export function todayInSaoPaulo() {
 
 /**
  * Re-evaluated on every save: moves to `today` whenever the order freshly
- * transitions into "Retirada" (including a second time, e.g. after a
+ * transitions into "Concluído" (including a second time, e.g. after a
  * warranty return), otherwise keeps whatever delivery date it already had.
  */
 export function resolveDeliveredAt(
@@ -43,7 +43,7 @@ export function resolveDeliveredAt(
   stage: string,
   today = todayInSaoPaulo(),
 ): string | undefined {
-  return stage === 'Retirada' && previousStage !== 'Retirada' ? today : previousDeliveredAt;
+  return stage === 'Concluído' && previousStage !== 'Concluído' ? today : previousDeliveredAt;
 }
 
 export function warrantyPeriod(

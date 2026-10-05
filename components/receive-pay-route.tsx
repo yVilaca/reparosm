@@ -261,7 +261,9 @@ export default function ReceivePayRoute({
   };
 
   const undoReceipt = async (receipt: Receipt) => {
-    const message = `Desfazer o recebimento da ${receipt.code} (${receipt.customer})? A entrada de ${formatMoney(receipt.value)} sai do Caixa e a OS volta para "Em aberto".`;
+    const message = receipt.orderId
+      ? `Desfazer o recebimento da ${receipt.code} (${receipt.customer})? A entrada de ${formatMoney(receipt.value)} sai do Caixa e a OS volta para "Em aberto".`
+      : `Desfazer o recebimento de ${receipt.customer}? A entrada de ${formatMoney(receipt.value)} será removida.`;
     if (!(await confirm(message))) return;
     const response = await fetch(`/api/payments?id=${encodeURIComponent(receipt.id)}`, {
       method: 'DELETE',
@@ -274,7 +276,12 @@ export default function ReceivePayRoute({
     setReceipts((current) => current.filter((item) => item.id !== receipt.id));
     // A OS volta com etapa e idade do servidor.
     router.refresh();
-    notify('Recebimento desfeito. A OS voltou para "Em aberto".', 'success');
+    notify(
+      receipt.orderId
+        ? 'Recebimento desfeito. A OS voltou para "Em aberto".'
+        : 'Recebimento desfeito.',
+      'success',
+    );
   };
 
   const remove = async (row: PayableRow) => {
@@ -570,12 +577,16 @@ export default function ReceivePayRoute({
                         key={`receipt-${receipt.id}`}
                         menu={
                           <RowMenu label={receipt.customer}>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/ordens?busca=${encodeURIComponent(receipt.code)}`}>
-                                Abrir OS
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
+                            {receipt.orderId && (
+                              <>
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/ordens?busca=${encodeURIComponent(receipt.code)}`}>
+                                    Abrir OS
+                                  </Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
                             <DropdownMenuItem onSelect={() => void undoReceipt(receipt)}>
                               Desfazer recebimento
                             </DropdownMenuItem>
@@ -629,7 +640,7 @@ export default function ReceivePayRoute({
             Mostrando desde {brDate(historySince)}. O histórico completo fica no{' '}
             <Link
               className="font-medium text-foreground underline-offset-4 hover:underline"
-              href="/pagamentos"
+              href="/pagamentos/historico"
             >
               Caixa
             </Link>

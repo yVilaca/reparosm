@@ -177,10 +177,9 @@ test('counts the bench by stage, only for orders still in service', { skip }, as
   const bench = await dashboard.bench(A);
   assert.deepEqual(bench, [
     { stage: 'Recebido', orders: 0 },
-    { stage: 'Diagnóstico', orders: 1 },
-    { stage: 'Aguardando aprovação', orders: 0 },
-    { stage: 'Em reparo', orders: 2 },
-    { stage: 'Teste final', orders: 0 },
+    { stage: 'Aguardando Peça', orders: 0 },
+    { stage: 'Em serviço', orders: 3 },
     { stage: 'Retirada', orders: 1 },
+    { stage: 'Concluído', orders: 0 },
   ]);
 });

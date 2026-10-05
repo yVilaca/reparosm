@@ -13,7 +13,7 @@ const baseOrder = (overrides) => ({
   ...overrides,
 });
 
-test('shows a finished order even when it has not reached the Retirada stage yet', () => {
+test('shows an order already marked completed even when its legacy stage differs', () => {
   const html = renderToStaticMarkup(
     createElement(WarrantiesRoute, {
       defaultWarrantyDays: 90,
@@ -24,13 +24,13 @@ test('shows a finished order even when it has not reached the Retirada stage yet
   assert.match(html, /Data pendente/);
 });
 
-test('counts pre-existing deliveries with an unknown warranty date separately from active ones', () => {
+test('counts completed deliveries with an unknown warranty date separately from active ones', () => {
   const html = renderToStaticMarkup(
     createElement(WarrantiesRoute, {
       defaultWarrantyDays: 90,
       orders: [
-        // Delivered before the deliveredAt migration: stage is Retirada but the date is unknown.
-        baseOrder({ id: 'order-legacy', code: 'OS-9', stage: 'Retirada', warrantyDays: 90 }),
+        // The completion is recorded, but its delivery date is unknown.
+        baseOrder({ id: 'order-legacy', code: 'OS-9', stage: 'Concluído', warrantyDays: 90 }),
       ],
     }),
   );
@@ -39,4 +39,14 @@ test('counts pre-existing deliveries with an unknown warranty date separately fr
   assert.equal(unknownMetric?.[1], '1');
   const activeMetric = html.match(/Garantias ativas[\s\S]*?<strong[^>]*>(\d+)<\/strong>/);
   assert.equal(activeMetric?.[1], '0');
+});
+
+test('awaiting pickup does not start warranty coverage', () => {
+  const html = renderToStaticMarkup(
+    createElement(WarrantiesRoute, {
+      defaultWarrantyDays: 90,
+      orders: [baseOrder({ stage: 'Retirada', status: 'Aberto' })],
+    }),
+  );
+  assert.doesNotMatch(html, /OS-1/);
 });

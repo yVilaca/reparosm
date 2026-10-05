@@ -4,6 +4,12 @@ import { todayInSaoPaulo } from '@/lib/warranty';
 
 export type CashTotals = { income: number; expense: number; balance: number };
 export type MethodTotal = { method: string; value: number };
+export type OrderFinancialTotals = {
+  gross: number;
+  net: number;
+  grossReceivable: number;
+  netReceivable: number;
+};
 export type MonthlyCashTotals = CashTotals & {
   month: string;
   paidOrders: number;
@@ -16,6 +22,37 @@ export type MonthlyCashTotals = CashTotals & {
  * data sumiria de todos os períodos e continuaria somando no total geral.
  */
 const COMPETENCE = `COALESCE(c.date, (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date)`;
+
+/** All non-cancelled orders; unpaid margin is proportional to the remaining balance. */
+export async function orderFinancialTotals(accountId: string): Promise<OrderFinancialTotals> {
+  const [row] = await tenantQueryFor(accountId)<{
+    gross: string;
+    net: string;
+    gross_receivable: string;
+    net_receivable: string;
+  }>(
+    `WITH amounts AS (
+      SELECT o.total, o.cost,
+        GREATEST(o.total - COALESCE(c.value, 0), 0) AS remaining
+      FROM orders o LEFT JOIN cash_entries c
+        ON c.account_id = o.account_id AND c.order_id = o.id AND c.kind = 'in'
+      WHERE o.account_id = $1 AND o.status <> 'Cancelado'
+    )
+    SELECT COALESCE(SUM(total), 0) AS gross,
+      COALESCE(SUM(total - cost), 0) AS net,
+      COALESCE(SUM(remaining), 0) AS gross_receivable,
+      COALESCE(ROUND(SUM(CASE WHEN total > 0
+        THEN remaining * (total - cost) / total ELSE 0 END), 2), 0) AS net_receivable
+    FROM amounts`,
+    [accountId],
+  );
+  return {
+    gross: money(row.gross),
+    net: money(row.net),
+    grossReceivable: money(row.gross_receivable),
+    netReceivable: money(row.net_receivable),
+  };
+}
 
 const totalsOf = (rows: Array<{ kind: string; value: string }>): CashTotals => {
   const income = rows

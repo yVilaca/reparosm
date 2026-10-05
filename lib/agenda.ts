@@ -13,10 +13,10 @@ export type ReceivableOrder = {
   days: number;
 };
 
-/** Recebimento de uma OS, lançado no caixa. */
+/** Recebimento de uma OS ou venda avulsa, lançado no caixa. */
 export type Receipt = {
   id: string;
-  orderId: string;
+  orderId: string | null;
   code: string;
   customer: string;
   device: string;
