@@ -13,14 +13,14 @@ export default async function DashboardPage() {
 
   const asOfDate = todayInSaoPaulo();
 
-  const [actions, bench, today, month, trend] = await Promise.all([
+  const [actions, bench, today, orderTotals, trend] = await Promise.all([
     dashboard.actions(account.id, asOfDate),
 
     dashboard.bench(account.id),
 
     cash.today(account.id, asOfDate),
 
-    cash.month(account.id, asOfDate),
+    cash.orderFinancialTotals(account.id),
     cash.trend(account.id, asOfDate),
   ]);
 
@@ -32,7 +32,7 @@ export default async function DashboardPage() {
 
       bench={bench}
 
-      month={month}
+      orderTotals={orderTotals}
 
       today={today}
       trend={trend}

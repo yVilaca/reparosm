@@ -51,7 +51,7 @@ export async function open(
 export async function received(accountId: string, since: string): Promise<Receipt[]> {
   const rows = await tenantQueryFor(accountId)<{
     id: string;
-    order_id: string;
+    order_id: string | null;
     code: string;
     customer: string;
     device: string;
@@ -59,10 +59,12 @@ export async function received(accountId: string, since: string): Promise<Receip
     method: string | null;
     date: string;
   }>(
-    `SELECT c.id, c.order_id, o.code, o.customer, o.device, c.value, c.method,
+    `SELECT c.id, c.order_id, COALESCE(o.code, '') AS code,
+            COALESCE(o.customer, c.description) AS customer,
+            COALESCE(o.device, c.reference, '') AS device, c.value, c.method,
             COALESCE(c.date, (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date)::text AS date
      FROM cash_entries c
-     JOIN orders o ON o.account_id = c.account_id AND o.id = c.order_id
+     LEFT JOIN orders o ON o.account_id = c.account_id AND o.id = c.order_id
      WHERE c.account_id = $1 AND c.kind = 'in'
        AND COALESCE(c.date, (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date) >= $2::date
      ORDER BY 8 DESC, c.created_at DESC`,

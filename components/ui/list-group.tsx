@@ -56,7 +56,10 @@ export function ListRow({
   note,
   noteTone,
   actions,
+  dense = false,
 }: {
+  /** Tudo numa linha só, para listas estreitas (colunas laterais). */
+  dense?: boolean;
   leading?: ReactNode;
   /** Prefixo só para leitores de tela (ex.: "Receber: "). */
   srPrefix?: string;
@@ -69,8 +72,18 @@ export function ListRow({
   actions?: ReactNode;
 }) {
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
-      <div className="flex min-w-0 basis-full items-center gap-3 sm:flex-1 sm:basis-64">
+    <li
+      className={cn(
+        'flex items-center gap-x-3 gap-y-2 px-4 py-3',
+        dense ? 'flex-nowrap' : 'flex-wrap',
+      )}
+    >
+      <div
+        className={cn(
+          'flex min-w-0 items-center gap-3',
+          dense ? 'flex-1' : 'basis-full sm:flex-1 sm:basis-64',
+        )}
+      >
         {leading}
         <div className="min-w-0">
           <p className="font-medium break-words">
@@ -83,8 +96,8 @@ export function ListRow({
       {(value !== undefined || note) && (
         <div
           className={cn(
-            'min-w-0 flex-1 sm:flex-none sm:text-right',
-            leading ? 'pl-11 sm:pl-0' : undefined,
+            dense ? 'shrink-0 text-right' : 'min-w-0 flex-1 sm:flex-none sm:text-right',
+            leading && !dense ? 'pl-11 sm:pl-0' : undefined,
           )}
         >
           {value !== undefined && (
@@ -106,7 +119,9 @@ export function ListRow({
           )}
         </div>
       )}
-      {actions && <div className="ml-auto flex items-center gap-1">{actions}</div>}
+      {actions && (
+        <div className={cn('flex items-center gap-1', !dense && 'ml-auto')}>{actions}</div>
+      )}
     </li>
   );
 }

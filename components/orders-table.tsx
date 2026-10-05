@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import EmptyState from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
+import { toneChip } from '@/components/ui/tone';
 import {
   Table,
   TableBody,
@@ -19,7 +20,7 @@ import {
 } from '@/components/ui/table';
 import { formatMoney } from '@/lib/format';
 import { badgeFor, isNotablePriority, orderPriorityTone, orderStageTone } from '@/lib/status-tones';
-import type { Order } from '@/lib/types';
+import type { Order, OrderStage } from '@/lib/types';
 
 type OrderRow = Order & { id: string };
 // Cores com significado fixo: veja lib/status-tones.ts.
@@ -43,6 +44,9 @@ export default function OrdersTable({
   onRemoved,
   selectedIds,
   setSelectedIds,
+  stages = [],
+  onStageChange,
+  changingStage = false,
 }: {
   orders: OrderRow[];
   selectedIds: Set<string>;
@@ -52,9 +56,32 @@ export default function OrdersTable({
   onEdit?: (order: OrderRow) => void;
   onCharge?: (order: OrderRow) => void;
   onRemoved?: (id: string) => void;
+  stages?: readonly OrderStage[];
+  onStageChange?: (order: OrderRow, stage: OrderStage) => void;
+  changingStage?: boolean;
 }) {
   const selectedOrders = orders.filter((order) => selectedIds.has(order.id));
   const allSelected = orders.length > 0 && selectedOrders.length === orders.length;
+  const stageControl = (order: OrderRow) =>
+    onStageChange ? (
+      <select
+        aria-label={`Etapa da ordem ${order.code}`}
+        className={`h-8 max-w-full rounded-md border px-2 text-xs font-medium focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-wait disabled:opacity-50 ${toneChip[orderStageTone(order.stage || 'Recebido')]}`}
+        value={order.stage || 'Recebido'}
+        disabled={changingStage}
+        onChange={(event) => onStageChange(order, event.target.value as OrderStage)}
+      >
+        {stages.map((stage) => (
+          <option key={stage} value={stage}>
+            {stage}
+          </option>
+        ))}
+      </select>
+    ) : (
+      <Badge variant={orderStageVariant(order.stage || 'Recebido')}>
+        {order.stage || 'Recebido'}
+      </Badge>
+    );
 
   const toggleSelected = (id: string) =>
     setSelectedIds((current) => {
@@ -141,9 +168,7 @@ export default function OrdersTable({
                         </h3>
                       </div>
                     </div>
-                    <Badge variant={orderStageVariant(order.stage || 'Recebido')}>
-                      {order.stage || 'Recebido'}
-                    </Badge>
+                    {stageControl(order)}
                   </div>
                   <div className="min-w-0">
                     <p className="truncate font-medium">
@@ -220,11 +245,7 @@ export default function OrdersTable({
                     <p className="font-medium">{order.customer || '—'}</p>
                     <p className="text-xs text-muted-foreground">{order.device || '—'}</p>
                   </TableCell>
-                  <TableCell>
-                    <Badge variant={orderStageVariant(order.stage || 'Recebido')}>
-                      {order.stage || 'Recebido'}
-                    </Badge>
-                  </TableCell>
+                  <TableCell>{stageControl(order)}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatMoney(Number(order.total || 0))}
                   </TableCell>

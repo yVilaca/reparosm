@@ -2,6 +2,7 @@ import { tenantQueryFor } from '@/lib/db';
 import { money } from '@/lib/repos/rows';
 import { todayInSaoPaulo } from '@/lib/warranty';
 import type { OrderStage } from '@/lib/types';
+import { orderStages, normalizeOrderStage } from '@/lib/order-stages';
 
 export type DashboardActionKind = 'ready' | 'charge' | 'quote' | 'stalled' | 'overdue' | 'restock';
 
@@ -19,17 +20,10 @@ export type DashboardAction = {
 
 export type BenchStage = { stage: OrderStage; orders: number };
 
-const STAGES: OrderStage[] = [
-  'Recebido',
-  'Diagnóstico',
-  'Aguardando aprovação',
-  'Em reparo',
-  'Teste final',
-  'Retirada',
-];
+const STAGES = orderStages;
 
-// A OS segue em serviço até ser concluída ou cancelada; "Retirada" é a última
-// etapa, então etapa sozinha não diz se o aparelho ainda está na loja.
+// A OS segue em serviço até ser concluída ou cancelada; "Retirada" ainda
+// representa um aparelho aguardando o cliente.
 const IN_SERVICE = `o.status NOT IN ('Concluído', 'Cancelado')`;
 const QUOTE_WAIT_DAYS = 2;
 const STALLED_DAYS = 2;
@@ -123,6 +117,10 @@ export async function bench(accountId: string): Promise<BenchStage[]> {
      GROUP BY o.stage`,
     [accountId],
   );
-  const counts = new Map(rows.map((row) => [row.stage, Number(row.orders)]));
+  const counts = new Map<OrderStage, number>();
+  for (const row of rows) {
+    const stage = normalizeOrderStage(row.stage);
+    counts.set(stage, (counts.get(stage) ?? 0) + Number(row.orders));
+  }
   return STAGES.map((stage) => ({ stage, orders: counts.get(stage) ?? 0 }));
 }

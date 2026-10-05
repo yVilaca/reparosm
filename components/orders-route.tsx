@@ -26,6 +26,7 @@ import { badgeFor, isNotablePriority, orderPriorityTone, orderStageTone } from '
 import { formatMoney } from '@/lib/format';
 import type { Order, OrderPayment, OrderStage } from '@/lib/types';
 import { uploadOrderPhotos } from '@/lib/order-photo-upload';
+import { orderStages } from '@/lib/order-stages';
 
 type OrderView = 'grid' | 'kanban';
 
@@ -42,21 +43,13 @@ const storedOrderView = (): OrderView => {
   }
 };
 
-const orderStages: OrderStage[] = [
-  'Recebido',
-  'Diagnóstico',
-  'Aguardando aprovação',
-  'Em reparo',
-  'Teste final',
-  'Retirada',
-];
 const filterFields: FilterField[] = [
   { key: 'search', label: 'Busca' },
   { key: 'code', label: 'OS' },
   { key: 'customer', label: 'Cliente' },
   { key: 'device', label: 'Aparelho' },
   { key: 'phone', label: 'WhatsApp' },
-  { key: 'stage', label: 'Etapa', options: orderStages },
+  { key: 'stage', label: 'Etapa', options: [...orderStages] },
   { key: 'priority', label: 'Prioridade', options: ['Normal', 'Urgente', 'Garantia'] },
 ];
 
@@ -232,6 +225,9 @@ export default function OrdersRoute({
       {view === 'grid' ? (
         <OrdersTable
           orders={visible}
+          stages={orderStages}
+          onStageChange={moveTo}
+          changingStage={Boolean(movingId)}
           selectedIds={selectedIds}
           setSelectedIds={setSelectedIds}
           emptyMessage={

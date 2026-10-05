@@ -26,20 +26,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { formatMoney as money } from '@/lib/format';
 import { addOrderPhotoSelection } from '@/lib/order-photo-selection';
 import type { Order, OrderItem, OrderPriority, Part } from '@/lib/types';
+import { orderStages as stages } from '@/lib/order-stages';
 
 export type OrderRow = Order & { id: string };
 export type PartRow = Part & { id: string };
 export type SaveOrder = (data: Order, id?: string, photos?: File[]) => Promise<void>;
 type FieldChange = ChangeEvent<HTMLInputElement | HTMLTextAreaElement>;
 
-const stages = [
-  'Recebido',
-  'Diagnóstico',
-  'Aguardando aprovação',
-  'Em reparo',
-  'Teste final',
-  'Retirada',
-];
 const statuses = ['Aberto', 'Pendente', 'Aguardando pagamento', 'Concluído', 'Cancelado'];
 const priorities: OrderPriority[] = ['Normal', 'Urgente', 'Garantia'];
 
@@ -98,191 +91,212 @@ export function OrderEditModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && close()}>
-      <DialogContent className="max-w-3xl p-0">
+      <DialogContent className="flex max-w-4xl flex-col gap-0 overflow-hidden p-0">
         <form
-          className="grid gap-6 p-6"
+          className="flex min-h-0 flex-1 flex-col"
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
             void submit();
           }}
         >
-          <DialogHeader className="pr-8">
+          <DialogHeader className="shrink-0 border-b px-5 py-5 pr-12 sm:px-6 sm:pr-12">
             <DialogTitle>Editar ordem {item.code}</DialogTitle>
             <DialogDescription>Atualize os dados e salve as alterações.</DialogDescription>
           </DialogHeader>
 
-          <OrderPhotos orderId={item.id} />
+          <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto overscroll-contain p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_17rem]">
+            <div className="flex min-w-0 flex-col gap-6">
+              <fieldset className="grid gap-4 sm:grid-cols-2">
+                <legend className="mb-4 text-sm font-semibold">Cliente e aparelho</legend>
+                <div className="grid gap-2">
+                  <Label htmlFor="order-edit-customer">Cliente *</Label>
+                  <Input
+                    autoComplete="name"
+                    id="order-edit-customer"
+                    onChange={field('customer')}
+                    required
+                    value={form.customer || ''}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="order-edit-phone">WhatsApp</Label>
+                  <Input
+                    autoComplete="tel"
+                    id="order-edit-phone"
+                    onChange={field('phone')}
+                    value={form.phone || ''}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="order-edit-device">Aparelho *</Label>
+                  <Input
+                    id="order-edit-device"
+                    onChange={field('device')}
+                    required
+                    value={form.device || ''}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="order-edit-imei">IMEI / série</Label>
+                  <Input id="order-edit-imei" onChange={field('imei')} value={form.imei || ''} />
+                </div>
+              </fieldset>
+              <fieldset className="grid gap-4 sm:grid-cols-2">
+                <legend className="mb-4 text-sm font-semibold">Serviço</legend>
+                <div className="grid gap-2">
+                  <Label htmlFor="order-edit-problem">Problema relatado</Label>
+                  <Textarea
+                    id="order-edit-problem"
+                    className="min-h-24"
+                    onChange={field('problem')}
+                    value={form.problem || ''}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="order-edit-notes">Observações</Label>
+                  <Textarea
+                    className="min-h-24"
+                    id="order-edit-notes"
+                    onChange={field('notes')}
+                    value={form.notes || ''}
+                  />
+                </div>
+              </fieldset>
+              <OrderProductsPicker
+                parts={parts}
+                value={selectedItems}
+                onChange={setSelectedItems}
+              />
+              <OrderPhotos orderId={item.id} />
+            </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="order-edit-customer">Cliente *</Label>
-              <Input
-                autoComplete="name"
-                id="order-edit-customer"
-                onChange={field('customer')}
-                required
-                value={form.customer || ''}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="order-edit-phone">WhatsApp</Label>
-              <Input
-                autoComplete="tel"
-                id="order-edit-phone"
-                onChange={field('phone')}
-                value={form.phone || ''}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="order-edit-device">Aparelho *</Label>
-              <Input
-                id="order-edit-device"
-                onChange={field('device')}
-                required
-                value={form.device || ''}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="order-edit-imei">IMEI / série</Label>
-              <Input id="order-edit-imei" onChange={field('imei')} value={form.imei || ''} />
-            </div>
-            <div className="grid gap-2 sm:col-span-2">
-              <Label htmlFor="order-edit-problem">Problema relatado</Label>
-              <Textarea
-                id="order-edit-problem"
-                onChange={field('problem')}
-                value={form.problem || ''}
-              />
-            </div>
-            <div className="grid gap-2 sm:col-span-2">
-              <Label htmlFor="order-edit-notes">Observações</Label>
-              <Textarea id="order-edit-notes" onChange={field('notes')} value={form.notes || ''} />
+            <div className="grid min-w-0 content-start gap-6 border-t pt-6 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
+              <fieldset className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+                <legend className="mb-4 text-sm font-semibold">Acompanhamento</legend>
+                <div className="grid gap-2">
+                  <Label htmlFor="order-edit-stage">Etapa</Label>
+                  <Select
+                    onValueChange={(value) => setChoice('stage', value)}
+                    value={form.stage || 'Recebido'}
+                  >
+                    <SelectTrigger className="w-full" id="order-edit-stage">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stages.map((stage) => (
+                        <SelectItem key={stage} value={stage}>
+                          {stage}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="order-edit-status">Status</Label>
+                  <Select
+                    onValueChange={(value) => setChoice('status', value)}
+                    value={form.status || 'Aberto'}
+                  >
+                    <SelectTrigger className="w-full" id="order-edit-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statuses.map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {status}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="order-edit-priority">Prioridade</Label>
+                  <Select
+                    onValueChange={(value) => setChoice('priority', value)}
+                    value={form.priority || 'Normal'}
+                  >
+                    <SelectTrigger className="w-full" id="order-edit-priority">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {priorities.map((priority) => (
+                        <SelectItem key={priority} value={priority}>
+                          {priority}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="order-edit-technician">Técnico responsável</Label>
+                  <Input
+                    id="order-edit-technician"
+                    onChange={field('technician')}
+                    value={form.technician || ''}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="order-edit-warranty">Garantia (dias)</Label>
+                  <Input
+                    id="order-edit-warranty"
+                    max="3650"
+                    min="1"
+                    onChange={field('warrantyDays')}
+                    step="1"
+                    type="number"
+                    value={form.warrantyDays ?? ''}
+                  />
+                </div>
+              </fieldset>
+              <fieldset className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
+                <legend className="mb-4 text-sm font-semibold">Valores (R$)</legend>
+                {[
+                  { label: 'Mão de obra', key: 'labor' as const },
+                  { label: 'Peças', key: 'parts' as const },
+                  { label: 'Custo', key: 'cost' as const },
+                ].map(({ label, key }) => (
+                  <div className="grid gap-2" key={key}>
+                    <Label htmlFor={`order-edit-${key}`}>{label}</Label>
+                    <Input
+                      id={`order-edit-${key}`}
+                      min="0"
+                      onChange={field(key)}
+                      readOnly={key === 'parts' && selectedItems.length > 0}
+                      step="0.01"
+                      type="number"
+                      value={key === 'parts' ? partsTotal : form[key] || 0}
+                    />
+                  </div>
+                ))}
+              </fieldset>
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="grid gap-2">
-              <Label htmlFor="order-edit-stage">Etapa</Label>
-              <Select
-                onValueChange={(value) => setChoice('stage', value)}
-                value={form.stage || 'Recebido'}
-              >
-                <SelectTrigger id="order-edit-stage">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {stages.map((stage) => (
-                    <SelectItem key={stage} value={stage}>
-                      {stage}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="order-edit-status">Status</Label>
-              <Select
-                onValueChange={(value) => setChoice('status', value)}
-                value={form.status || 'Aberto'}
-              >
-                <SelectTrigger id="order-edit-status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {statuses.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="order-edit-priority">Prioridade</Label>
-              <Select
-                onValueChange={(value) => setChoice('priority', value)}
-                value={form.priority || 'Normal'}
-              >
-                <SelectTrigger id="order-edit-priority">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {priorities.map((priority) => (
-                    <SelectItem key={priority} value={priority}>
-                      {priority}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <OrderProductsPicker parts={parts} value={selectedItems} onChange={setSelectedItems} />
-
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="grid gap-2">
-              <Label htmlFor="order-edit-technician">Técnico responsável</Label>
-              <Input
-                id="order-edit-technician"
-                onChange={field('technician')}
-                value={form.technician || ''}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="order-edit-warranty">Garantia (dias)</Label>
-              <Input
-                id="order-edit-warranty"
-                max="3650"
-                min="1"
-                onChange={field('warrantyDays')}
-                step="1"
-                type="number"
-                value={form.warrantyDays ?? ''}
-              />
-            </div>
-            {[
-              { label: 'Mão de obra', key: 'labor' as const },
-              { label: 'Peças', key: 'parts' as const },
-              { label: 'Custo', key: 'cost' as const },
-            ].map(({ label, key }) => (
-              <div className="grid gap-2" key={key}>
-                <Label htmlFor={`order-edit-${key}`}>{label}</Label>
-                <Input
-                  id={`order-edit-${key}`}
-                  min="0"
-                  onChange={field(key)}
-                  readOnly={key === 'parts' && selectedItems.length > 0}
-                  step="0.01"
-                  type="number"
-                  value={key === 'parts' ? partsTotal : form[key] || 0}
-                />
+          <div className="grid shrink-0 gap-4 border-t bg-muted/30 px-5 py-4 sm:flex sm:items-center sm:justify-between sm:px-6">
+            <div className="grid grid-cols-2 gap-6 sm:gap-8" aria-label="Resumo de valores">
+              <div>
+                <p className="text-sm text-muted-foreground">Total</p>
+                <p className="mt-1 font-semibold tabular-nums">{money(total)}</p>
               </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 rounded-lg bg-muted/50 p-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Total</p>
-              <p className="mt-1 font-semibold tabular-nums">{money(total)}</p>
+              <div>
+                <p className="text-sm text-muted-foreground">Lucro</p>
+                <p
+                  className={`mt-1 font-semibold tabular-nums ${profit < 0 ? 'text-destructive' : ''}`}
+                >
+                  {money(profit)}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Lucro</p>
-              <p
-                className={`mt-1 font-semibold tabular-nums ${profit < 0 ? 'text-destructive' : ''}`}
-              >
-                {money(profit)}
-              </p>
-            </div>
-          </div>
 
-          <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
-            <Button onClick={close} type="button" variant="outline">
-              Cancelar
-            </Button>
-            <Button disabled={saving} type="submit">
-              {saving ? 'Salvando…' : 'Salvar alterações'}
-            </Button>
+            <div className="grid grid-cols-2 gap-2 sm:flex">
+              <Button onClick={close} type="button" variant="outline">
+                Cancelar
+              </Button>
+              <Button disabled={saving} type="submit">
+                {saving ? 'Salvando…' : 'Salvar alterações'}
+              </Button>
+            </div>
           </div>
         </form>
       </DialogContent>

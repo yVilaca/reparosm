@@ -27,18 +27,19 @@ test('calculates warranty expiry and remaining days from delivery', () => {
   });
 });
 
-test('resolveDeliveredAt sets today on a fresh transition into Retirada', () => {
-  assert.equal(resolveDeliveredAt(undefined, 'Em reparo', 'Retirada', '2026-03-01'), '2026-03-01');
+test('resolveDeliveredAt sets today on completion, not while awaiting pickup', () => {
+  assert.equal(resolveDeliveredAt(undefined, 'Em serviço', 'Retirada', '2026-03-01'), undefined);
+  assert.equal(resolveDeliveredAt(undefined, 'Retirada', 'Concluído', '2026-03-01'), '2026-03-01');
 });
 
-test('resolveDeliveredAt keeps the previous date while staying in Retirada', () => {
+test('resolveDeliveredAt keeps the previous date while staying completed', () => {
   assert.equal(
-    resolveDeliveredAt('2026-01-10', 'Retirada', 'Retirada', '2026-03-01'),
+    resolveDeliveredAt('2026-01-10', 'Concluído', 'Concluído', '2026-03-01'),
     '2026-01-10',
   );
 });
 
-test('resolveDeliveredAt keeps the previous date while not in Retirada', () => {
+test('resolveDeliveredAt keeps the previous date while not completed', () => {
   assert.equal(
     resolveDeliveredAt('2026-01-10', 'Em reparo', 'Em reparo', '2026-03-01'),
     '2026-01-10',
@@ -46,10 +47,10 @@ test('resolveDeliveredAt keeps the previous date while not in Retirada', () => {
 });
 
 test('resolveDeliveredAt updates to today on a second delivery (warranty return)', () => {
-  // Delivered once (2026-01-10), returned for a warranty repair (stage left Retirada),
+  // Delivered once (2026-01-10), returned for a warranty repair (stage left Concluído),
   // then redelivered: the date must move to the new handoff, not stay stuck on the first one.
   assert.equal(
-    resolveDeliveredAt('2026-01-10', 'Em reparo', 'Retirada', '2026-03-01'),
+    resolveDeliveredAt('2026-01-10', 'Em serviço', 'Concluído', '2026-03-01'),
     '2026-03-01',
   );
 });

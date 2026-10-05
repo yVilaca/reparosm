@@ -11,10 +11,13 @@ export function orderStageTone(stage: string | undefined): Tone {
     case 'Diagnóstico':
     case 'Em reparo':
     case 'Teste final':
+    case 'Em serviço':
       return 'info';
     case 'Aguardando aprovação':
+    case 'Aguardando Peça':
       return 'warning';
     case 'Retirada':
+    case 'Concluído':
       return 'success';
     default:
       return 'neutral';

@@ -49,7 +49,7 @@ export default function BusinessAssistantRoute({
             .join(', ')}.`
         : `Você possui ${parts.length} produtos cadastrados e nenhum está em nível crítico.`;
     if (normalized.includes('ordem') || normalized.includes('serviço'))
-      return `Existem ${orders.length} ordens no total e ${orders.filter((order) => order.stage !== 'Retirada').length} ainda estão no fluxo de atendimento.`;
+      return `Existem ${orders.length} ordens no total e ${orders.filter((order) => order.stage !== 'Concluído' && order.status !== 'Concluído' && order.status !== 'Cancelado').length} ainda estão no fluxo de atendimento.`;
     if (
       normalized.includes('prioridade') ||
       normalized.includes('fazer') ||
@@ -72,7 +72,7 @@ export default function BusinessAssistantRoute({
       icon: Wrench as LucideIcon,
       tone: 'info' as Tone,
       text: orders.length
-        ? `${orders.length} ordens cadastradas, sendo ${orders.filter((order) => order.stage !== 'Retirada').length} ainda em fluxo.`
+        ? `${orders.length} ordens cadastradas, sendo ${orders.filter((order) => order.stage !== 'Concluído' && order.status !== 'Concluído' && order.status !== 'Cancelado').length} ainda em fluxo.`
         : 'Crie ordens para receber análises de desempenho.',
     },
     {

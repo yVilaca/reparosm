@@ -5,6 +5,39 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import OrderPaymentStatus from '../components/order-payment-status.tsx';
 import { matchesOrderFilters } from '../components/orders-route.tsx';
 import Filters from '../components/ui/filters.tsx';
+import OrdersTable from '../components/orders-table.tsx';
+import { FeedbackProvider } from '../components/feedback.tsx';
+import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime';
+
+test('order list offers the kanban stages on desktop and mobile and locks them while saving', () => {
+  const stages = ['Recebido', 'Aguardando Peça', 'Em serviço', 'Retirada', 'Concluído'];
+  const props = {
+    orders: [{ id: 'order-1', code: 'OS-12', customer: 'Ana', stage: 'Em serviço' }],
+    selectedIds: new Set(),
+    setSelectedIds() {},
+    stages,
+    onStageChange() {},
+  };
+  const render = (value) =>
+    renderToStaticMarkup(
+      createElement(
+        AppRouterContext.Provider,
+        { value: { refresh() {} } },
+        createElement(FeedbackProvider, null, createElement(OrdersTable, value)),
+      ),
+    );
+  const html = render(props);
+  const selects = html.match(/<select\b[^>]*>[\s\S]*?<\/select>/g) || [];
+  assert.equal(selects.length, 2);
+  for (const select of selects) {
+    assert.match(select, /aria-label="Etapa da ordem OS-12"/);
+    assert.match(select, /<option value="Em serviço" selected="">Em serviço<\/option>/);
+    for (const stage of stages) assert.ok(select.includes(`value="${stage}"`));
+    assert.doesNotMatch(select, / disabled=""/);
+  }
+  const saving = render({ ...props, changingStage: true });
+  assert.equal((saving.match(/<select\b[^>]*disabled=""/g) || []).length, 2);
+});
 
 test('combines field filters and preserves the general order search', () => {
   const order = { code: 'OS-12', customer: 'Ana Silva', device: 'iPhone', phone: '11987654321' };

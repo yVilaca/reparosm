@@ -2,7 +2,6 @@ import Link from 'next/link';
 
 import {
   ArrowDownLeft,
-  ArrowUpRight,
   PackageCheck,
   Plus,
   Receipt,
@@ -32,7 +31,12 @@ import PageHeader from '@/components/ui/page-header';
 
 import { formatMoney, hasValidWhatsapp } from '@/lib/format';
 
-import type { CashTotals, MethodTotal, MonthlyCashTotals } from '@/lib/repos/cash';
+import type {
+  CashTotals,
+  MethodTotal,
+  MonthlyCashTotals,
+  OrderFinancialTotals,
+} from '@/lib/repos/cash';
 
 import type { BenchStage, DashboardAction } from '@/lib/repos/dashboard';
 
@@ -173,27 +177,7 @@ const longDate = dateFormat({ weekday: 'long', day: 'numeric', month: 'long' });
 
 const monthName = dateFormat({ month: 'long' });
 
-const previousMonthOf = (isoDate: string) => {
-  const date = new Date(`${isoDate.slice(0, 7)}-15T12:00:00Z`);
-
-  date.setUTCMonth(date.getUTCMonth() - 1);
-
-  return date.toISOString().slice(0, 10);
-};
-
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
-
-function monthComparison(current: number, previous: number, previousMonth: string) {
-  if (previous === 0) return `Sem recebimentos no mesmo período de ${previousMonth}.`;
-
-  const delta = current - previous;
-
-  const sign = delta >= 0 ? '+' : '−';
-
-  const percent = Math.round((Math.abs(delta) / previous) * 100);
-
-  return `${sign}${formatMoney(Math.abs(delta))} (${sign}${percent}%) em relação ao mesmo período de ${previousMonth}.`;
-}
 
 function PriorityRows({ actions }: { actions: DashboardAction[] }) {
   return (
@@ -372,18 +356,17 @@ export default function DashboardRoute({
   actions,
   bench,
   today,
-  month,
+  orderTotals,
   trend,
 }: {
   asOfDate: string;
   actions: DashboardAction[];
   bench: BenchStage[];
   today: CashTotals & { methods: MethodTotal[] };
-  month: { current: CashTotals; previous: CashTotals };
+  orderTotals: OrderFinancialTotals;
   trend: MonthlyCashTotals[];
 }) {
   const inService = bench.reduce((sum, item) => sum + item.orders, 0);
-  const paid = trend.find((item) => item.month === `${asOfDate.slice(0, 7)}-01`);
   const workshop = actions.filter((action) => action.kind === 'stalled' || action.kind === 'quote');
   const pickup = actions.filter((action) => action.kind === 'ready' || action.kind === 'charge');
   const management = actions.filter(
@@ -404,47 +387,38 @@ export default function DashboardRoute({
         }
       />
       <section
-        aria-label="Resultados financeiros do mês"
+        aria-label="Totais financeiros das ordens"
         className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4"
       >
         <StatCard
-          detail={
-            <>
-              <p>{capitalize(monthName(asOfDate))} até hoje</p>
-              <p>
-                {monthComparison(
-                  month.current.income,
-                  month.previous.income,
-                  monthName(previousMonthOf(asOfDate)),
-                )}
-              </p>
-            </>
-          }
+          detail="Valor de todas as OS, exceto canceladas."
           icon={ArrowDownLeft}
-          label="Recebimentos no mês"
+          label="Total Bruto"
           tone="success"
-          value={formatMoney(month.current.income)}
+          value={formatMoney(orderTotals.gross)}
         />
         <StatCard
-          detail="Despesas e pagamentos lançados no caixa."
-          icon={ArrowUpRight}
-          label="Saídas no mês"
-          tone="danger"
-          value={formatMoney(month.current.expense)}
-        />
-        <StatCard
-          detail="Entradas menos saídas do mês. Não representa lucro contábil."
+          detail="Valor das OS menos os custos registrados."
           icon={Wallet}
-          label="Resultado do caixa"
-          value={formatMoney(month.current.balance)}
-          valueTone={month.current.balance < 0 ? 'danger' : undefined}
+          label="Total Líquido"
+          tone="success"
+          value={formatMoney(orderTotals.net)}
+          valueTone={orderTotals.net < 0 ? 'danger' : undefined}
         />
         <StatCard
-          detail={`${paid?.paidOrders || 0} OS recebidas no mês.`}
+          detail="Saldo pendente das OS, após os recebimentos."
           icon={Receipt}
-          label="Ticket médio das OS"
-          tone="info"
-          value={formatMoney(paid?.averageTicket || 0)}
+          label="Bruto a receber"
+          tone="warning"
+          value={formatMoney(orderTotals.grossReceivable)}
+        />
+        <StatCard
+          detail="Margem proporcional ao saldo ainda a receber."
+          icon={Receipt}
+          label="Líquido a receber"
+          tone="warning"
+          value={formatMoney(orderTotals.netReceivable)}
+          valueTone={orderTotals.netReceivable < 0 ? 'danger' : undefined}
         />
       </section>
       <div className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
@@ -479,7 +453,7 @@ export default function DashboardRoute({
             </ul>
           )}
           <Button asChild size="sm" variant="outline" className="mt-5 w-full">
-            <Link href="/pagamentos">Abrir Caixa</Link>
+            <Link href="/pagamentos">Venda rápida</Link>
           </Button>
           <p className="mt-3 text-xs text-muted-foreground">
             Registre recebimentos e despesas para manter os resultados atualizados.

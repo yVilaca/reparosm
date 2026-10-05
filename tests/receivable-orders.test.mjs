@@ -74,8 +74,16 @@ test('lists order receipts from the start of the window, newest first', { skip }
   const receipts = await repo.received(A, repo.historyStart(asOf));
   assert.equal(repo.historyStart(asOf), '2026-08-01');
   assert.deepEqual(
-    receipts.map((row) => [row.id, row.code, row.value, row.method, row.date]),
-    [['in-paid', 'OS-paid', 180, 'Pix', '2026-10-02']],
+    receipts
+      .toSorted((a, b) => a.id.localeCompare(b.id))
+      .map((row) => [row.id, row.code, row.value, row.method, row.date]),
+    [
+      ['in-loose', '', 40, 'Pix', '2026-10-02'],
+      ['in-paid', 'OS-paid', 180, 'Pix', '2026-10-02'],
+    ],
   );
-  assert.equal((await repo.received(A, '2026-07-01')).length, 2);
+  const sale = receipts.find((row) => row.id === 'in-loose');
+  assert.equal(sale.customer, 'Venda avulsa');
+  assert.equal(sale.orderId, null);
+  assert.equal((await repo.received(A, '2026-07-01')).length, 3);
 });

@@ -1,7 +1,7 @@
 export type AccountRole = 'admin' | 'merchant';
 export type AccountStatus = 'active' | 'suspended' | 'cancelled';
-export type OrderStage =
-  'Recebido' | 'Diagnóstico' | 'Aguardando aprovação' | 'Em reparo' | 'Teste final' | 'Retirada';
+import type { OrderStage } from './order-stages';
+export type { OrderStage } from './order-stages';
 export type OrderStatus =
   'Aberto' | 'Pendente' | 'Aguardando pagamento' | 'Concluído' | 'Cancelado';
 export type OrderPriority = 'Normal' | 'Urgente' | 'Garantia';

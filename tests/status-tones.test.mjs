@@ -12,12 +12,13 @@ import {
 
 test('the same meaning gets the same color on every screen', () => {
   // Em andamento é azul, esperando alguém é âmbar, pronto é verde.
-  assert.equal(orderStageTone('Em reparo'), 'info');
+  assert.equal(orderStageTone('Em serviço'), 'info');
   assert.equal(clientStatusTone('Em atendimento'), 'info');
-  assert.equal(orderStageTone('Aguardando aprovação'), 'warning');
+  assert.equal(orderStageTone('Aguardando Peça'), 'warning');
   assert.equal(quoteStatusTone('Aguardando'), 'warning');
   assert.equal(clientStatusTone('Aguardando'), 'warning');
   assert.equal(orderStageTone('Retirada'), 'success');
+  assert.equal(orderStageTone('Concluído'), 'success');
   assert.equal(quoteStatusTone('Aprovado'), 'success');
   assert.equal(clientStatusTone('Concluído'), 'success');
   assert.equal(warrantyStatusTone('active'), 'success');

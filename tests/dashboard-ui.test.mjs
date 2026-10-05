@@ -11,15 +11,14 @@ const base = {
   actions: [],
   bench: [
     { stage: 'Recebido', orders: 1 },
-    { stage: 'Diagnóstico', orders: 1 },
-    { stage: 'Aguardando aprovação', orders: 0 },
-    { stage: 'Em reparo', orders: 2 },
-    { stage: 'Teste final', orders: 1 },
+    { stage: 'Aguardando Peça', orders: 0 },
+    { stage: 'Em serviço', orders: 4 },
     { stage: 'Retirada', orders: 1 },
+    { stage: 'Concluído', orders: 0 },
   ],
   today: { ...totals(105), methods: [{ method: 'Pix', value: 60 }] },
   movements: [],
-  month: { current: totals(1425), previous: totals(1240) },
+  orderTotals: { gross: 1234.56, net: 789.01, grossReceivable: 345.67, netReceivable: 234.56 },
   trend: [{ month: '2026-10-01', ...totals(1425), paidOrders: 3, averageTicket: 475 }],
 };
 const render = (props = {}) =>
@@ -96,17 +95,18 @@ test('says when there is nothing waiting', () => {
   assert.match(render(), /Tudo em dia/);
 });
 
-test("shows today's cash and the month against the same days of last month", () => {
+test("keeps today's cash separate from order totals", () => {
   const html = render();
   assert.match(html, /Caixa de hoje/);
   assert.match(html, /R\$\s*105,00/);
-  assert.match(html, /Outubro até hoje/);
-  assert.match(html, /\+R\$\s*185,00 \(\+15%\) em relação ao mesmo período de setembro/);
 });
 
-test('does not divide by zero when last month had nothing', () => {
-  const html = render({ month: { current: totals(500), previous: totals(0) } });
-  assert.match(html, /Sem recebimentos no mesmo período de setembro/);
+test('shows empty order totals as zero amounts', () => {
+  const html = render({ orderTotals: { gross: 0, net: 0, grossReceivable: 0, netReceivable: 0 } });
+  const cards = html.match(
+    /<section aria-label="Totais financeiros das ordens"[\s\S]*?<\/section>/,
+  )?.[0];
+  assert.equal((cards?.match(/R\$\s*0,00/g) || []).length, 4);
   assert.doesNotMatch(html, /Infinity|NaN/);
 });
 
@@ -114,17 +114,16 @@ test('counts the bench by stage', () => {
   const html = render();
   assert.match(html, /6 aparelhos em serviço/);
   assert.match(html, /Fluxo dos aparelhos/);
-  assert.ok(html.indexOf('Recebimentos no mês') < html.indexOf('Fluxo dos aparelhos'));
+  assert.ok(html.indexOf('Total Bruto') < html.indexOf('Fluxo dos aparelhos'));
 });
 
-test('highlights monthly financial results and order ticket without calling cash balance profit', () => {
+test('shows gross and net order totals and receivables as the first four cards', () => {
   const html = render();
-  assert.match(html, /Recebimentos no mês/);
-  assert.match(html, /Saídas no mês/);
-  assert.match(html, /Resultado do caixa/);
-  assert.match(html, /Ticket médio das OS/);
+  assert.match(html, /Total Bruto[\s\S]*?R\$\s*1\.234,56/);
+  assert.match(html, /Total Líquido[\s\S]*?R\$\s*789,01/);
+  assert.match(html, /Bruto a receber[\s\S]*?R\$\s*345,67/);
+  assert.match(html, /Líquido a receber[\s\S]*?R\$\s*234,56/);
   assert.match(html, /Evolução do caixa/);
-  assert.match(html, /R\$\s*475,00/);
   assert.doesNotMatch(html, /Lucro líquido/);
   assert.ok(html.indexOf('Evolução do caixa') < html.indexOf('Bancada e aprovações'));
 });

@@ -158,6 +158,26 @@ test('a link to an already paid bill opens on paid and received, by month', () =
   assert.doesNotMatch(markup, /Conta de energia/);
 });
 
+test('received includes quick sales without an order link', () => {
+  const markup = render({
+    payId: 'payable-paid',
+    initialReceipts: [
+      {
+        id: 'payment-sale',
+        orderId: null,
+        code: '',
+        customer: 'Película balcão',
+        device: '',
+        value: 35,
+        method: 'Pix',
+        date: today,
+      },
+    ],
+  });
+  assert.match(markup, /Película balcão.*\+R\$\s*35,00.*Recebido em/s);
+  assert.doesNotMatch(markup, /href="\/ordens\?busca=/);
+});
+
 test('says when everything is settled', () => {
   const markup = render({ initialOrders: [], initialPayables: [], initialReceipts: [] });
   assert.match(markup, /Tudo em dia/);
