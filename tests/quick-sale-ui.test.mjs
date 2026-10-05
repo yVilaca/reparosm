@@ -44,7 +44,7 @@ test("shows today's sales with the total and a way to undo", () => {
       { id: 'payment-2', description: 'Carregador', value: 60.5, method: 'Dinheiro' },
     ],
   });
-  assert.match(html, /Vendido hoje.*R\$\s*105,50.*2 vendas rápidas/s);
+  assert.match(html, /Lucro hoje.*R\$\s*0,00.*2 vendas rápidas/s);
   assert.match(html, /Capinha/);
   assert.match(html, /\+R\$\s*60,50/);
   assert.equal((html.match(/aria-label="Mais ações: /g) || []).length, 2);
@@ -87,6 +87,8 @@ test("today's sales show the discount given and the profit", () => {
   });
   assert.match(html, /desconto R\$\s*6,00/);
   assert.match(html, /lucro R\$\s*42,00<\/p>/);
+  assert.match(html, /Lucro hoje[\s\S]*R\$\s*42,00/);
+  assert.match(html, /Película 3D[\s\S]*\+R\$\s*42,00/);
   // O total do dia avisa que uma venda ficou sem custo.
   assert.match(html, /lucro R\$\s*42,00<\/span> \(1 sem custo\)/);
 });

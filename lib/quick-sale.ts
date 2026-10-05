@@ -126,12 +126,18 @@ export function parseDiscount(text: string, price: number): number {
   return Math.round(price * percent) / 100;
 }
 
+/** Resultado líquido da venda: valor recebido menos o custo conhecido. */
+export function saleProfit(received: number, cost?: number) {
+  if (!Number.isFinite(received) || cost === undefined || !Number.isFinite(cost)) return null;
+  return (Math.round(received * 100) - Math.round(cost * 100)) / 100;
+}
+
 /** Quanto receber (preço menos desconto) e, com o custo, o lucro e a margem em %. */
 export function saleTotals(price: number, discount: number, cost?: number) {
   const received = Math.round(price * 100) - Math.round((discount || 0) * 100);
   const total = received / 100;
-  if (cost === undefined || !Number.isFinite(cost)) return { total, profit: null, margin: null };
-  const profit = (received - Math.round(cost * 100)) / 100;
+  const profit = saleProfit(total, cost);
+  if (profit === null) return { total, profit: null, margin: null };
   return {
     total,
     profit,

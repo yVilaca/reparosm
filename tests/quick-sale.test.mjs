@@ -7,6 +7,7 @@ import {
   matchProducts,
   parseDiscount,
   parseMoney,
+  saleProfit,
   saleTotals,
 } from '../lib/quick-sale.ts';
 
@@ -127,4 +128,10 @@ test('works out what to receive and the profit of the sale', () => {
   assert.deepEqual(saleTotals(60, 6, 12), { total: 54, profit: 42, margin: 77.8 });
   assert.deepEqual(saleTotals(60, 0), { total: 60, profit: null, margin: null });
   assert.deepEqual(saleTotals(30, 0, 35), { total: 30, profit: -5, margin: -16.7 });
+});
+
+test('calculates the net result from the discounted amount received', () => {
+  assert.equal(saleProfit(50, 20), 30);
+  assert.equal(saleProfit(45, 20), 25);
+  assert.equal(saleProfit(50), null);
 });

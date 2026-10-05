@@ -35,6 +35,7 @@ import {
   matchProducts,
   parseDiscount,
   parseMoney,
+  saleProfit,
   saleTotals,
   type ProductOption,
 } from '@/lib/quick-sale';
@@ -124,13 +125,9 @@ export default function QuickSaleRoute({
     Boolean(description.trim()) && price > 0 && !discountError && !costError && total > 0;
   const change = method === 'Dinheiro' && given ? cashChange(total, parseMoney(given)) : null;
 
-  const soldToday = sales.reduce((sum, sale) => sum + Math.round(sale.value * 100), 0) / 100;
   const withCost = sales.filter((sale) => sale.cost !== undefined);
   const profitToday =
-    withCost.reduce(
-      (sum, sale) => sum + Math.round(sale.value * 100) - Math.round((sale.cost || 0) * 100),
-      0,
-    ) / 100;
+    withCost.reduce((sum, sale) => sum + (saleProfit(sale.value, sale.cost) || 0), 0);
 
   const fill = (next: { description: string; value: number; cost?: number }) => {
     setDescription(next.description);
@@ -596,8 +593,8 @@ export default function QuickSaleRoute({
           <div className="flex items-center gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
             <IconChip icon={ShoppingBag} size="lg" tone="success" />
             <div>
-              <p className="text-sm text-muted-foreground">Vendido hoje</p>
-              <p className="text-2xl font-semibold tabular-nums">{formatMoney(soldToday)}</p>
+              <p className="text-sm text-muted-foreground">Lucro hoje</p>
+              <p className="text-2xl font-semibold tabular-nums">{formatMoney(profitToday)}</p>
               <p className="text-xs text-muted-foreground">
                 {sales.length} {sales.length === 1 ? 'venda rápida' : 'vendas rápidas'}
                 {withCost.length > 0 && (
@@ -635,11 +632,11 @@ export default function QuickSaleRoute({
                   leading={<IconChip icon={iconFor(sale.method)} tone="success" />}
                   note={
                     sale.cost !== undefined
-                      ? `lucro ${formatMoney((Math.round(sale.value * 100) - Math.round(sale.cost * 100)) / 100)}`
+                      ? `lucro ${formatMoney(saleProfit(sale.value, sale.cost) || 0)}`
                       : undefined
                   }
                   title={sale.description}
-                  value={`+${formatMoney(sale.value)}`}
+                  value={`+${formatMoney(saleProfit(sale.value, sale.cost) ?? sale.value)}`}
                   valueClassName={toneText.success}
                 />
               ))}
