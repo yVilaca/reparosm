@@ -55,6 +55,12 @@ test('accepts an optional shop logo URL, clears with an empty string, and reject
   assert.equal(validateRecord('shop', { ...base, logo: 123 }).ok, false);
 });
 
+test('accepts only the server-owned path for an uploaded shop logo', () => {
+  const base = { name: 'ReparoSM', phone: '11999999999' };
+  assert.equal(validateRecord('shop', { ...base, logo: '/api/shops/logo' }).ok, true);
+  assert.equal(validateRecord('shop', { ...base, logo: '/api/shops/logo?other=1' }).ok, false);
+});
+
 test('ignores a logo field sent on a client record', () => {
   assert.equal(
     validateRecord('client', { name: 'Ana', phone: '11999999999', logo: 'https://x.test/a.png' })

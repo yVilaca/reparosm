@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import { useFeedback } from '@/components/feedback';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { SHOP_LOGO_UPLOAD_PATH } from '@/lib/shop-logo';
 import type { Shop } from '@/lib/types';
 
 type ShopRow = Shop & { id: string };
@@ -32,11 +33,12 @@ const tabIcons = {
 };
 
 export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) {
-  const { notify } = useFeedback();
+  const { confirm, notify } = useFeedback();
   const [shop, setShop] = useState<ShopRow | undefined>(initialShop);
   const [tab, setTab] = useState('Perfil');
   const [warranty, setWarranty] = useState(shop?.warranty || '90 dias');
   const [taxRegime, setTaxRegime] = useState(shop?.taxRegime || 'MEI');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const saveShop = async (data: Shop, id = 'shop-main') => {
     try {
       const response = await fetch('/api/shops', {
@@ -58,6 +60,46 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
         'error',
       );
       throw error;
+    }
+  };
+  const uploadLogo = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    if (!file) return;
+    setUploadingLogo(true);
+    try {
+      const form = new FormData();
+      form.set('file', file);
+      const response = await fetch('/api/shops/logo', { method: 'POST', body: form });
+      const result = (await response.json()) as { error?: string; logo?: string };
+      if (!response.ok || result.logo !== SHOP_LOGO_UPLOAD_PATH)
+        throw new Error(result.error || 'Não foi possível anexar a logo.');
+      setShop((current) => ({
+        ...(current || { id: 'shop-main', name: '', phone: '' }),
+        logo: result.logo,
+      }));
+      notify('Logo anexada com segurança.', 'success');
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'Não foi possível anexar a logo.', 'error');
+    } finally {
+      event.currentTarget.value = '';
+      setUploadingLogo(false);
+    }
+  };
+  const removeLogo = async () => {
+    if (!(await confirm('Remover a logo anexada desta assistência?'))) return;
+    try {
+      const response = await fetch('/api/shops/logo', { method: 'DELETE' });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error || 'Não foi possível remover a logo.');
+      setShop((current) => {
+        if (!current) return current;
+        const next = { ...current };
+        delete next.logo;
+        return next;
+      });
+      notify('Logo removida.', 'success');
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'Não foi possível remover a logo.', 'error');
     }
   };
   return (
@@ -101,10 +143,12 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
             event.preventDefault();
             const form = new FormData(event.currentTarget);
             const formData = Object.fromEntries(form);
+            const submittedLogo = typeof formData.logo === 'string' ? formData.logo.trim() : '';
             void saveShop(
               {
                 ...shop,
-                ...formData,
+                ...Object.fromEntries(Object.entries(formData).filter(([key]) => key !== 'logo')),
+                logo: shop?.logo === SHOP_LOGO_UPLOAD_PATH ? shop.logo : submittedLogo,
                 warranty,
                 taxRegime,
                 ...(tab === 'Documentos'
@@ -179,17 +223,56 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
                 </div>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="shop-logo">Logo da loja (URL)</Label>
+                <Label htmlFor="shop-logo">Logo da loja (URL opcional)</Label>
                 <Input
-                  defaultValue={shop?.logo || ''}
+                  defaultValue={shop?.logo?.startsWith('http') ? shop.logo : ''}
                   id="shop-logo"
                   name="logo"
                   placeholder="https://exemplo.com/logo.png"
                   type="url"
                 />
                 <p className="text-xs text-muted-foreground">
-                  A imagem será exibida no cabeçalho da OS impressa.
+                  Links continuam disponíveis, mas o anexo abaixo é armazenado com validação de
+                  conteúdo e isolamento por loja.
                 </p>
+                <div className="grid gap-2 rounded-lg border border-dashed p-3">
+                  <Label htmlFor="shop-logo-file">Anexar arquivo de imagem</Label>
+                  <Input
+                    accept="image/png,image/jpeg,image/webp"
+                    disabled={uploadingLogo}
+                    id="shop-logo-file"
+                    onChange={uploadLogo}
+                    type="file"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    PNG, JPEG ou WebP. Até 1 MB e 2048 × 2048 pixels. O arquivo é validado no
+                    servidor.
+                  </p>
+                </div>
+                {shop?.logo === SHOP_LOGO_UPLOAD_PATH && (
+                  <div className="flex items-center gap-3 rounded-lg border p-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- logo servida pelo endpoint autenticado */}
+                    <img
+                      alt={`Logo de ${shop.name || 'assistência técnica'}`}
+                      className="size-14 rounded object-contain"
+                      src={SHOP_LOGO_UPLOAD_PATH}
+                    />
+                    <div className="grid flex-1 gap-1">
+                      <span className="text-sm font-medium">Logo anexada</span>
+                      <span className="text-xs text-muted-foreground">
+                        Ela será usada na impressão da OS.
+                      </span>
+                    </div>
+                    <Button
+                      onClick={() => void removeLogo()}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      Remover logo
+                    </Button>
+                  </div>
+                )}
               </div>
             </>
           </fieldset>

@@ -37,6 +37,7 @@ test('migrations leave one table per entity and no records table', { skip }, asy
     'payables',
     'quotes',
     'sessions',
+    'shop_logos',
     'shops',
     'tutorials',
     'whatsapp_configs',

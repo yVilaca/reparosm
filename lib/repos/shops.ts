@@ -44,6 +44,28 @@ export async function save(accountId: string, _id: string, data: Shop, run?: Que
   return get(accountId, SHOP_ID, execute);
 }
 
+export async function setLogoSource(accountId: string, source: string | undefined, run?: Query) {
+  const execute = tenantQueryFor(accountId, run);
+  if (source) {
+    await execute(
+      `INSERT INTO shops (account_id, name, phone, profile)
+       VALUES ($1, '', '', jsonb_build_object('logo', $2::text))
+       ON CONFLICT (account_id) DO UPDATE SET
+         profile = COALESCE(shops.profile, '{}'::jsonb) || jsonb_build_object('logo', $2::text),
+         updated_at = now()`,
+      [accountId, source],
+    );
+  } else {
+    await execute(
+      `UPDATE shops
+          SET profile = COALESCE(profile, '{}'::jsonb) - 'logo', updated_at = now()
+        WHERE account_id = $1`,
+      [accountId],
+    );
+  }
+  return get(accountId, 'shop-main', execute);
+}
+
 export async function remove(accountId: string) {
   const rows = await tenantQueryFor(accountId)(
     'DELETE FROM shops WHERE account_id = $1 RETURNING account_id',

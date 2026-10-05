@@ -14,6 +14,7 @@ import type {
   Shop,
   Tutorial,
 } from '@/lib/types';
+import { SHOP_LOGO_UPLOAD_PATH } from '@/lib/shop-logo';
 
 export type ValidationResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -254,7 +255,13 @@ const validateShop = (value: unknown): ValidationResult<Shop> => {
   const data = objectValue(value);
   if (!data || !validateStrings(data, ['name', 'phone'], ['name', 'phone']))
     return { ok: false, error: 'Assistência inválida.' };
-  if (urlValue(data, 'logo') === null) return { ok: false, error: 'URL do logo inválida.' };
+  if (
+    data.logo !== undefined &&
+    data.logo !== '' &&
+    data.logo !== SHOP_LOGO_UPLOAD_PATH &&
+    urlValue(data, 'logo') === null
+  )
+    return { ok: false, error: 'URL do logo inválida.' };
   if (!validateBooleans(data, ['showLaborOnPrint'], []))
     return { ok: false, error: 'Preferências de impressão inválidas.' };
   const message = stringValue(data, 'customerPrintMessage');
