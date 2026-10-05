@@ -36,6 +36,7 @@ import {
   parseDiscount,
   parseMoney,
   saleProfit,
+  saleResultTotal,
   saleTotals,
   type ProductOption,
 } from '@/lib/quick-sale';
@@ -121,9 +122,10 @@ export default function QuickSaleRoute({
       : '';
   const costError = cost !== undefined && !Number.isFinite(cost) ? 'Custo inválido.' : '';
   const { total, profit, margin } = saleTotals(price, discount, cost);
+  const resultTotal = saleResultTotal(total, profit);
   const valid =
     Boolean(description.trim()) && price > 0 && !discountError && !costError && total > 0;
-  const change = method === 'Dinheiro' && given ? cashChange(total, parseMoney(given)) : null;
+  const change = method === 'Dinheiro' && given ? cashChange(resultTotal, parseMoney(given)) : null;
 
   const withCost = sales.filter((sale) => sale.cost !== undefined);
   const profitToday =
@@ -466,8 +468,8 @@ export default function QuickSaleRoute({
                       </>
                     )}
                     <div className="flex justify-between gap-3 font-semibold">
-                      <dt>Total a receber</dt>
-                      <dd className="tabular-nums">{formatMoney(total)}</dd>
+                      <dt>Total líquido</dt>
+                      <dd className="tabular-nums">{formatMoney(resultTotal)}</dd>
                     </div>
                     {profit !== null && (
                       <div className="flex justify-between gap-3">
@@ -540,7 +542,7 @@ export default function QuickSaleRoute({
                 <div className="grid gap-2">
                   {total > 0 && (
                     <div className="flex flex-wrap gap-1.5">
-                      {billSuggestions(total).map((bill) => (
+                      {billSuggestions(resultTotal).map((bill) => (
                         <Button
                           key={bill}
                           onClick={() => setGiven(String(bill))}
@@ -580,7 +582,7 @@ export default function QuickSaleRoute({
 
             <div className="grid gap-2">
               <Button className="h-12 w-full text-base" disabled={saving} type="submit">
-                {saving ? 'Registrando…' : valid ? `Receber ${formatMoney(total)}` : 'Receber'}
+                {saving ? 'Registrando…' : valid ? `Receber ${formatMoney(resultTotal)}` : 'Receber'}
               </Button>
               <p className="text-center text-xs text-muted-foreground">
                 Entra no caixa de hoje e em Receber e pagar, em “Pagos e recebidos”.

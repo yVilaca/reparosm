@@ -132,6 +132,11 @@ export function saleProfit(received: number, cost?: number) {
   return (Math.round(received * 100) - Math.round(cost * 100)) / 100;
 }
 
+/** Valor líquido usado no botão e no resumo; sem custo, é o valor recebido. */
+export function saleResultTotal(received: number, profit: number | null) {
+  return profit ?? received;
+}
+
 /** Quanto receber (preço menos desconto) e, com o custo, o lucro e a margem em %. */
 export function saleTotals(price: number, discount: number, cost?: number) {
   const received = Math.round(price * 100) - Math.round((discount || 0) * 100);

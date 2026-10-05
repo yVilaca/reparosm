@@ -8,6 +8,7 @@ import {
   parseDiscount,
   parseMoney,
   saleProfit,
+  saleResultTotal,
   saleTotals,
 } from '../lib/quick-sale.ts';
 
@@ -134,4 +135,9 @@ test('calculates the net result from the discounted amount received', () => {
   assert.equal(saleProfit(50, 20), 30);
   assert.equal(saleProfit(45, 20), 25);
   assert.equal(saleProfit(50), null);
+});
+
+test('uses the net result as the amount shown for a sale with cost', () => {
+  assert.equal(saleResultTotal(15, 5), 5);
+  assert.equal(saleResultTotal(30, null), 30);
 });
