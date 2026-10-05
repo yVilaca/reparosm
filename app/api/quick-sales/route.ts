@@ -32,18 +32,28 @@ export async function POST(request: Request) {
     return invalid('O desconto precisa ser menor que o preço.');
   const cost = input.cost ?? undefined;
   if (cost !== undefined && !isAmount(cost)) return invalid('Custo inválido.');
+  const partId = input.partId;
+  if (partId !== undefined && (typeof partId !== 'string' || !partId.trim()))
+    return invalid('Produto inválido.');
   if (!isPaymentMethod(input.method)) return invalid('Escolha a forma de pagamento.');
 
-  const sale = await quickSales.create(
-    account.id,
-    {
-      description,
-      price: cents(input.price),
-      discount: cents(discount),
-      cost: cost === undefined ? undefined : cents(cost),
-      method: input.method,
-    },
-    todayInSaoPaulo(),
-  );
-  return Response.json({ sale }, { status: 201 });
+  try {
+    const sale = await quickSales.create(
+      account.id,
+      {
+        description,
+        price: cents(input.price),
+        discount: cents(discount),
+        cost: cost === undefined ? undefined : cents(cost),
+        partId: typeof partId === 'string' ? partId : undefined,
+        method: input.method,
+      },
+      todayInSaoPaulo(),
+    );
+    return Response.json({ sale }, { status: 201 });
+  } catch (error) {
+    if (error instanceof quickSales.QuickSaleError)
+      return Response.json({ error: error.message }, { status: error.status });
+    throw error;
+  }
 }

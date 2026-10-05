@@ -47,6 +47,7 @@ export type QuickSale = {
   method: string;
   discount?: number;
   cost?: number;
+  partId?: string;
 };
 export type SaleSuggestion = { description: string; value: number; cost?: number };
 
@@ -198,6 +199,7 @@ export default function QuickSaleRoute({
           price,
           discount,
           ...(cost === undefined ? {} : { cost }),
+          ...(product ? { partId: product.id } : {}),
           method,
         }),
       });
@@ -243,7 +245,7 @@ export default function QuickSaleRoute({
     <>
       <PageHeader
         title="Venda rápida"
-        description="Venda de balcão sem OS: registre e receba na hora."
+        description="Receba o valor líquido; o custo serve para margem e não cria conta a pagar."
         action={
           <Button asChild variant="outline">
             <Link href="/pagamentos/historico">
@@ -347,7 +349,7 @@ export default function QuickSaleRoute({
                     <Package aria-hidden="true" className="size-3" />
                     Do estoque
                   </span>
-                  {stockLabel(product.stock)} · preço e custo preenchidos
+                  {stockLabel(product.stock)} · preço e custo preenchidos para a margem
                   <button
                     className="inline-flex items-center gap-0.5 underline-offset-4 hover:underline"
                     onClick={() => {
@@ -429,7 +431,8 @@ export default function QuickSaleRoute({
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="sale-cost">
-                    Custo <span className="font-normal text-muted-foreground">(opcional)</span>
+                    Custo para margem{' '}
+                    <span className="font-normal text-muted-foreground">(opcional)</span>
                   </Label>
                   <Input
                     aria-invalid={Boolean(costError)}
@@ -443,46 +446,52 @@ export default function QuickSaleRoute({
                   />
                 </div>
               </div>
+              <p className="-mt-1 text-xs text-muted-foreground">
+                Este custo não gera conta a pagar. Registre uma compra separadamente se houve uma
+                saída real para fornecedor.
+              </p>
               {(discountError || costError) && (
                 <p className="-mt-2 text-xs text-destructive">{discountError || costError}</p>
               )}
               {price > 0 && !discountError && !costError && (discount > 0 || profit !== null) && (
-                <dl className="grid gap-1.5 rounded-lg bg-muted/40 p-3 text-sm">
-                  {discount > 0 && (
-                    <>
-                      <div className="flex justify-between gap-3">
-                        <dt className="text-muted-foreground">Preço</dt>
-                        <dd className="tabular-nums">{formatMoney(price)}</dd>
-                      </div>
-                      <div className="flex justify-between gap-3">
-                        <dt className="text-muted-foreground">Desconto</dt>
-                        <dd className="tabular-nums">−{formatMoney(discount)}</dd>
-                      </div>
-                    </>
-                  )}
-                  <div className="flex justify-between gap-3 font-semibold">
-                    <dt>Total a receber</dt>
-                    <dd className="tabular-nums">{formatMoney(total)}</dd>
-                  </div>
-                  {profit !== null && (
-                    <div className="flex justify-between gap-3">
-                      <dt className="text-muted-foreground">Lucro</dt>
-                      <dd
-                        className={cn(
-                          'font-medium tabular-nums',
-                          profit >= 0 ? toneText.success : toneText.danger,
-                        )}
-                      >
-                        {formatMoney(profit)}
-                        {margin !== null && (
-                          <span className="ml-1 text-xs font-normal text-muted-foreground">
-                            ({margin.toLocaleString('pt-BR')}%)
-                          </span>
-                        )}
-                      </dd>
+                <div className="grid gap-1.5 rounded-lg bg-muted/40 p-3 text-sm">
+                  <dl className="grid gap-1.5">
+                    {discount > 0 && (
+                      <>
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-muted-foreground">Preço</dt>
+                          <dd className="tabular-nums">{formatMoney(price)}</dd>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-muted-foreground">Desconto</dt>
+                          <dd className="tabular-nums">−{formatMoney(discount)}</dd>
+                        </div>
+                      </>
+                    )}
+                    <div className="flex justify-between gap-3 font-semibold">
+                      <dt>Total a receber</dt>
+                      <dd className="tabular-nums">{formatMoney(total)}</dd>
                     </div>
-                  )}
-                </dl>
+                    {profit !== null && (
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-muted-foreground">Lucro</dt>
+                        <dd
+                          className={cn(
+                            'font-medium tabular-nums',
+                            profit >= 0 ? toneText.success : toneText.danger,
+                          )}
+                        >
+                          {formatMoney(profit)}
+                          {margin !== null && (
+                            <span className="ml-1 text-xs font-normal text-muted-foreground">
+                              ({margin.toLocaleString('pt-BR')}%)
+                            </span>
+                          )}
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                </div>
               )}
             </div>
 
