@@ -35,6 +35,7 @@ import {
   matchProducts,
   parseDiscount,
   parseMoney,
+  parseQuantity,
   saleProfit,
   saleResultTotal,
   saleTotals,
@@ -49,6 +50,7 @@ export type QuickSale = {
   method: string;
   discount?: number;
   cost?: number;
+  quantity?: number;
   partId?: string;
 };
 export type SaleSuggestion = { description: string; value: number; cost?: number };
@@ -100,6 +102,7 @@ export default function QuickSaleRoute({
   const [searching, setSearching] = useState(false);
   const [active, setActive] = useState(-1);
   const [priceText, setPriceText] = useState('');
+  const [quantityText, setQuantityText] = useState('1');
   const [discountText, setDiscountText] = useState('');
   const [costText, setCostText] = useState('');
   const [method, setMethod] = useState<PaymentMethod>('Pix');
@@ -113,27 +116,42 @@ export default function QuickSaleRoute({
   const listOpen = searching && matches.length > 0;
 
   const price = parseMoney(priceText);
-  const discount = parseDiscount(discountText, price);
+  const quantity = parseQuantity(quantityText);
+  const subtotal = Number.isFinite(price) && Number.isFinite(quantity) ? price * quantity : price;
+  const discount = parseDiscount(discountText, subtotal);
   const cost = costText.trim() ? parseMoney(costText) : undefined;
   const discountError = !Number.isFinite(discount)
     ? 'Use um valor como 5,00 ou um percentual como 10%.'
-    : price > 0 && discount >= price
+    : subtotal > 0 && discount >= subtotal
       ? 'O desconto precisa ser menor que o preço.'
       : '';
   const costError = cost !== undefined && !Number.isFinite(cost) ? 'Custo inválido.' : '';
-  const { total, profit, margin } = saleTotals(price, discount, cost);
+  const quantityError = !Number.isFinite(quantity)
+    ? 'Informe uma quantidade inteira maior que zero.'
+    : product && quantity > product.stock
+      ? `Há apenas ${product.stock} ${product.stock === 1 ? 'unidade' : 'unidades'} em estoque.`
+      : '';
+  const { total, profit, margin } = saleTotals(price, discount, cost, quantity);
   const resultTotal = saleResultTotal(total, profit);
   const valid =
-    Boolean(description.trim()) && price > 0 && !discountError && !costError && total > 0;
+    Boolean(description.trim()) &&
+    price > 0 &&
+    !quantityError &&
+    !discountError &&
+    !costError &&
+    total > 0;
   const change = method === 'Dinheiro' && given ? cashChange(resultTotal, parseMoney(given)) : null;
 
   const withCost = sales.filter((sale) => sale.cost !== undefined);
-  const profitToday =
-    withCost.reduce((sum, sale) => sum + (saleProfit(sale.value, sale.cost) || 0), 0);
+  const profitToday = withCost.reduce(
+    (sum, sale) => sum + (saleProfit(sale.value, sale.cost) || 0),
+    0,
+  );
 
   const fill = (next: { description: string; value: number; cost?: number }) => {
     setDescription(next.description);
     setPriceText(typed(next.value));
+    setQuantityText('1');
     setCostText(next.cost !== undefined ? typed(next.cost) : '');
     setSearching(false);
     setActive(-1);
@@ -170,6 +188,7 @@ export default function QuickSaleRoute({
     setDescription('');
     setProduct(null);
     setPriceText('');
+    setQuantityText('1');
     setDiscountText('');
     setCostText('');
     setGiven('');
@@ -182,7 +201,10 @@ export default function QuickSaleRoute({
     if (savingRef.current) return;
     if (!valid) {
       notify(
-        discountError || costError || 'Informe o que foi vendido e um preço maior que zero.',
+        quantityError ||
+          discountError ||
+          costError ||
+          'Informe o que foi vendido e um preço maior que zero.',
         'error',
       );
       return;
@@ -197,6 +219,7 @@ export default function QuickSaleRoute({
           description: description.trim(),
           price,
           discount,
+          quantity,
           ...(cost === undefined ? {} : { cost }),
           ...(product ? { partId: product.id } : {}),
           method,
@@ -221,9 +244,10 @@ export default function QuickSaleRoute({
   };
 
   const undo = async (sale: QuickSale) => {
+    const quantity = sale.quantity || 1;
     if (
       !(await confirm(
-        `Desfazer a venda "${sale.description}" de ${formatMoney(sale.value)}? A entrada sai do caixa.`,
+        `Desfazer a venda "${sale.description}"${quantity > 1 ? ` (${quantity} unidades)` : ''} de ${formatMoney(sale.value)}? A entrada sai do caixa.`,
       ))
     )
       return;
@@ -414,6 +438,22 @@ export default function QuickSaleRoute({
                   <p className="text-xs text-destructive">Digite um valor como 25 ou 25,90.</p>
                 )}
               </div>
+              <div className="grid gap-2 sm:max-w-40">
+                <Label htmlFor="sale-quantity">Quantidade</Label>
+                <Input
+                  aria-invalid={Boolean(quantityError)}
+                  autoComplete="off"
+                  id="sale-quantity"
+                  inputMode="numeric"
+                  max={product?.stock}
+                  min={1}
+                  name="quantity"
+                  onChange={(event) => setQuantityText(event.target.value)}
+                  step={1}
+                  type="number"
+                  value={quantityText}
+                />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="grid gap-2">
                   <Label htmlFor="sale-discount">Desconto</Label>
@@ -449,49 +489,73 @@ export default function QuickSaleRoute({
                 Este custo não gera conta a pagar. Registre uma compra separadamente se houve uma
                 saída real para fornecedor.
               </p>
-              {(discountError || costError) && (
-                <p className="-mt-2 text-xs text-destructive">{discountError || costError}</p>
+              {(quantityError || discountError || costError) && (
+                <p className="-mt-2 text-xs text-destructive">
+                  {quantityError || discountError || costError}
+                </p>
               )}
-              {price > 0 && !discountError && !costError && (discount > 0 || profit !== null) && (
-                <div className="grid gap-1.5 rounded-lg bg-muted/40 p-3 text-sm">
-                  <dl className="grid gap-1.5">
-                    {discount > 0 && (
-                      <>
-                        <div className="flex justify-between gap-3">
-                          <dt className="text-muted-foreground">Preço</dt>
-                          <dd className="tabular-nums">{formatMoney(price)}</dd>
-                        </div>
-                        <div className="flex justify-between gap-3">
-                          <dt className="text-muted-foreground">Desconto</dt>
-                          <dd className="tabular-nums">−{formatMoney(discount)}</dd>
-                        </div>
-                      </>
-                    )}
-                    <div className="flex justify-between gap-3 font-semibold">
-                      <dt>Total líquido</dt>
-                      <dd className="tabular-nums">{formatMoney(resultTotal)}</dd>
-                    </div>
-                    {profit !== null && (
-                      <div className="flex justify-between gap-3">
-                        <dt className="text-muted-foreground">Lucro</dt>
-                        <dd
-                          className={cn(
-                            'font-medium tabular-nums',
-                            profit >= 0 ? toneText.success : toneText.danger,
+              {price > 0 &&
+                !quantityError &&
+                !discountError &&
+                !costError &&
+                (quantity > 1 || discount > 0 || profit !== null) && (
+                  <div className="grid gap-1.5 rounded-lg bg-muted/40 p-3 text-sm">
+                    <dl className="grid gap-1.5">
+                      {quantity > 1 && (
+                        <>
+                          <div className="flex justify-between gap-3">
+                            <dt className="text-muted-foreground">Preço unitário</dt>
+                            <dd className="tabular-nums">{formatMoney(price)}</dd>
+                          </div>
+                          <div className="flex justify-between gap-3">
+                            <dt className="text-muted-foreground">Quantidade</dt>
+                            <dd className="tabular-nums">{quantity}</dd>
+                          </div>
+                          <div className="flex justify-between gap-3">
+                            <dt className="text-muted-foreground">Subtotal</dt>
+                            <dd className="tabular-nums">{formatMoney(subtotal)}</dd>
+                          </div>
+                        </>
+                      )}
+                      {discount > 0 && (
+                        <>
+                          {quantity === 1 && (
+                            <div className="flex justify-between gap-3">
+                              <dt className="text-muted-foreground">Preço</dt>
+                              <dd className="tabular-nums">{formatMoney(price)}</dd>
+                            </div>
                           )}
-                        >
-                          {formatMoney(profit)}
-                          {margin !== null && (
-                            <span className="ml-1 text-xs font-normal text-muted-foreground">
-                              ({margin.toLocaleString('pt-BR')}%)
-                            </span>
-                          )}
-                        </dd>
+                          <div className="flex justify-between gap-3">
+                            <dt className="text-muted-foreground">Desconto</dt>
+                            <dd className="tabular-nums">−{formatMoney(discount)}</dd>
+                          </div>
+                        </>
+                      )}
+                      <div className="flex justify-between gap-3 font-semibold">
+                        <dt>Total líquido</dt>
+                        <dd className="tabular-nums">{formatMoney(resultTotal)}</dd>
                       </div>
-                    )}
-                  </dl>
-                </div>
-              )}
+                      {profit !== null && (
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-muted-foreground">Lucro</dt>
+                          <dd
+                            className={cn(
+                              'font-medium tabular-nums',
+                              profit >= 0 ? toneText.success : toneText.danger,
+                            )}
+                          >
+                            {formatMoney(profit)}
+                            {margin !== null && (
+                              <span className="ml-1 text-xs font-normal text-muted-foreground">
+                                ({margin.toLocaleString('pt-BR')}%)
+                              </span>
+                            )}
+                          </dd>
+                        </div>
+                      )}
+                    </dl>
+                  </div>
+                )}
             </div>
 
             <fieldset className="grid gap-2">
@@ -582,7 +646,11 @@ export default function QuickSaleRoute({
 
             <div className="grid gap-2">
               <Button className="h-12 w-full text-base" disabled={saving} type="submit">
-                {saving ? 'Registrando…' : valid ? `Receber ${formatMoney(resultTotal)}` : 'Receber'}
+                {saving
+                  ? 'Registrando…'
+                  : valid
+                    ? `Receber ${formatMoney(resultTotal)}`
+                    : 'Receber'}
               </Button>
               <p className="text-center text-xs text-muted-foreground">
                 Entra no caixa de hoje e em Receber e pagar, em “Pagos e recebidos”.
@@ -614,34 +682,38 @@ export default function QuickSaleRoute({
           </div>
           {sales.length ? (
             <ListGroup count={sales.length} title="Vendas de hoje">
-              {sales.map((sale) => (
-                <ListRow
-                  actions={
-                    <RowMenu label={sale.description}>
-                      <DropdownMenuItem onSelect={() => void undo(sale)}>
-                        Desfazer venda
-                      </DropdownMenuItem>
-                    </RowMenu>
-                  }
-                  dense
-                  details={[
-                    methodLook[sale.method as PaymentMethod]?.label || sale.method,
-                    sale.discount ? `desconto ${formatMoney(sale.discount)}` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                  key={sale.id}
-                  leading={<IconChip icon={iconFor(sale.method)} tone="success" />}
-                  note={
-                    sale.cost !== undefined
-                      ? `lucro ${formatMoney(saleProfit(sale.value, sale.cost) || 0)}`
-                      : undefined
-                  }
-                  title={sale.description}
-                  value={`+${formatMoney(saleProfit(sale.value, sale.cost) ?? sale.value)}`}
-                  valueClassName={toneText.success}
-                />
-              ))}
+              {sales.map((sale) => {
+                const quantity = sale.quantity || 1;
+                return (
+                  <ListRow
+                    actions={
+                      <RowMenu label={sale.description}>
+                        <DropdownMenuItem onSelect={() => void undo(sale)}>
+                          Desfazer venda
+                        </DropdownMenuItem>
+                      </RowMenu>
+                    }
+                    dense
+                    details={[
+                      methodLook[sale.method as PaymentMethod]?.label || sale.method,
+                      quantity > 1 ? `${quantity} unidades` : null,
+                      sale.discount ? `desconto ${formatMoney(sale.discount)}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                    key={sale.id}
+                    leading={<IconChip icon={iconFor(sale.method)} tone="success" />}
+                    note={
+                      sale.cost !== undefined
+                        ? `lucro ${formatMoney(saleProfit(sale.value, sale.cost) || 0)}`
+                        : undefined
+                    }
+                    title={sale.description}
+                    value={`+${formatMoney(saleProfit(sale.value, sale.cost) ?? sale.value)}`}
+                    valueClassName={toneText.success}
+                  />
+                );
+              })}
             </ListGroup>
           ) : (
             <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">

@@ -16,6 +16,13 @@ export function parseMoney(text: string): number {
   return Math.round(Number(normalized) * 100) / 100;
 }
 
+/** Lê uma quantidade inteira positiva para uma venda. */
+export function parseQuantity(text: string): number {
+  if (!/^\d+$/.test(text.trim())) return Number.NaN;
+  const quantity = Number(text);
+  return Number.isSafeInteger(quantity) && quantity > 0 ? quantity : Number.NaN;
+}
+
 /** Troco do pagamento em dinheiro, ou quanto ainda falta. */
 export function cashChange(total: number, given: number) {
   if (!Number.isFinite(total) || !Number.isFinite(given)) return null;
@@ -137,11 +144,12 @@ export function saleResultTotal(received: number, profit: number | null) {
   return profit ?? received;
 }
 
-/** Quanto receber (preço menos desconto) e, com o custo, o lucro e a margem em %. */
-export function saleTotals(price: number, discount: number, cost?: number) {
-  const received = Math.round(price * 100) - Math.round((discount || 0) * 100);
+/** Quanto receber e, com o custo e a quantidade, o lucro e a margem em %. */
+export function saleTotals(price: number, discount: number, cost?: number, quantity = 1) {
+  const units = Number.isSafeInteger(quantity) && quantity > 0 ? quantity : 1;
+  const received = Math.round(price * 100) * units - Math.round((discount || 0) * 100);
   const total = received / 100;
-  const profit = saleProfit(total, cost);
+  const profit = saleProfit(total, cost === undefined ? undefined : cost * units);
   if (profit === null) return { total, profit: null, margin: null };
   return {
     total,

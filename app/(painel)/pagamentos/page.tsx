@@ -25,12 +25,17 @@ export default async function PaymentsPage() {
       }))}
       // A sugestão usa o preço cheio (o que entrou mais o desconto dado).
       suggestions={frequentSales(
-        sales.map((sale) => ({
-          description: sale.description,
-          value: (Math.round(sale.value * 100) + Math.round(sale.discount * 100)) / 100,
-          date: sale.date,
-          ...(sale.cost === undefined ? {} : { cost: sale.cost }),
-        })),
+        sales.map((sale) => {
+          const quantity = sale.quantity || 1;
+          return {
+            description: sale.description,
+            value: (Math.round(((sale.value + sale.discount) / quantity) * 100) || 0) / 100,
+            date: sale.date,
+            ...(sale.cost === undefined
+              ? {}
+              : { cost: (Math.round((sale.cost / quantity) * 100) || 0) / 100 }),
+          };
+        }),
       )}
       todaySales={sales.filter((sale) => sale.date === today)}
     />

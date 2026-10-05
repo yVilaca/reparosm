@@ -65,6 +65,7 @@ test(
         value: 54,
         discount: 6,
         cost: 12,
+        quantity: 1,
         method: 'Pix',
         date: todayInSaoPaulo(),
       },
@@ -101,6 +102,7 @@ test('a stock product sale uses its catalog cost and decrements inventory', { sk
   assert.equal(status, 201);
   assert.equal(body.sale.value, 27);
   assert.equal(body.sale.cost, 10);
+  assert.equal(body.sale.quantity, 1);
   assert.equal(body.sale.partId, 'part-quick-stock');
   const [part] = await db.migrationQuery('SELECT stock FROM parts WHERE id = $1', [
     'part-quick-stock',
@@ -123,6 +125,43 @@ test('a stock product sale uses its catalog cost and decrements inventory', { sk
     [A.id],
   );
   assert.equal(count, 0);
+});
+
+test('a multi-unit stock sale decrements and restores the exact quantity', { skip }, async () => {
+  await db.migrationQuery(
+    `INSERT INTO parts (id, account_id, name, stock, cost, price)
+     VALUES ('part-quick-quantity', $1, 'Cabo USB-C', 3, 10, 30)`,
+    [A.id],
+  );
+  const { status, body } = await sell({
+    description: 'Cabo USB-C',
+    price: 30,
+    discount: 5,
+    cost: 999,
+    quantity: 2,
+    partId: 'part-quick-quantity',
+    method: 'Pix',
+  });
+  assert.equal(status, 201);
+  assert.equal(body.sale.value, 55);
+  assert.equal(body.sale.cost, 20);
+  assert.equal(body.sale.quantity, 2);
+  const [afterSale] = await db.migrationQuery('SELECT stock FROM parts WHERE id = $1', [
+    'part-quick-quantity',
+  ]);
+  assert.equal(afterSale.stock, 1);
+
+  const response = await paymentRoute.DELETE(
+    new Request(`https://test.local/api/payments?id=${body.sale.id}`, {
+      method: 'DELETE',
+      headers: { origin: 'https://test.local', cookie: A.cookie },
+    }),
+  );
+  assert.equal(response.status, 200, JSON.stringify(await response.json()));
+  const [afterUndo] = await db.migrationQuery('SELECT stock FROM parts WHERE id = $1', [
+    'part-quick-quantity',
+  ]);
+  assert.equal(afterUndo.stock, 3);
 });
 
 test('undoing a stock product sale restores its inventory', { skip }, async () => {
@@ -165,6 +204,7 @@ test('a sale typed freely needs neither cost nor discount', { skip }, async () =
   assert.equal(body.sale.value, 35);
   assert.equal(body.sale.discount, 0);
   assert.equal(body.sale.cost, undefined);
+  assert.equal(body.sale.quantity, 1);
 });
 
 test(
@@ -177,6 +217,14 @@ test(
     );
     assert.equal(
       (await sell({ description: 'Capinha', price: 45, discount: -1, method: 'Pix' })).status,
+      400,
+    );
+    assert.equal(
+      (await sell({ description: 'Capinha', price: 45, quantity: 0, method: 'Pix' })).status,
+      400,
+    );
+    assert.equal(
+      (await sell({ description: 'Capinha', price: 45, quantity: 1.5, method: 'Pix' })).status,
       400,
     );
     assert.equal((await sell({ description: 'Capinha', price: 45, method: 'pix' })).status, 400);

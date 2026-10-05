@@ -7,6 +7,7 @@ import {
   matchProducts,
   parseDiscount,
   parseMoney,
+  parseQuantity,
   saleProfit,
   saleResultTotal,
   saleTotals,
@@ -22,6 +23,14 @@ test('reads money the way people type it in Brazil', () => {
   assert.ok(Number.isNaN(parseMoney('')));
   assert.ok(Number.isNaN(parseMoney('abc')));
   assert.ok(Number.isNaN(parseMoney('2,999')));
+});
+
+test('accepts only positive whole sale quantities', () => {
+  assert.equal(parseQuantity('1'), 1);
+  assert.equal(parseQuantity('12'), 12);
+  assert.ok(Number.isNaN(parseQuantity('0')));
+  assert.ok(Number.isNaN(parseQuantity('1,5')));
+  assert.ok(Number.isNaN(parseQuantity('abc')));
 });
 
 test('works out the change, or how much is still missing', () => {
@@ -127,6 +136,7 @@ test('reads a discount in reais or as a percentage of the price', () => {
 
 test('works out what to receive and the profit of the sale', () => {
   assert.deepEqual(saleTotals(60, 6, 12), { total: 54, profit: 42, margin: 77.8 });
+  assert.deepEqual(saleTotals(30, 5, 10, 2), { total: 55, profit: 35, margin: 63.6 });
   assert.deepEqual(saleTotals(60, 0), { total: 60, profit: null, margin: null });
   assert.deepEqual(saleTotals(30, 0, 35), { total: 30, profit: -5, margin: -16.7 });
 });

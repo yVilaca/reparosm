@@ -67,6 +67,8 @@ test('takes a discount in reais or percent, and an optional cost', () => {
   const html = render();
   assert.match(html, /id="sale-discount"[^>]*placeholder="R\$ ou %"/);
   assert.match(html, /id="sale-cost"/);
+  assert.match(html, /id="sale-quantity"/);
+  assert.match(html, /Quantidade/);
   assert.match(html, /Custo para margem <span[^>]*>\(opcional\)/);
   assert.match(html, /Este custo não gera conta a pagar/);
 });
