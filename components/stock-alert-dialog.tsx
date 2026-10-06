@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
+import { cn } from 'cn';
 import {
   Dialog,
   DialogContent,
@@ -15,14 +16,20 @@ export function StockCheckStatus({
   error,
   shortages,
   retry,
+  className,
 }: {
   checking: boolean;
   error?: string;
   shortages: StockShortage[];
   retry: () => void;
+  className?: string;
 }) {
   return (
-    <div className="grid gap-1 text-xs sm:col-span-2" role="status" aria-live="polite">
+    <div
+      className={cn('grid gap-1 text-xs sm:col-span-2', className)}
+      role="status"
+      aria-live="polite"
+    >
       {checking ? (
         <p className="text-muted-foreground">Verificando estoque…</p>
       ) : error ? (

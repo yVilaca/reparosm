@@ -22,5 +22,7 @@ test('keeps selected product controls in a responsive grid', () => {
     }),
   );
 
+  assert.match(html, /grid-cols-1/);
+  assert.match(html, /sm:col-span-1/);
   assert.match(html, /sm:grid-cols-\[minmax\(0,1fr\)_auto_auto_auto\]/);
 });

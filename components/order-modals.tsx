@@ -855,7 +855,7 @@ export function OrderProductsPicker({
   );
 
   return (
-    <div className="grid min-w-0 gap-3 rounded-lg border bg-muted/20 p-4 sm:col-span-2">
+    <div className="grid min-w-0 grid-cols-1 gap-3 rounded-lg border bg-muted/20 p-4 sm:col-span-2">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-medium">Produtos do estoque</p>
@@ -937,6 +937,7 @@ export function OrderProductsPicker({
         </Dialog>
       </div>
       <StockCheckStatus
+        className="sm:col-span-1"
         checking={stock.checking}
         error={stock.error}
         shortages={stock.shortages}
