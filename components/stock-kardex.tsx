@@ -6,6 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -250,46 +257,58 @@ export default function StockKardex({ parts }: { parts: PartRow[] }) {
           </label>
           <label className="grid min-w-0 gap-1 text-sm">
             Produto
-            <select
-              className="h-9 w-full min-w-0 rounded-md border bg-background px-3"
-              value={filters.partId}
-              onChange={(event) => change('partId', event.target.value)}
+            <Select
+              value={filters.partId || '__all__'}
+              onValueChange={(value) => change('partId', value === '__all__' ? '' : value)}
             >
-              <option value="">Todos os produtos</option>
-              {parts.map((part) => (
-                <option key={part.id} value={part.id}>
-                  {part.name}
-                  {part.sku ? ` · ${part.sku}` : ''}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger aria-label="Produto" className="h-9 w-full min-w-0 rounded-md px-3">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start" position="popper">
+                <SelectItem value="__all__">Todos os produtos</SelectItem>
+                {parts.map((part) => (
+                  <SelectItem key={part.id} value={part.id}>
+                    {part.name}
+                    {part.sku ? ` · ${part.sku}` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
           <label className="grid min-w-0 gap-1 text-sm">
             Origem
-            <select
-              className="h-9 w-full min-w-0 rounded-md border bg-background px-3"
-              value={filters.source}
-              onChange={(event) => change('source', event.target.value)}
+            <Select
+              value={filters.source || '__all__'}
+              onValueChange={(value) => change('source', value === '__all__' ? '' : value)}
             >
-              <option value="">Todas as origens</option>
-              {Object.entries(sources).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger aria-label="Origem" className="h-9 w-full min-w-0 rounded-md px-3">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start" position="popper">
+                <SelectItem value="__all__">Todas as origens</SelectItem>
+                {Object.entries(sources).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
           <label className="grid min-w-0 gap-1 text-sm">
             Direção
-            <select
-              className="h-9 w-full min-w-0 rounded-md border bg-background px-3"
-              value={filters.direction}
-              onChange={(event) => change('direction', event.target.value)}
+            <Select
+              value={filters.direction || '__all__'}
+              onValueChange={(value) => change('direction', value === '__all__' ? '' : value)}
             >
-              <option value="">Entradas e saídas</option>
-              <option value="in">Entradas</option>
-              <option value="out">Saídas</option>
-            </select>
+              <SelectTrigger aria-label="Direção" className="h-9 w-full min-w-0 rounded-md px-3">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start" position="popper">
+                <SelectItem value="__all__">Entradas e saídas</SelectItem>
+                <SelectItem value="in">Entradas</SelectItem>
+                <SelectItem value="out">Saídas</SelectItem>
+              </SelectContent>
+            </Select>
           </label>
           <label className="grid min-w-0 gap-1 text-sm">
             Buscar nome ou SKU

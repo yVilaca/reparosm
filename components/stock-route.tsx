@@ -15,6 +15,13 @@ import { Input } from '@/components/ui/input';
 import PageHeader from '@/components/ui/page-header';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import RowMenu from '@/components/ui/row-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import Segmented from '@/components/ui/segmented';
 import SoftBanner from '@/components/ui/soft-banner';
 import StatCard from '@/components/ui/stat-card';
@@ -90,6 +97,8 @@ const initialFilters: ProductFilters = {
   published: 'all',
   sort: 'name-asc',
 };
+const allFilterValue = '__all__';
+const filterSelectClass = 'h-9 w-full min-w-0 rounded-md px-3';
 
 export function filterStockItems(parts: PartRow[], filters: Partial<ProductFilters> = {}) {
   const search = plainText((filters.search || '').trim());
@@ -252,75 +261,94 @@ export default function StockRoute({
           </label>
           <label className="grid min-w-0 gap-1 text-sm">
             Categoria
-            <select
-              className="h-9 w-full min-w-0 rounded-md border bg-background px-3"
-              value={filters.category}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, category: event.target.value }))
+            <Select
+              value={filters.category || allFilterValue}
+              onValueChange={(value) =>
+                setFilters((current) => ({
+                  ...current,
+                  category: value === allFilterValue ? '' : value,
+                }))
               }
             >
-              <option value="">Todas as categorias</option>
-              {categories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger aria-label="Categoria" className={filterSelectClass}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start" position="popper">
+                <SelectItem value={allFilterValue}>Todas as categorias</SelectItem>
+                {categories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
           <label className="grid min-w-0 gap-1 text-sm">
             Quantidade em estoque
-            <select
-              className="h-9 w-full min-w-0 rounded-md border bg-background px-3"
+            <Select
               value={filters.stock}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 setFilters((current) => ({
                   ...current,
-                  stock: event.target.value as ProductFilters['stock'],
+                  stock: value as ProductFilters['stock'],
                 }))
               }
             >
-              <option value="all">Todas as quantidades</option>
-              <option value="out">Sem estoque (zero ou negativo)</option>
-              <option value="low">Estoque baixo (1 a 5)</option>
-              <option value="available">Disponível (acima de zero)</option>
-            </select>
+              <SelectTrigger aria-label="Quantidade em estoque" className={filterSelectClass}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start" position="popper">
+                <SelectItem value="all">Todas as quantidades</SelectItem>
+                <SelectItem value="out">Sem estoque (zero ou negativo)</SelectItem>
+                <SelectItem value="low">Estoque baixo (1 a 5)</SelectItem>
+                <SelectItem value="available">Disponível (acima de zero)</SelectItem>
+              </SelectContent>
+            </Select>
           </label>
           <label className="grid min-w-0 gap-1 text-sm">
             Publicação
-            <select
-              className="h-9 w-full min-w-0 rounded-md border bg-background px-3"
+            <Select
               value={filters.published}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 setFilters((current) => ({
                   ...current,
-                  published: event.target.value as ProductFilters['published'],
+                  published: value as ProductFilters['published'],
                 }))
               }
             >
-              <option value="all">Todos os produtos</option>
-              <option value="yes">Publicados</option>
-              <option value="no">Não publicados</option>
-            </select>
+              <SelectTrigger aria-label="Publicação" className={filterSelectClass}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start" position="popper">
+                <SelectItem value="all">Todos os produtos</SelectItem>
+                <SelectItem value="yes">Publicados</SelectItem>
+                <SelectItem value="no">Não publicados</SelectItem>
+              </SelectContent>
+            </Select>
           </label>
           <label className="grid min-w-0 gap-1 text-sm">
             Ordenação
-            <select
-              className="h-9 w-full min-w-0 rounded-md border bg-background px-3"
+            <Select
               value={filters.sort}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 setFilters((current) => ({
                   ...current,
-                  sort: event.target.value as ProductFilters['sort'],
+                  sort: value as ProductFilters['sort'],
                 }))
               }
             >
-              <option value="name-asc">Nome A–Z</option>
-              <option value="name-desc">Nome Z–A</option>
-              <option value="stock-asc">Menor estoque</option>
-              <option value="stock-desc">Maior estoque</option>
-              <option value="price-asc">Menor preço</option>
-              <option value="price-desc">Maior preço</option>
-            </select>
+              <SelectTrigger aria-label="Ordenação" className={filterSelectClass}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start" position="popper">
+                <SelectItem value="name-asc">Nome A–Z</SelectItem>
+                <SelectItem value="name-desc">Nome Z–A</SelectItem>
+                <SelectItem value="stock-asc">Menor estoque</SelectItem>
+                <SelectItem value="stock-desc">Maior estoque</SelectItem>
+                <SelectItem value="price-asc">Menor preço</SelectItem>
+                <SelectItem value="price-desc">Maior preço</SelectItem>
+              </SelectContent>
+            </Select>
           </label>
           <p
             aria-live="polite"

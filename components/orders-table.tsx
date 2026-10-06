@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Eye } from 'lucide-react';
 import { type Dispatch, type SetStateAction } from 'react';
+import { cn } from 'cn';
 import OrderActions from '@/components/order-actions';
 import OrderPaymentStatus from '@/components/order-payment-status';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +11,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import EmptyState from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toneChip } from '@/components/ui/tone';
 import {
   Table,
@@ -65,26 +73,36 @@ export default function OrdersTable({
 }) {
   const selectedOrders = orders.filter((order) => selectedIds.has(order.id));
   const allSelected = orders.length > 0 && selectedOrders.length === orders.length;
-  const stageControl = (order: OrderRow) =>
-    onStageChange ? (
-      <select
-        aria-label={`Etapa da ordem ${order.code}`}
-        className={`h-8 max-w-full rounded-md border px-2 text-xs font-medium focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-wait disabled:opacity-50 ${toneChip[orderStageTone(order.stage || 'Recebido')]}`}
-        value={order.stage || 'Recebido'}
+  const stageControl = (order: OrderRow) => {
+    const stage = order.stage || 'Recebido';
+    return onStageChange ? (
+      <Select
         disabled={changingStage}
-        onChange={(event) => onStageChange(order, event.target.value as OrderStage)}
+        onValueChange={(value) => onStageChange(order, value as OrderStage)}
+        value={stage}
       >
-        {stages.map((stage) => (
-          <option key={stage} value={stage}>
-            {stage}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger
+          aria-label={`Etapa da ordem ${order.code}: ${stage}. Alterar`}
+          className={cn(
+            'h-7 min-w-0 max-w-full gap-1 rounded-full border-transparent px-2.5 text-xs font-medium shadow-none',
+            toneChip[orderStageTone(stage)],
+          )}
+          size="sm"
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent align="start" className="min-w-48" position="popper">
+          {stages.map((item) => (
+            <SelectItem key={item} value={item}>
+              {item}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     ) : (
-      <Badge variant={orderStageVariant(order.stage || 'Recebido')}>
-        {order.stage || 'Recebido'}
-      </Badge>
+      <Badge variant={orderStageVariant(stage)}>{stage}</Badge>
     );
+  };
 
   const toggleSelected = (id: string) =>
     setSelectedIds((current) => {

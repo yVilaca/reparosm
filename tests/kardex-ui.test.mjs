@@ -44,11 +44,13 @@ test('Kardex forwards all filters and the complete pagination cursor, and report
   await assert.rejects(loadStockMovements({ ...filters, from: '2026-10-06' }), /intervalo/);
 });
 
-test('Kardex offers labeled native filters and shows signed movements with balances on desktop and mobile', () => {
+test('Kardex offers labeled custom filters and shows signed movements with balances on desktop and mobile', () => {
   const html = renderToStaticMarkup(createElement(StockKardex, { parts: [] }));
   for (const label of ['De', 'Até', 'Produto', 'Origem', 'Direção', 'Buscar nome ou SKU'])
     assert.ok(html.includes(label));
   assert.equal((html.match(/type="date"/g) || []).length, 2);
+  assert.equal((html.match(/<button\b(?=[^>]*data-slot="select-trigger")[^>]*>/g) || []).length, 3);
+  assert.equal((html.match(/<select\b(?![^>]*aria-hidden="true")[^>]*>/g) || []).length, 0);
   assert.match(html, /Carregando movimentações/);
   const rows = renderToStaticMarkup(
     createElement(StockMovementRows, {

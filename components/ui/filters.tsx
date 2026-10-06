@@ -6,6 +6,13 @@ import { ListFilter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export type Filter = { field: string; value: string };
 export type FilterField = { key: string; label: string; options?: string[] };
@@ -58,39 +65,40 @@ export default function Filters({
             >
               <div className="grid gap-1.5">
                 <Label htmlFor={`${id}-field`}>Campo</Label>
-                <select
-                  id={`${id}-field`}
-                  className={selectClass}
+                <Select
                   value={fieldKey}
-                  onChange={(event) => {
-                    setFieldKey(event.target.value);
+                  onValueChange={(value) => {
+                    setFieldKey(value);
                     setDraft('');
                   }}
                 >
-                  {fields.map((item) => (
-                    <option key={item.key} value={item.key}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger id={`${id}-field`} className={selectClass}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent align="start" position="popper">
+                    {fields.map((item) => (
+                      <SelectItem key={item.key} value={item.key}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor={`${id}-value`}>Valor</Label>
                 {field?.options ? (
-                  <select
-                    id={`${id}-value`}
-                    className={selectClass}
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    required
-                  >
-                    <option value="">Selecione</option>
-                    {field.options.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
+                  <Select value={draft} onValueChange={setDraft} required>
+                    <SelectTrigger id={`${id}-value`} className={selectClass}>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent align="start" position="popper">
+                      {field.options.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 ) : (
                   <Input
                     id={`${id}-value`}

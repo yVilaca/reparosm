@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -70,16 +71,19 @@ test('order list offers the kanban stages on desktop and mobile and locks them w
       ),
     );
   const html = render(props);
-  const selects = html.match(/<select\b[^>]*>[\s\S]*?<\/select>/g) || [];
-  assert.equal(selects.length, 2);
-  for (const select of selects) {
-    assert.match(select, /aria-label="Etapa da ordem OS-12"/);
-    assert.match(select, /<option value="Em serviço" selected="">Em serviço<\/option>/);
-    for (const stage of stages) assert.ok(select.includes(`value="${stage}"`));
-    assert.doesNotMatch(select, / disabled=""/);
+  const triggers = html.match(/<button\b(?=[^>]*data-slot="select-trigger")[^>]*>/g) || [];
+  assert.equal(triggers.length, 2);
+  for (const trigger of triggers) {
+    assert.match(trigger, /aria-label="Etapa da ordem OS-12: Em serviço\. Alterar"/);
+    assert.match(trigger, /data-size="sm"/);
+    assert.doesNotMatch(trigger, / disabled=""/);
   }
   const saving = render({ ...props, changingStage: true });
-  assert.equal((saving.match(/<select\b[^>]*disabled=""/g) || []).length, 2);
+  assert.equal(
+    (saving.match(/<button\b(?=[^>]*data-slot="select-trigger")(?=[^>]*disabled="")[^>]*>/g) || [])
+      .length,
+    2,
+  );
 });
 
 test('order grid exposes a visible view action on desktop and mobile', () => {
@@ -128,6 +132,13 @@ test('active filters expose compact removable badges', () => {
   assert.match(html, /Cliente: Ana/);
   assert.match(html, /aria-label="Remover filtro Cliente: Ana"/);
   assert.match(html, /title="Clique para remover este filtro"/);
+});
+
+test('filter choices use the custom select popover instead of native menus', async () => {
+  const source = await readFile(new URL('../components/ui/filters.tsx', import.meta.url), 'utf8');
+  assert.equal((source.match(/<select\b/g) || []).length, 0);
+  assert.equal((source.match(/<SelectTrigger\b/g) || []).length, 2);
+  assert.match(source, /<SelectContent[^>]*position="popper"/g);
 });
 
 test('unpaid cards offer an accessible icon without redundant payment text', () => {

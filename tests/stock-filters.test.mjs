@@ -54,5 +54,10 @@ test('catalog and inventory share accessible filters and retain negative quantit
       assert.ok(html.includes(label));
     assert.match(html, /4 de 4 produtos/);
     assert.ok(html.includes(initialView === 'catalog' ? 'Sem estoque (-2 un.)' : '-2 un.'));
+    assert.equal(
+      (html.match(/<button\b(?=[^>]*data-slot="select-trigger")[^>]*>/g) || []).length,
+      4,
+    );
+    assert.equal((html.match(/<select\b(?![^>]*aria-hidden="true")[^>]*>/g) || []).length, 0);
   }
 });
