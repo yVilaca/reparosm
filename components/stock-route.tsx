@@ -1,7 +1,11 @@
 'use client';
 
+import { byName } from '@/lib/sorting';
+import { plainText } from '@/lib/payable-schedule';
+
 import { useState } from 'react';
 import PartModal, { type PartRow, type SavePart } from '@/components/part-modal';
+import StockKardex from '@/components/stock-kardex';
 import { useFeedback } from '@/components/feedback';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,6 +24,7 @@ import {
   Boxes,
   ExternalLink,
   Link2,
+  ListOrdered,
   Package,
   Plus,
   Store,
@@ -37,7 +42,7 @@ import {
 import { formatMoney } from '@/lib/format';
 import type { Part } from '@/lib/types';
 
-const LOW_STOCK = 4;
+const LOW_STOCK = 5;
 const stockLabel = (stock: number) =>
   stock <= 0 ? 'Sem estoque' : stock <= LOW_STOCK ? 'Estoque baixo' : 'Disponível';
 const StockBadge = ({ stock }: { stock: number }) => (
@@ -70,7 +75,55 @@ function PartActions({
   );
 }
 
-type StockView = 'catalog' | 'inventory';
+type StockView = 'catalog' | 'inventory' | 'kardex';
+type ProductFilters = {
+  search: string;
+  category: string;
+  stock: 'all' | 'out' | 'low' | 'available';
+  published: 'all' | 'yes' | 'no';
+  sort: 'name-asc' | 'name-desc' | 'stock-asc' | 'stock-desc' | 'price-asc' | 'price-desc';
+};
+const initialFilters: ProductFilters = {
+  search: '',
+  category: '',
+  stock: 'all',
+  published: 'all',
+  sort: 'name-asc',
+};
+
+export function filterStockItems(parts: PartRow[], filters: Partial<ProductFilters> = {}) {
+  const search = plainText((filters.search || '').trim());
+  return parts
+    .filter(
+      (part) =>
+        (!search ||
+          [part.name, part.sku || '', part.category || ''].some((value) =>
+            plainText(value).includes(search),
+          )) &&
+        (!filters.category || part.category === filters.category) &&
+        (filters.stock !== 'out' || part.stock <= 0) &&
+        (filters.stock !== 'low' || (part.stock > 0 && part.stock <= LOW_STOCK)) &&
+        (filters.stock !== 'available' || part.stock > 0) &&
+        (filters.published !== 'yes' || part.published === true) &&
+        (filters.published !== 'no' || part.published !== true),
+    )
+    .sort((a, b) => {
+      switch (filters.sort) {
+        case 'name-desc':
+          return byName(b, a);
+        case 'stock-asc':
+          return a.stock - b.stock || byName(a, b);
+        case 'stock-desc':
+          return b.stock - a.stock || byName(a, b);
+        case 'price-asc':
+          return a.price - b.price || byName(a, b);
+        case 'price-desc':
+          return b.price - a.price || byName(a, b);
+        default:
+          return byName(a, b);
+      }
+    });
+}
 
 export default function StockRoute({
   accountId,
@@ -85,6 +138,7 @@ export default function StockRoute({
   const [parts, setParts] = useState(initialParts);
   const [modal, setModal] = useState<'create' | 'edit' | null>(null);
   const [editing, setEditing] = useState<PartRow | null>(null);
+  const [filters, setFilters] = useState(initialFilters);
   const save: SavePart = async (data: Part, id?: string) => {
     try {
       const response = await fetch('/api/parts', {
@@ -152,6 +206,12 @@ export default function StockRoute({
   };
   const openStore = () => window.open(storeUrl, '_blank', 'noopener,noreferrer');
   const title = 'Estoque e vitrine';
+  const items = filterStockItems(parts, filters);
+  const categories = [
+    ...new Set(
+      parts.map((part) => part.category).filter((value): value is string => Boolean(value)),
+    ),
+  ].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   return (
     <>
       <PageHeader
@@ -170,15 +230,124 @@ export default function StockRoute({
         options={[
           { value: 'catalog', label: 'Vitrine', icon: Store, href: '/estoque?view=catalog' },
           { value: 'inventory', label: 'Estoque', icon: Boxes, href: '/estoque?view=inventory' },
+          { value: 'kardex', label: 'Kardex', icon: ListOrdered, href: '/estoque?view=kardex' },
         ]}
-        value={initialView === 'inventory' ? 'inventory' : 'catalog'}
+        value={initialView}
       />
-      {initialView === 'inventory' ? (
-        <Inventory items={parts} onCreate={create} onEdit={edit} onRemove={remove} />
+      {initialView !== 'kardex' && (
+        <section
+          aria-label="Filtros de produtos"
+          className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5"
+        >
+          <label className="grid min-w-0 gap-1 text-sm">
+            Buscar produto
+            <Input
+              placeholder="Nome, SKU ou categoria"
+              value={filters.search}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, search: event.target.value }))
+              }
+              type="search"
+            />
+          </label>
+          <label className="grid min-w-0 gap-1 text-sm">
+            Categoria
+            <select
+              className="h-9 w-full min-w-0 rounded-md border bg-background px-3"
+              value={filters.category}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, category: event.target.value }))
+              }
+            >
+              <option value="">Todas as categorias</option>
+              {categories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid min-w-0 gap-1 text-sm">
+            Quantidade em estoque
+            <select
+              className="h-9 w-full min-w-0 rounded-md border bg-background px-3"
+              value={filters.stock}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  stock: event.target.value as ProductFilters['stock'],
+                }))
+              }
+            >
+              <option value="all">Todas as quantidades</option>
+              <option value="out">Sem estoque (zero ou negativo)</option>
+              <option value="low">Estoque baixo (1 a 5)</option>
+              <option value="available">Disponível (acima de zero)</option>
+            </select>
+          </label>
+          <label className="grid min-w-0 gap-1 text-sm">
+            Publicação
+            <select
+              className="h-9 w-full min-w-0 rounded-md border bg-background px-3"
+              value={filters.published}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  published: event.target.value as ProductFilters['published'],
+                }))
+              }
+            >
+              <option value="all">Todos os produtos</option>
+              <option value="yes">Publicados</option>
+              <option value="no">Não publicados</option>
+            </select>
+          </label>
+          <label className="grid min-w-0 gap-1 text-sm">
+            Ordenação
+            <select
+              className="h-9 w-full min-w-0 rounded-md border bg-background px-3"
+              value={filters.sort}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  sort: event.target.value as ProductFilters['sort'],
+                }))
+              }
+            >
+              <option value="name-asc">Nome A–Z</option>
+              <option value="name-desc">Nome Z–A</option>
+              <option value="stock-asc">Menor estoque</option>
+              <option value="stock-desc">Maior estoque</option>
+              <option value="price-asc">Menor preço</option>
+              <option value="price-desc">Maior preço</option>
+            </select>
+          </label>
+          <p
+            aria-live="polite"
+            className="text-sm text-muted-foreground sm:col-span-2 lg:col-span-5"
+          >
+            {items.length} de {parts.length} produtos
+          </p>
+        </section>
+      )}
+      {initialView === 'kardex' ? (
+        <StockKardex parts={[...parts].sort(byName)} />
+      ) : parts.length > 0 && !items.length ? (
+        <EmptyState
+          title="Nenhum produto corresponde aos filtros"
+          description="Altere os filtros para encontrar outros produtos."
+          action={
+            <Button variant="outline" onClick={() => setFilters(initialFilters)}>
+              Limpar filtros
+            </Button>
+          }
+        />
+      ) : initialView === 'inventory' ? (
+        <Inventory items={items} onCreate={create} onEdit={edit} onRemove={remove} />
       ) : (
         <Catalog
           accountId={accountId}
-          items={parts}
+          items={items}
           onCreate={create}
           onEdit={edit}
           onRemove={remove}
@@ -253,7 +422,7 @@ function Catalog({
                 <h3 className="font-semibold">{part.name}</h3>
                 <p className={`text-sm ${toneText[stockTone(part.stock, LOW_STOCK)]}`}>
                   {part.stock <= 0
-                    ? 'Sem estoque'
+                    ? `Sem estoque (${part.stock} un.)`
                     : `${part.stock} ${part.stock === 1 ? 'unidade' : 'unidades'}`}
                 </p>
                 <strong className="text-lg">{formatMoney(part.price)}</strong>

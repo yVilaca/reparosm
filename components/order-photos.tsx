@@ -12,7 +12,13 @@ type Photo = {
   createdAt: string;
 };
 
-export default function OrderPhotos({ orderId }: { orderId: string }) {
+export default function OrderPhotos({
+  orderId,
+  readOnly = false,
+}: {
+  orderId: string;
+  readOnly?: boolean;
+}) {
   const { notify, confirm } = useFeedback();
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,24 +103,28 @@ export default function OrderPhotos({ orderId }: { orderId: string }) {
           <h3 className="mb-1 text-sm font-semibold" id="order-photos-title">
             Fotos de prova
           </h3>
-          <p className="text-xs text-muted-foreground">
-            JPG, PNG ou WebP · até 8 MB por foto · máximo de 5 fotos
-          </p>
+          {!readOnly && (
+            <p className="text-xs text-muted-foreground">
+              JPG, PNG ou WebP · até 8 MB por foto · máximo de 5 fotos
+            </p>
+          )}
         </div>
-        <label
-          aria-disabled={uploading}
-          className={`inline-flex h-8 cursor-pointer items-center rounded-lg border bg-background px-3 text-sm font-medium transition-colors hover:bg-muted focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${uploading ? 'pointer-events-none cursor-wait opacity-60' : ''}`}
-        >
-          {uploading ? 'Enviando...' : '+ Adicionar foto'}
-          <input
-            accept="image/jpeg,image/png,image/webp"
-            className="sr-only"
-            disabled={uploading}
-            onChange={(event) => void upload(event)}
-            multiple
-            type="file"
-          />
-        </label>
+        {!readOnly && (
+          <label
+            aria-disabled={uploading}
+            className={`inline-flex h-8 cursor-pointer items-center rounded-lg border bg-background px-3 text-sm font-medium transition-colors hover:bg-muted focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${uploading ? 'pointer-events-none cursor-wait opacity-60' : ''}`}
+          >
+            {uploading ? 'Enviando...' : '+ Adicionar foto'}
+            <input
+              accept="image/jpeg,image/png,image/webp"
+              className="sr-only"
+              disabled={uploading}
+              onChange={(event) => void upload(event)}
+              multiple
+              type="file"
+            />
+          </label>
+        )}
       </div>
       {loading ? (
         <small>Carregando fotos...</small>
@@ -122,15 +132,22 @@ export default function OrderPhotos({ orderId }: { orderId: string }) {
         <div className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2">
           {photos.map((photo) => (
             <article className="overflow-hidden rounded-lg border bg-card" key={photo.id}>
-              <Image
-                alt="Foto de prova da ordem de serviço"
-                className="block h-24 w-full bg-muted object-cover"
-                loading="lazy"
-                src={`/api/order-photos/${encodeURIComponent(photo.id)}`}
-                height={180}
-                unoptimized
-                width={240}
-              />
+              <a
+                href={`/api/order-photos/${encodeURIComponent(photo.id)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Abrir foto de prova em tamanho completo"
+              >
+                <Image
+                  alt="Foto de prova da ordem de serviço"
+                  className="block h-24 w-full bg-muted object-cover"
+                  loading="lazy"
+                  src={`/api/order-photos/${encodeURIComponent(photo.id)}`}
+                  height={180}
+                  unoptimized
+                  width={240}
+                />
+              </a>
               <div className="flex items-center justify-between gap-1 p-2">
                 <span className="text-xs text-muted-foreground">
                   {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(
@@ -138,15 +155,17 @@ export default function OrderPhotos({ orderId }: { orderId: string }) {
                   )}{' '}
                   · {Math.max(1, Math.round(photo.sizeBytes / 1024))} KB
                 </span>
-                <Button
-                  className="h-auto px-2 py-1 text-destructive"
-                  onClick={() => void remove(photo)}
-                  size="xs"
-                  type="button"
-                  variant="ghost"
-                >
-                  Excluir
-                </Button>
+                {!readOnly && (
+                  <Button
+                    className="h-auto px-2 py-1 text-destructive"
+                    onClick={() => void remove(photo)}
+                    size="xs"
+                    type="button"
+                    variant="ghost"
+                  >
+                    Excluir
+                  </Button>
+                )}
               </div>
             </article>
           ))}

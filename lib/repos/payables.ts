@@ -89,8 +89,10 @@ async function read(execute: Query, accountId: string, id: string) {
 export async function list(accountId: string, run?: Query) {
   const rows = await tenantQueryFor(accountId, run)<PayableRow>(
     `${select} WHERE account_id = $1
-     ORDER BY (status = 'pending') DESC, due_date NULLS LAST, installment_number NULLS FIRST,
-       updated_at DESC`,
+     ORDER BY (status = 'pending') DESC,
+       CASE WHEN status = 'pending' THEN due_date END NULLS LAST,
+       CASE WHEN status = 'paid' THEN paid_on END DESC NULLS LAST,
+       installment_number NULLS FIRST, created_at DESC, id DESC`,
     [accountId],
   );
   return rows.map(toPayable);

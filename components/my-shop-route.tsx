@@ -154,6 +154,9 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
                 ...(tab === 'Documentos'
                   ? { showLaborOnPrint: form.get('showLaborOnPrint') === 'on' }
                   : {}),
+                ...(tab === 'Perfil'
+                  ? { allowNegativeStock: form.get('allowNegativeStock') === 'on' }
+                  : {}),
               } as Shop,
               shop?.id || 'shop-main',
             );
@@ -207,6 +210,24 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
               <div className="grid gap-2">
                 <Label htmlFor="shop-address">Endereço completo</Label>
                 <Input defaultValue={shop?.address || ''} id="shop-address" name="address" />
+              </div>
+              <div className="flex items-start gap-3 rounded-lg border p-3">
+                <Input
+                  type="checkbox"
+                  className="mt-1 size-4 shrink-0"
+                  id="shop-allow-negative-stock"
+                  name="allowNegativeStock"
+                  defaultChecked={shop?.allowNegativeStock === true}
+                />
+                <div className="grid gap-1">
+                  <Label htmlFor="shop-allow-negative-stock">
+                    Permitir vender com estoque negativo
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Padrão: não. Ao ativar, a OS e a venda rápida exigem confirmação quando faltar
+                    estoque.
+                  </p>
+                </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">

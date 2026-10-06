@@ -11,11 +11,13 @@ const summary = {
     income: 790,
     expense: 120,
     balance: 670,
+    cost: 190,
+    net: 600,
     methods: [{ method: 'Pix', value: 490 }],
   },
   month: {
-    current: { income: 890, expense: 120, balance: 770 },
-    previous: { income: 900, expense: 0, balance: 900 },
+    current: { income: 890, expense: 120, balance: 770, cost: 200, net: 690 },
+    previous: { income: 900, expense: 0, balance: 900, cost: 300, net: 600 },
   },
   receivables: {
     ready: {
@@ -47,7 +49,36 @@ const html = (initialSection) =>
       createElement(
         FeedbackProvider,
         null,
-        createElement(FinanceRoute, { initialHistory: [], summary, initialSection }),
+        createElement(FinanceRoute, {
+          initialHistory: [
+            {
+              id: 'receipt',
+              kind: 'in',
+              description: 'OS recebida',
+              value: 790,
+              cost: 190,
+              method: 'Pix',
+              date: '2026-10-05',
+              createdAt: '2026-10-05T12:00:00Z',
+              reference: null,
+              order: null,
+            },
+            {
+              id: 'expense',
+              kind: 'out',
+              description: 'Aluguel',
+              value: 120,
+              cost: 0,
+              method: 'Pix',
+              date: '2026-10-05',
+              createdAt: '2026-10-05T13:00:00Z',
+              reference: null,
+              order: null,
+            },
+          ],
+          summary,
+          initialSection,
+        }),
       ),
     ),
   );
@@ -56,6 +87,11 @@ test('shows the daily close with the breakdown by method', () => {
   const markup = html();
   assert.match(markup, /Hoje/);
   assert.match(markup, /Pix/);
+  assert.match(markup, /Total Bruto[\s\S]*?790,00/);
+  assert.match(markup, /Total Líquido[\s\S]*?600,00/);
+  assert.match(markup, /Custos: R\$\s*190,00/);
+  assert.match(markup, /Período do financeiro/);
+  assert.match(markup, /Aplicar/);
 });
 
 test('keeps the monthly comparison in the analysis section', () => {

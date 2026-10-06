@@ -82,7 +82,7 @@ export default function QuoteModal({
   return (
     <Dialog open onOpenChange={(open) => !open && close()}>
       <DialogContent className="max-w-xl p-0">
-        <form className="grid max-h-[90dvh] gap-6 overflow-y-auto p-6" onSubmit={submit}>
+        <form className="grid gap-6 p-6" onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>
               {editing ? `Editar orçamento ${item?.code}` : 'Novo orçamento'}

@@ -1,6 +1,12 @@
 import { tenantQueryFor, type Query } from '@/lib/db';
 import { money } from '@/lib/repos/rows';
 import { todayInSaoPaulo } from '@/lib/warranty';
+import {
+  isCashDateRange,
+  summarizeCash,
+  type CashDateRange,
+  type FinanceTotals,
+} from '@/lib/finance';
 
 export type CashTotals = { income: number; expense: number; balance: number };
 export type MethodTotal = { method: string; value: number };
@@ -22,8 +28,12 @@ export type MonthlyCashTotals = CashTotals & {
  * data sumiria de todos os períodos e continuaria somando no total geral.
  */
 const COMPETENCE = `COALESCE(c.date, (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date)`;
+export const RECEIPT_COST = `CASE WHEN c.kind <> 'in' THEN 0
+  WHEN c.order_id IS NULL THEN COALESCE(c.cost, 0)
+  WHEN o.total > 0 THEN o.cost * LEAST(c.value / o.total, 1)
+  ELSE COALESCE(o.cost, 0) END`;
 
-/** All non-cancelled orders; unpaid margin is proportional to the remaining balance. */
+/** Received order amounts plus standalone sales, excluding pending revenue and margin. */
 export async function orderFinancialTotals(accountId: string): Promise<OrderFinancialTotals> {
   const [row] = await tenantQueryFor(accountId)<{
     gross: string;
@@ -37,9 +47,14 @@ export async function orderFinancialTotals(accountId: string): Promise<OrderFina
       FROM orders o LEFT JOIN cash_entries c
         ON c.account_id = o.account_id AND c.order_id = o.id AND c.kind = 'in'
       WHERE o.account_id = $1 AND o.status <> 'Cancelado'
+      UNION ALL
+      SELECT c.value, COALESCE(c.cost, 0), 0 AS remaining
+      FROM cash_entries c
+      WHERE c.account_id = $1 AND c.kind = 'in' AND c.order_id IS NULL
     )
-    SELECT COALESCE(SUM(total), 0) AS gross,
-      COALESCE(SUM(total - cost), 0) AS net,
+    SELECT COALESCE(SUM(total - remaining), 0) AS gross,
+      COALESCE(ROUND(SUM(total - cost - CASE WHEN total > 0
+        THEN remaining * (total - cost) / total ELSE 0 END), 2), 0) AS net,
       COALESCE(SUM(remaining), 0) AS gross_receivable,
       COALESCE(ROUND(SUM(CASE WHEN total > 0
         THEN remaining * (total - cost) / total ELSE 0 END), 2), 0) AS net_receivable
@@ -54,29 +69,22 @@ export async function orderFinancialTotals(accountId: string): Promise<OrderFina
   };
 }
 
-const totalsOf = (rows: Array<{ kind: string; value: string }>): CashTotals => {
-  const income = rows
-    .filter((row) => row.kind === 'in')
-    .reduce((sum, row) => sum + money(row.value), 0);
-  const expense = rows
-    .filter((row) => row.kind === 'out')
-    .reduce((sum, row) => sum + money(row.value), 0);
-  return { income, expense, balance: income - expense };
-};
-
 const rangeTotals = async (
   execute: Query,
   accountId: string,
   from: string,
   to: string,
-): Promise<CashTotals> => {
-  const rows = await execute<{ kind: string; value: string }>(
-    `SELECT c.kind, SUM(c.value) AS value FROM cash_entries c
+): Promise<FinanceTotals> => {
+  const rows = await execute<{ kind: string; value: string; cost: string }>(
+    `SELECT c.kind, SUM(c.value) AS value, SUM(ROUND(${RECEIPT_COST}, 2)) AS cost FROM cash_entries c
+     LEFT JOIN orders o ON o.account_id = c.account_id AND o.id = c.order_id
      WHERE c.account_id = $1 AND ${COMPETENCE} BETWEEN $2::date AND $3::date
      GROUP BY c.kind`,
     [accountId, from, to],
   );
-  return totalsOf(rows);
+  return summarizeCash(
+    rows.map((row) => ({ kind: row.kind, value: money(row.value), cost: money(row.cost) })),
+  );
 };
 
 export async function today(accountId: string, asOfDate = todayInSaoPaulo()) {
@@ -87,7 +95,7 @@ export async function today(accountId: string, asOfDate = todayInSaoPaulo()) {
             SUM(c.value) AS value
      FROM cash_entries c
      WHERE c.account_id = $1 AND c.kind = 'in' AND ${COMPETENCE} = $2::date
-     GROUP BY 1 ORDER BY 2 DESC`,
+     GROUP BY 1 ORDER BY 2 DESC, 1`,
     [accountId, asOfDate],
   );
   return {
@@ -188,7 +196,7 @@ export async function receivables(accountId: string) {
     `SELECT o.id, o.code, o.customer, o.device, o.total, o.status
      FROM orders o ${UNPAID}
      WHERE o.account_id = $1 AND o.total > 0 AND o.status <> 'Cancelado' AND c.id IS NULL
-     ORDER BY o.updated_at DESC`,
+     ORDER BY o.updated_at, o.id`,
     [accountId],
   );
   const group = (items: typeof rows): ReceivableGroup => ({
@@ -253,17 +261,25 @@ export type CashHistoryRow = {
   method: string;
   date: string;
   value: number;
+  cost: number;
+  createdAt: string;
   order: { id: string; code: string } | null;
 };
 
 export async function history(
   accountId: string,
-  period: CashPeriod,
+  period: CashPeriod | CashDateRange,
   asOfDate = todayInSaoPaulo(),
 ): Promise<CashHistoryRow[]> {
   const execute = tenantQueryFor(accountId);
-  const [window] = await execute<{ from: string; to: string }>(
-    `SELECT
+  if (typeof period !== 'string' && !isCashDateRange(period))
+    throw new Error('Intervalo de datas inválido.');
+  const window =
+    typeof period !== 'string'
+      ? period
+      : (
+          await execute<{ from: string; to: string }>(
+            `SELECT
        CASE $2
          WHEN 'today' THEN $1::date
          WHEN 'month' THEN date_trunc('month', $1::date)::date
@@ -273,8 +289,9 @@ export async function history(
          WHEN 'previous-month' THEN (date_trunc('month', $1::date) - interval '1 day')::date
          ELSE $1::date
        END::text AS "to"`,
-    [asOfDate, period],
-  );
+            [asOfDate, period],
+          )
+        )[0];
   const rows = await execute<{
     id: string;
     kind: 'in' | 'out';
@@ -283,15 +300,17 @@ export async function history(
     method: string | null;
     date: string;
     value: string;
+    cost: string;
+    created_at: Date;
     order_id: string | null;
     order_code: string | null;
   }>(
     `SELECT c.id, c.kind, c.description, c.reference, c.method, ${COMPETENCE}::text AS date, c.value,
-            c.order_id, o.code AS order_code
+            ROUND(${RECEIPT_COST}, 2) AS cost, c.created_at, c.order_id, o.code AS order_code
      FROM cash_entries c
      LEFT JOIN orders o ON o.account_id = c.account_id AND o.id = c.order_id
      WHERE c.account_id = $1 AND ${COMPETENCE} BETWEEN $2::date AND $3::date
-     ORDER BY ${COMPETENCE} DESC, c.created_at DESC`,
+     ORDER BY ${COMPETENCE} DESC, c.created_at DESC, c.id DESC`,
     [accountId, window.from, window.to],
   );
   return rows.map((row) => ({
@@ -302,6 +321,8 @@ export async function history(
     method: row.method?.trim() || 'Não informado',
     date: row.date,
     value: money(row.value),
+    cost: money(row.cost),
+    createdAt: new Date(row.created_at).toISOString(),
     order: row.order_id && row.order_code ? { id: row.order_id, code: row.order_code } : null,
   }));
 }

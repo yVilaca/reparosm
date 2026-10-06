@@ -169,7 +169,7 @@ export default function PartModal({
               <Label htmlFor="part-stock">Quantidade em estoque</Label>
               <Input
                 id="part-stock"
-                min="0"
+                min={item && item.stock < 0 ? String(item.stock) : '0'}
                 onChange={field('stock')}
                 required
                 step="1"

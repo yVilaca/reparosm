@@ -1,5 +1,7 @@
 'use client';
 
+import { byName } from '@/lib/sorting';
+
 import { useState } from 'react';
 import ClientModal, {
   clientStatuses,
@@ -133,9 +135,11 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
       }),
     }).catch(() => undefined);
   };
-  const visible = clients.filter((client) =>
-    `${client.name} ${client.phone}`.toLowerCase().includes(search.toLowerCase()),
-  );
+  const visible = clients
+    .filter((client) =>
+      `${client.name} ${client.phone}`.toLowerCase().includes(search.toLowerCase()),
+    )
+    .sort(byName);
   const count = (status: ClientStatus) =>
     clients.filter((client) => client.status === status).length;
 

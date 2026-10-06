@@ -41,6 +41,7 @@ export function orderFromQuote(
 
 export async function saveOrder(accountId: string, id: string, order: Order) {
   const result = await tenantTransaction(accountId, async (run) => {
+    await run('SELECT id FROM orders WHERE account_id=$1 AND id=$2 FOR UPDATE', [accountId, id]);
     const previous = await orders.get(accountId, id, run);
     // The display code is server-assigned and immutable: keep it on update,
     // generate the next one for the account on creation. Never trust the client.
@@ -59,27 +60,35 @@ export async function saveOrder(accountId: string, id: string, order: Order) {
       previous.data.deliveredAt
         ? previous.data.deliveredAt
         : resolveDeliveredAt(previous?.data.deliveredAt, previous?.data.stage, stage);
-    const status =
-      stage === 'Concluído'
-        ? 'Concluído'
-        : previous?.data.stage === 'Concluído' && order.status === 'Concluído'
-          ? 'Aberto'
-          : order.status;
+    const status: Order['status'] =
+      order.status === 'Cancelado'
+        ? 'Cancelado'
+        : stage === 'Concluído'
+          ? 'Concluído'
+          : previous?.data.stage === 'Concluído' && order.status === 'Concluído'
+            ? 'Aberto'
+            : order.status;
     const savedOrder = { ...order, code, stage, status, warrantyDays, deliveredAt };
     const initialRecord = await orders.save(accountId, id, savedOrder, run);
     if (!initialRecord) return null;
-    const itemTotals =
-      order.items !== undefined ? await orderItems.replace(accountId, id, order.items, run) : null;
-    const normalizedOrder =
-      itemTotals && order.items?.length
-        ? {
-            ...savedOrder,
-            parts: itemTotals.total,
-            total: Number(savedOrder.labor || 0) + itemTotals.total,
-            cost: itemTotals.cost,
-            profit: Number(savedOrder.labor || 0) + itemTotals.total - itemTotals.cost,
-          }
-        : savedOrder;
+    const items = order.items ?? (await orderItems.list(accountId, id, run));
+    const itemTotals = await orderItems.replace(
+      accountId,
+      id,
+      items,
+      run,
+      status === 'Cancelado' ? 'cancel' : previous?.data.status === 'Cancelado' ? 'reopen' : 'keep',
+      order.acknowledgeNegativeStock === true,
+    );
+    const normalizedOrder = items.length
+      ? {
+          ...savedOrder,
+          parts: itemTotals.total,
+          total: Number(savedOrder.labor || 0) + itemTotals.total,
+          cost: itemTotals.cost,
+          profit: Number(savedOrder.labor || 0) + itemTotals.total - itemTotals.cost,
+        }
+      : savedOrder;
     const record =
       normalizedOrder === savedOrder
         ? initialRecord

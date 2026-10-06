@@ -38,7 +38,7 @@ const select = `SELECT q.id, q.account_id, q.code, q.customer, q.phone, q.device
     q.answered_at, q.created_at, q.updated_at, o.id AS order_id
   FROM quotes q
   LEFT JOIN LATERAL (
-    SELECT id FROM orders WHERE quote_id = q.id ORDER BY created_at LIMIT 1
+    SELECT id FROM orders WHERE quote_id = q.id ORDER BY created_at, id LIMIT 1
   ) o ON true`;
 
 const toQuote = (row: QuoteRow) =>
@@ -67,7 +67,7 @@ const toQuote = (row: QuoteRow) =>
 
 export async function list(accountId: string, run?: Query) {
   const rows = await tenantQueryFor(accountId, run)<QuoteRow>(
-    `${select} WHERE q.account_id = $1 ORDER BY q.updated_at DESC`,
+    `${select} WHERE q.account_id = $1 ORDER BY q.created_at DESC, q.id DESC`,
     [accountId],
   );
   return rows.map(toQuote);

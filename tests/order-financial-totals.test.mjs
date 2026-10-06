@@ -3,7 +3,7 @@ import { after, before, test } from 'node:test';
 import { createTestDatabase, skipWithoutDatabase } from './support/db.mjs';
 
 const skip = skipWithoutDatabase;
-let db, cash;
+let db, cash, quickSales;
 before(async () => {
   if (skip) return;
   db = await createTestDatabase();
@@ -19,36 +19,55 @@ before(async () => {
     ('loss','totals-owner','OS-6','Ana','Moto',20,40,'Aberto'),
     ('cancelled','totals-owner','OS-7','Ana','Moto',999,500,'Cancelado'),
     ('foreign','totals-other','OS-1','Other','Moto',777,7,'Aberto')`);
-  await db.migrationQuery(`INSERT INTO cash_entries (id,account_id,kind,description,value,order_id) VALUES
-    ('paid-receipt','totals-owner','in','OS',100,'paid'),
-    ('partial-receipt','totals-owner','in','OS',30,'partial'),
-    ('overpaid-receipt','totals-owner','in','OS',55,'overpaid'),
-    ('unrelated','totals-owner','in','Other',999,NULL),
-    ('expense','totals-owner','out','Expense',999,NULL)`);
+  await db.migrationQuery(`INSERT INTO cash_entries
+    (id,account_id,kind,description,value,cost,quantity,discount,order_id) VALUES
+    ('paid-receipt','totals-owner','in','OS',100,NULL,1,NULL,'paid'),
+    ('partial-receipt','totals-owner','in','OS',30,NULL,1,NULL,'partial'),
+    ('overpaid-receipt','totals-owner','in','OS',55,NULL,1,NULL,'overpaid'),
+    ('cancelled-receipt','totals-owner','in','OS',999,NULL,1,NULL,'cancelled'),
+    ('sale','totals-owner','in','Sale',90,30,3,10,NULL),
+    ('legacy-receipt','totals-owner','in','Other',25,NULL,1,NULL,NULL),
+    ('foreign-sale','totals-other','in','Sale',123,23,1,0,NULL),
+    ('expense','totals-owner','out','Expense',999,NULL,1,NULL,NULL)`);
   cash = await import('../lib/repos/cash.ts');
+  quickSales = await import('../lib/repos/quick-sales.ts');
 });
 after(async () => db?.drop());
 
 test(
-  'totals order margins and remaining balances without counting cancellations or unrelated cash',
+  'totals only received order amounts and standalone sales, keeping pending margins separate',
   { skip },
   async () => {
     assert.deepEqual(await cash.orderFinancialTotals('totals-owner'), {
-      gross: 490,
-      net: 240,
+      gross: 295,
+      net: 180,
       grossReceivable: 310,
       netReceivable: 145,
     });
     assert.deepEqual(await cash.orderFinancialTotals('totals-other'), {
-      gross: 777,
-      net: 770,
+      gross: 123,
+      net: 100,
       grossReceivable: 777,
       netReceivable: 770,
     });
   },
 );
 
-test('returns zero totals when the account has no orders', { skip }, async () => {
+test(
+  'undoing a standalone sale removes its revenue and margin without changing order balances',
+  { skip },
+  async () => {
+    assert.equal(await quickSales.remove('totals-owner', 'sale'), true);
+    assert.deepEqual(await cash.orderFinancialTotals('totals-owner'), {
+      gross: 205,
+      net: 120,
+      grossReceivable: 310,
+      netReceivable: 145,
+    });
+  },
+);
+
+test('returns zero totals when the account has no orders or receipts', { skip }, async () => {
   await db.migrationQuery(`INSERT INTO accounts (id,username,name,role,status,password_hash)
     VALUES ('totals-empty','totals-empty','Empty','merchant','active','x')`);
   assert.deepEqual(await cash.orderFinancialTotals('totals-empty'), {
@@ -58,3 +77,17 @@ test('returns zero totals when the account has no orders', { skip }, async () =>
     netReceivable: 0,
   });
 });
+
+test(
+  'receiving the remaining order balance transfers its amount and margin to received totals',
+  { skip },
+  async () => {
+    await db.migrationQuery(`UPDATE cash_entries SET value = 120 WHERE id = 'partial-receipt'`);
+    assert.deepEqual(await cash.orderFinancialTotals('totals-owner'), {
+      gross: 295,
+      net: 165,
+      grossReceivable: 220,
+      netReceivable: 100,
+    });
+  },
+);

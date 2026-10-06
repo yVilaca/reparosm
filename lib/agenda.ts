@@ -8,6 +8,7 @@ export type ReceivableOrder = {
   device: string;
   phone?: string;
   total: number;
+  cost?: number;
   stage: string;
   status: string;
   days: number;
@@ -21,8 +22,10 @@ export type Receipt = {
   customer: string;
   device: string;
   value: number;
+  cost?: number;
   method?: string;
   date: string;
+  createdAt?: string;
 };
 
 type Bill = {
@@ -32,6 +35,7 @@ type Bill = {
   status?: 'pending' | 'paid';
   paidOn?: string;
   paidAmount?: number;
+  createdAt?: string;
 };
 
 export type AgendaGroup = 'overdue' | 'today' | 'week' | 'later' | 'repair' | 'undated';
@@ -104,12 +108,14 @@ export function groupAgenda<B extends Bill>(orders: ReceivableOrder[], bills: B[
     .map((group) => {
       const members = items
         .filter((item) => item.group === group)
-        .sort((left, right) =>
-          group === 'week' || group === 'later'
-            ? (left.kind === 'pay' ? left.bill.dueDate || '' : '').localeCompare(
-                right.kind === 'pay' ? right.bill.dueDate || '' : '',
-              )
-            : lateness(right, today) - lateness(left, today) || amountOf(right) - amountOf(left),
+        .sort(
+          (left, right) =>
+            (group === 'week' || group === 'later'
+              ? (left.kind === 'pay' ? left.bill.dueDate || '' : '').localeCompare(
+                  right.kind === 'pay' ? right.bill.dueDate || '' : '',
+                )
+              : lateness(right, today) - lateness(left, today) ||
+                amountOf(right) - amountOf(left)) || left.id.localeCompare(right.id),
         );
       return {
         group,
@@ -169,6 +175,7 @@ export function groupHistory<B extends Bill>(receipts: Receipt[], bills: B[]) {
       receipt,
       date: receipt.date,
       value: receipt.value,
+      createdAt: receipt.createdAt,
     })),
     ...bills
       .filter((bill) => !isOpen(bill))
@@ -178,8 +185,14 @@ export function groupHistory<B extends Bill>(receipts: Receipt[], bills: B[]) {
         bill,
         date: bill.paidOn || '',
         value: bill.paidAmount ?? bill.amount,
+        createdAt: bill.createdAt,
       })),
-  ].sort((left, right) => right.date.localeCompare(left.date));
+  ].sort(
+    (left, right) =>
+      right.date.localeCompare(left.date) ||
+      (right.createdAt || '').localeCompare(left.createdAt || '') ||
+      right.id.localeCompare(left.id),
+  );
   const months = [...new Set(items.map((item) => item.date.slice(0, 7)))];
   return months.map((month) => {
     const members = items.filter((item) => item.date.slice(0, 7) === month);

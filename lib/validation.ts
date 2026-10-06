@@ -109,7 +109,7 @@ const validateOrder = (value: unknown): ValidationResult<Order> => {
       (data.warrantyDays as number) > 3650)
   )
     return { ok: false, error: 'Prazo de garantia inválido.' };
-  if (!validateBooleans(data, ['whatsappConsent'], []))
+  if (!validateBooleans(data, ['whatsappConsent', 'acknowledgeNegativeStock'], []))
     return { ok: false, error: 'Consentimento inválido.' };
   if (
     data.pattern !== undefined &&
@@ -156,8 +156,12 @@ const validatePart = (value: unknown): ValidationResult<Part> => {
     return { ok: false, error: 'Produto inválido.' };
   if (!validateNumbers(data, ['stock', 'cost', 'price'], ['stock', 'price']))
     return { ok: false, error: 'Valores do produto inválidos.' };
-  if (!Number.isInteger(data.stock) || (data.stock as number) < 0)
-    return { ok: false, error: 'Estoque deve ser um número inteiro, zero ou maior.' };
+  if (
+    !Number.isInteger(data.stock) ||
+    (data.stock as number) < -2147483648 ||
+    (data.stock as number) > 2147483647
+  )
+    return { ok: false, error: 'Estoque deve ser um número inteiro válido.' };
   if (!validateBooleans(data, ['published'], []))
     return { ok: false, error: 'Publicação inválida.' };
   return { ok: true, data: data as Part };
@@ -262,8 +266,8 @@ const validateShop = (value: unknown): ValidationResult<Shop> => {
     urlValue(data, 'logo') === null
   )
     return { ok: false, error: 'URL do logo inválida.' };
-  if (!validateBooleans(data, ['showLaborOnPrint'], []))
-    return { ok: false, error: 'Preferências de impressão inválidas.' };
+  if (!validateBooleans(data, ['showLaborOnPrint', 'allowNegativeStock'], []))
+    return { ok: false, error: 'Preferências da assistência inválidas.' };
   const message = stringValue(data, 'customerPrintMessage');
   if (message === null || (message && message.length > 500))
     return { ok: false, error: 'A mensagem da via do cliente deve ter até 500 caracteres.' };

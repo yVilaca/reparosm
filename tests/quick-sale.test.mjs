@@ -9,7 +9,6 @@ import {
   parseMoney,
   parseQuantity,
   saleProfit,
-  saleResultTotal,
   saleTotals,
 } from '../lib/quick-sale.ts';
 
@@ -147,7 +146,11 @@ test('calculates the net result from the discounted amount received', () => {
   assert.equal(saleProfit(50), null);
 });
 
-test('uses the net result as the amount shown for a sale with cost', () => {
-  assert.equal(saleResultTotal(15, 5), 5);
-  assert.equal(saleResultTotal(30, null), 30);
+test('charges the discounted quantity total and calculates change without deducting cost', () => {
+  const { total: received, profit } = saleTotals(100, 20, 40, 2);
+  assert.equal(received, 180);
+  assert.equal(profit, 100);
+  assert.deepEqual(cashChange(received, 200), { kind: 'change', amount: 20 });
+  assert.deepEqual(cashChange(received, 180), { kind: 'change', amount: 0 });
+  assert.deepEqual(billSuggestions(received), [190, 200]);
 });

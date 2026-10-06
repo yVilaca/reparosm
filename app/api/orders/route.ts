@@ -52,7 +52,10 @@ export async function POST(request: Request) {
     result = await saveOrder(account.id, orderId, validation.data as Order);
   } catch (error) {
     if (error instanceof OrderItemError)
-      return Response.json({ error: error.message }, { status: 400 });
+      return Response.json(
+        { error: error.message, code: error.code },
+        { status: error.code ? 409 : 400 },
+      );
     throw error;
   }
   return result

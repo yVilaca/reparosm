@@ -70,7 +70,10 @@ export default function FilmsRoute({ initialFilms }: { initialFilms: FilmRow[] }
         )
         .sort(
           (left, right) =>
-            collator.compare(left.brand, right.brand) || collator.compare(left.model, right.model),
+            collator.compare(left.brand, right.brand) ||
+            collator.compare(left.model, right.model) ||
+            Number(right.editable) - Number(left.editable) ||
+            left.id.localeCompare(right.id),
         ),
     [films, search, brand, mineOnly],
   );

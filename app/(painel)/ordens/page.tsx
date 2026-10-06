@@ -1,38 +1,20 @@
-import OrdersRoute from '@/components/orders-route';
-import { orders, parts, shops } from '@/lib/repos';
-import { requireServerAccount } from '@/lib/server-auth';
-import { warrantyDaysFromSetting } from '@/lib/warranty';
+import { redirect } from 'next/navigation';
+import OrdersScreen, { type OrdersSearchParams } from '@/components/orders-screen';
 
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    busca?: string | string[];
-    view?: string | string[];
-    nova?: string | string[];
-  }>;
+  searchParams: Promise<OrdersSearchParams>;
 }) {
-  const account = await requireServerAccount();
   const params = await searchParams;
-  const startCreating = Boolean(params.nova);
-  const initialQuery = Array.isArray(params.busca) ? params.busca[0] || '' : params.busca || '';
   const requestedView = Array.isArray(params.view) ? params.view[0] : params.view;
-  const initialView =
-    requestedView === 'kanban' || requestedView === 'grid' ? requestedView : undefined;
-  const [records, shop, partRecords] = await Promise.all([
-    orders.list(account.id),
-    shops.get(account.id, 'shop-main'),
-    parts.list(account.id),
-  ]);
-  const rows = records.map((record) => ({ id: record.id, ...record.data }));
-  return (
-    <OrdersRoute
-      initialOrders={rows}
-      initialParts={partRecords.map((record) => ({ id: record.id, ...record.data }))}
-      defaultWarrantyDays={warrantyDaysFromSetting(shop?.data.warranty)}
-      initialQuery={initialQuery}
-      initialView={initialView}
-      startCreating={startCreating}
-    />
-  );
+  if (requestedView === 'kanban') {
+    const query = new URLSearchParams();
+    for (const key of ['busca', 'nova'] as const) {
+      const value = Array.isArray(params[key]) ? params[key][0] : params[key];
+      if (value) query.set(key, value);
+    }
+    redirect(`/mesa${query.size ? `?${query}` : ''}`);
+  }
+  return <OrdersScreen view="grid" searchParams={searchParams} />;
 }

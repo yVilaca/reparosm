@@ -103,9 +103,7 @@ test("keeps today's cash separate from order totals", () => {
 
 test('shows empty order totals as zero amounts', () => {
   const html = render({ orderTotals: { gross: 0, net: 0, grossReceivable: 0, netReceivable: 0 } });
-  const cards = html.match(
-    /<section aria-label="Totais financeiros das ordens"[\s\S]*?<\/section>/,
-  )?.[0];
+  const cards = html.match(/<section aria-label="Totais financeiros"[\s\S]*?<\/section>/)?.[0];
   assert.equal((cards?.match(/R\$\s*0,00/g) || []).length, 4);
   assert.doesNotMatch(html, /Infinity|NaN/);
 });
@@ -117,12 +115,16 @@ test('counts the bench by stage', () => {
   assert.ok(html.indexOf('Total Bruto') < html.indexOf('Fluxo dos aparelhos'));
 });
 
-test('shows gross and net order totals and receivables as the first four cards', () => {
+test('describes received amounts separately from pending order balances and margins', () => {
   const html = render();
   assert.match(html, /Total Bruto[\s\S]*?R\$\s*1\.234,56/);
   assert.match(html, /Total Líquido[\s\S]*?R\$\s*789,01/);
   assert.match(html, /Bruto a receber[\s\S]*?R\$\s*345,67/);
   assert.match(html, /Líquido a receber[\s\S]*?R\$\s*234,56/);
+  assert.match(html, /Valores recebidos de OS não canceladas e vendas avulsas/);
+  assert.match(html, /Resultado de OS e vendas avulsas, sem a margem ainda a receber/);
+  assert.match(html, /Saldo pendente apenas das OS, após os recebimentos/);
+  assert.match(html, /Margem das OS proporcional ao saldo ainda a receber/);
   assert.match(html, /Evolução do caixa/);
   assert.doesNotMatch(html, /Lucro líquido/);
   assert.ok(html.indexOf('Evolução do caixa') < html.indexOf('Bancada e aprovações'));

@@ -29,7 +29,7 @@ const select = `SELECT c.id, c.name, c.phone, c.email, c.document, c.address, c.
   FROM clients c
   LEFT JOIN LATERAL (
     SELECT o.id, o.code, o.device FROM orders o
-    WHERE o.client_id = c.id ORDER BY o.created_at DESC LIMIT 1
+      WHERE o.client_id = c.id ORDER BY o.created_at DESC, o.id DESC LIMIT 1
   ) last ON true`;
 
 const toClient = (row: ClientRow) =>
@@ -57,7 +57,7 @@ const toClient = (row: ClientRow) =>
 
 export async function list(accountId: string, run?: Query) {
   const rows = await tenantQueryFor(accountId, run)<ClientRow>(
-    `${select} WHERE c.account_id = $1 ORDER BY c.updated_at DESC`,
+    `${select} WHERE c.account_id = $1 ORDER BY LOWER(c.name), c.id`,
     [accountId],
   );
   return rows.map(toClient);
