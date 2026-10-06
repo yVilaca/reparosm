@@ -45,6 +45,11 @@ export async function POST(request: Request) {
   if (partId !== undefined && (typeof partId !== 'string' || !partId.trim()))
     return invalid('Produto inválido.');
   if (!isPaymentMethod(input.method)) return invalid('Escolha a forma de pagamento.');
+  if (
+    input.acknowledgeNegativeStock !== undefined &&
+    typeof input.acknowledgeNegativeStock !== 'boolean'
+  )
+    return invalid('Confirmação de estoque inválida.');
 
   try {
     const sale = await quickSales.create(
@@ -57,13 +62,14 @@ export async function POST(request: Request) {
         quantity,
         partId: typeof partId === 'string' ? partId : undefined,
         method: input.method,
+        acknowledgeNegativeStock: input.acknowledgeNegativeStock === true,
       },
       todayInSaoPaulo(),
     );
     return Response.json({ sale }, { status: 201 });
   } catch (error) {
     if (error instanceof quickSales.QuickSaleError)
-      return Response.json({ error: error.message }, { status: error.status });
+      return Response.json({ error: error.message, code: error.code }, { status: error.status });
     throw error;
   }
 }

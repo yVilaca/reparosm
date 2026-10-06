@@ -1,9 +1,11 @@
 import { tenantQueryFor, tenantTransaction, type Query } from '@/lib/db';
 import { money } from '@/lib/repos/rows';
 import type { PaymentMethod } from '@/lib/payment-methods';
+import { policy, movementContext } from '@/lib/repos/stock';
 
 export class QuickSaleError extends Error {
   status = 409;
+  code = 'INSUFFICIENT_STOCK';
 }
 
 /** Venda rápida: entrada no caixa sem OS vinculada. */
@@ -55,20 +57,34 @@ export async function create(
     cost?: number;
     quantity: number;
     partId?: string;
+    acknowledgeNegativeStock?: boolean;
     method: PaymentMethod;
   },
   date: string,
 ): Promise<QuickSaleRecord> {
   return tenantTransaction(accountId, async (run) => {
     const quantity = sale.quantity;
+    const id = `payment-${crypto.randomUUID()}`;
+    let partId = sale.partId;
+    if (!partId) {
+      const matches = await run<{ id: string }>(
+        `SELECT id FROM parts WHERE account_id=$1 AND (LOWER(BTRIM(name))=LOWER($2) OR LOWER(BTRIM(sku))=LOWER($2)) LIMIT 2`,
+        [accountId, sale.description.trim()],
+      );
+      if (matches.length === 1) partId = matches[0].id;
+    }
     let cost = sale.cost;
-    if (sale.partId) {
+    if (partId) {
+      const allowNegative =
+        sale.acknowledgeNegativeStock === true && (await policy(accountId, run));
+      await movementContext(run, 'quick-sale', id, sale.description);
       const [part] = await run<{ cost: string }>(
         `UPDATE parts
             SET stock = stock - $3, updated_at = now()
-          WHERE account_id = $1 AND id = $2 AND stock >= $3
+          WHERE account_id = $1 AND id = $2 AND (stock >= $3 OR $4)
+            AND stock::bigint - $3 >= -2147483648
           RETURNING cost`,
-        [accountId, sale.partId, quantity],
+        [accountId, partId, quantity, allowNegative],
       );
       if (!part) throw new QuickSaleError('Estoque insuficiente para essa quantidade.');
       cost = money(part.cost) * quantity;
@@ -83,7 +99,7 @@ export async function create(
        VALUES ($1, $2, 'in', $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING id, description, value, discount, cost, quantity, part_id, method, date::text AS date`,
       [
-        `payment-${crypto.randomUUID()}`,
+        id,
         accountId,
         sale.description,
         value,
@@ -92,7 +108,7 @@ export async function create(
         cost ?? null,
         sale.discount || null,
         quantity,
-        sale.partId ?? null,
+        partId ?? null,
       ],
     );
     return toRecord(row);
@@ -105,7 +121,7 @@ export async function since(accountId: string, from: string): Promise<QuickSaleR
     `SELECT id, description, value, discount, cost, quantity, part_id, method, ${DATE}::text AS date
      FROM cash_entries
      WHERE account_id = $1 AND kind = 'in' AND order_id IS NULL AND ${DATE} >= $2::date
-     ORDER BY ${DATE} DESC, created_at DESC`,
+     ORDER BY ${DATE} DESC, created_at DESC, id DESC`,
     [accountId, from],
   );
   return rows.map(toRecord);
@@ -117,8 +133,9 @@ export async function remove(accountId: string, id: string, run?: Query) {
       part_id: string | null;
       order_id: string | null;
       quantity: number;
+      description: string;
     }>(
-      `SELECT part_id, order_id, quantity
+      `SELECT part_id, order_id, quantity, description
          FROM cash_entries
         WHERE account_id = $1 AND id = $2 AND kind = 'in'
         FOR UPDATE`,
@@ -126,6 +143,7 @@ export async function remove(accountId: string, id: string, run?: Query) {
     );
     if (!sale || sale.order_id) return false;
     if (sale.part_id) {
+      await movementContext(execute, 'sale-reversal', id, sale.description);
       await execute(
         `UPDATE parts SET stock = stock + $3, updated_at = now()
           WHERE account_id = $1 AND id = $2`,

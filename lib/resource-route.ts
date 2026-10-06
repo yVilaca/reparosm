@@ -52,6 +52,14 @@ export function resourceRoute<T extends BusinessRecordType>(type: T) {
         return record ? Response.json({ record }, { status: 201 }) : denied();
       } catch (error) {
         const databaseError = error as { code?: string; constraint?: string };
+        if (type === 'part' && databaseError.code === '23514')
+          return Response.json(
+            {
+              error:
+                'Estoque negativo não permitido. Revise a quantidade e a preferência da assistência.',
+            },
+            { status: 409 },
+          );
         if (
           type === 'client' &&
           databaseError.code === '23505' &&

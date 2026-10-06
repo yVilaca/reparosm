@@ -43,6 +43,8 @@ import { formatMoney, hasValidWhatsapp } from '@/lib/format';
 import { recurrenceLabels } from '@/lib/payable-recurrence';
 import { dueLabel, matchesPayable } from '@/lib/payable-schedule';
 import { todayInSaoPaulo } from '@/lib/warranty';
+import { isCashDateRange, summarizeCash } from '@/lib/finance';
+import { Label } from '@/components/ui/label';
 import type { OrderPayment } from '@/lib/types';
 import type { PayableRecord } from '@/lib/repos/payables';
 
@@ -113,6 +115,8 @@ export default function ReceivePayRoute({
   initialReceipts,
   initialPayables,
   historySince,
+  historyUntil = todayInSaoPaulo(),
+  showHistory = false,
   view,
   payId,
 }: {
@@ -121,6 +125,8 @@ export default function ReceivePayRoute({
   initialPayables: PayableRecord[];
   /** Início da janela de "Pagos e recebidos". */
   historySince: string;
+  historyUntil?: string;
+  showHistory?: boolean;
   /** Filtro inicial (`?ver=receber|pagar`). */
   view?: Direction;
   /** Conta a abrir direto no pagamento (`?pagar=<id>`). */
@@ -135,7 +141,13 @@ export default function ReceivePayRoute({
   const rows = payableRecords.map(toRow);
   const linked = rows.find((row) => row.id === payId);
   const [filter, setFilter] = useState<Filter>(view || 'all');
-  const [tab, setTab] = useState<Tab>(linked?.status === 'paid' ? 'done' : 'open');
+  const [tab, setTab] = useState<Tab>(showHistory || linked?.status === 'paid' ? 'done' : 'open');
+  const [range, setRange] = useState({ from: historySince, to: historyUntil });
+  const [seenRange, setSeenRange] = useState([historySince, historyUntil]);
+  if (seenRange[0] !== historySince || seenRange[1] !== historyUntil) {
+    setSeenRange([historySince, historyUntil]);
+    setRange({ from: historySince, to: historyUntil });
+  }
   const [query, setQuery] = useState('');
   // undefined: formulário fechado; null: conta nova.
   const [editing, setEditing] = useState<PayableRow | null | undefined>(undefined);
@@ -150,15 +162,28 @@ export default function ReceivePayRoute({
   const visibleBills = showPay ? rows.filter((row) => matchesPayable(row, query)) : [];
   const groups = groupAgenda(visibleOrders, visibleBills, today);
   const visibleReceipts = showReceive
-    ? receipts.filter((receipt) => matchesOrder(receipt, query))
+    ? receipts.filter(
+        (receipt) =>
+          receipt.date >= historySince &&
+          receipt.date <= historyUntil &&
+          matchesOrder(receipt, query),
+      )
     : [];
   const paidBills = visibleBills.filter(
-    (row) => row.status === 'paid' && (row.paidOn || '') >= historySince,
+    (row) =>
+      row.status === 'paid' &&
+      (row.paidOn || '') >= historySince &&
+      (row.paidOn || '') <= historyUntil,
   );
   const months = groupHistory(visibleReceipts, paidBills);
   const openCount = groups.reduce((sum, group) => sum + group.items.length, 0);
   const doneCount = months.reduce((sum, month) => sum + month.items.length, 0);
   const summary = summarizeAgenda(orders, rows, today);
+  const receivedTotals = summarizeCash(
+    receipts
+      .filter((receipt) => receipt.date >= historySince && receipt.date <= historyUntil)
+      .map((receipt) => ({ ...receipt, kind: 'in' })),
+  );
 
   const setRecords = (records: PayableRecord[], removedId?: string) =>
     setPayableRecords((current) => {
@@ -172,13 +197,12 @@ export default function ReceivePayRoute({
 
   const closePay = () => {
     setPaying(null);
-    if (payId)
-      router.replace(
-        view ? `${RECEIVE_PAY_PATH}?ver=${view === 'pay' ? 'pagar' : 'receber'}` : RECEIVE_PAY_PATH,
-        {
-          scroll: false,
-        },
-      );
+    if (payId) {
+      const params = new URLSearchParams({ from: historySince, to: historyUntil });
+      if (view) params.set('ver', view === 'pay' ? 'pagar' : 'receber');
+      if (tab === 'done') params.set('historico', '1');
+      router.replace(`${RECEIVE_PAY_PATH}?${params}`, { scroll: false });
+    }
   };
 
   const afterSaved = (records: PayableRecord[]) => {
@@ -221,6 +245,13 @@ export default function ReceivePayRoute({
         customer: order.customer,
         device: order.device,
         value: payment.value ?? order.total,
+        cost:
+          order.total > 0
+            ? Math.round(
+                Math.round((order.cost || 0) * 100) *
+                  Math.min((payment.value ?? order.total) / order.total, 1),
+              ) / 100
+            : order.cost || 0,
         ...(payment.method ? { method: payment.method } : {}),
         date: payment.date || today,
       },
@@ -353,7 +384,66 @@ export default function ReceivePayRoute({
         action={newBill}
       />
 
-      <section aria-label="Resumo" className="mb-6 grid grid-cols-2 gap-3">
+      <form
+        className="mb-4 flex flex-wrap items-end gap-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!isCashDateRange(range)) {
+            notify('Informe um intervalo de datas válido.', 'error');
+            return;
+          }
+          const params = new URLSearchParams({ from: range.from, to: range.to, historico: '1' });
+          if (filter !== 'all') params.set('ver', filter === 'receive' ? 'receber' : 'pagar');
+          router.push(`${RECEIVE_PAY_PATH}?${params}`);
+          setTab('done');
+        }}
+      >
+        <div className="grid gap-1.5">
+          <Label htmlFor="received-from">De</Label>
+          <Input
+            id="received-from"
+            type="date"
+            required
+            max={range.to || undefined}
+            value={range.from}
+            onChange={(event) => setRange((current) => ({ ...current, from: event.target.value }))}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="received-to">Até</Label>
+          <Input
+            id="received-to"
+            type="date"
+            required
+            min={range.from || undefined}
+            value={range.to}
+            onChange={(event) => setRange((current) => ({ ...current, to: event.target.value }))}
+          />
+        </div>
+        <Button type="submit" variant="outline">
+          Filtrar período
+        </Button>
+        <p className="basis-full text-xs text-muted-foreground">
+          Período dos recebimentos e pagamentos: {brDate(historySince)} a {brDate(historyUntil)}. As
+          pendências permanecem completas.
+        </p>
+      </form>
+      <section aria-label="Resumo" className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <StatCard
+          icon={ArrowDownLeft}
+          label="Total Bruto"
+          value={formatMoney(receivedTotals.income)}
+          detail="Recebido de OS e vendas rápidas no período."
+          tone="success"
+        />
+        <StatCard
+          icon={ArrowDownLeft}
+          label="Total Líquido"
+          value={formatMoney(receivedTotals.net)}
+          detail={`Custos: ${formatMoney(receivedTotals.cost)}. Antes das despesas.`}
+          tone="success"
+          valueTone={receivedTotals.net < 0 ? 'danger' : undefined}
+        />
         <SummaryCard
           direction="receive"
           label="Para receber"
@@ -572,7 +662,11 @@ export default function ReceivePayRoute({
                     return (
                       <Row
                         amount={receipt.value}
-                        details={[receipt.code, receipt.device]}
+                        details={[
+                          receipt.code,
+                          receipt.device,
+                          `Custo ${formatMoney(receipt.cost || 0)} · Líquido ${formatMoney(receipt.value - (receipt.cost || 0))}`,
+                        ]}
                         direction="receive"
                         key={`receipt-${receipt.id}`}
                         menu={
@@ -632,12 +726,13 @@ export default function ReceivePayRoute({
               description={
                 query
                   ? `Nenhum pagamento ou recebimento com “${query}”.`
-                  : 'Os pagamentos e recebimentos dos últimos 3 meses aparecem aqui, por mês.'
+                  : 'Os pagamentos e recebimentos do período selecionado aparecem aqui, por mês.'
               }
             />
           )}
           <p className="text-center text-sm text-muted-foreground">
-            Mostrando desde {brDate(historySince)}. O histórico completo fica no{' '}
+            Mostrando de {brDate(historySince)} a {brDate(historyUntil)}. O histórico completo fica
+            no{' '}
             <Link
               className="font-medium text-foreground underline-offset-4 hover:underline"
               href="/pagamentos/historico"

@@ -345,7 +345,6 @@ export default function AfterSalesRoute({
             <div className="grid gap-3 md:hidden">
               {messages
                 .slice()
-                .reverse()
                 .slice(0, 10)
                 .map((message) => (
                   <article className="grid gap-1 rounded-lg border p-4" key={message.id}>
@@ -374,7 +373,6 @@ export default function AfterSalesRoute({
                 <TableBody>
                   {messages
                     .slice()
-                    .reverse()
                     .slice(0, 10)
                     .map((message) => (
                       <TableRow key={message.id}>

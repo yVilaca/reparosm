@@ -90,7 +90,7 @@ test("today's sales show the discount given and the profit", () => {
   assert.match(html, /desconto R\$\s*6,00/);
   assert.match(html, /lucro R\$\s*42,00<\/p>/);
   assert.match(html, /Lucro hoje[\s\S]*R\$\s*42,00/);
-  assert.match(html, /Película 3D[\s\S]*\+R\$\s*42,00/);
+  assert.match(html, /Película 3D[\s\S]*\+R\$\s*54,00/);
   // O total do dia avisa que uma venda ficou sem custo.
   assert.match(html, /lucro R\$\s*42,00<\/span> \(1 sem custo\)/);
 });

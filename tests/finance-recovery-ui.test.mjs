@@ -7,10 +7,10 @@ import { FeedbackProvider } from '../components/feedback.tsx';
 import FinanceRoute from '../components/finance-route.tsx';
 
 const summary = {
-  today: { income: 0, expense: 0, balance: 0, methods: [] },
+  today: { income: 0, expense: 0, balance: 0, cost: 0, net: 0, methods: [] },
   month: {
-    current: { income: 0, expense: 0, balance: 0 },
-    previous: { income: 0, expense: 0, balance: 0 },
+    current: { income: 0, expense: 0, balance: 0, cost: 0, net: 0 },
+    previous: { income: 0, expense: 0, balance: 0, cost: 0, net: 0 },
   },
   receivables: {
     ready: {

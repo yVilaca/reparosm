@@ -237,6 +237,7 @@ export interface Shop extends DataObject {
   legalName?: string;
   logo?: string;
   showLaborOnPrint?: boolean;
+  allowNegativeStock?: boolean;
   customerPrintMessage?: string;
   stateRegistration?: string;
   taxRegime?: string;

@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { cn } from 'cn';
 import { useFeedback } from '@/components/feedback';
+import StockAlertDialog, { StockCheckStatus } from '@/components/stock-alert-dialog';
+import { uniqueStockProduct, useStockCheck } from '@/components/use-stock-check';
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import IconChip from '@/components/ui/icon-chip';
@@ -37,7 +39,6 @@ import {
   parseMoney,
   parseQuantity,
   saleProfit,
-  saleResultTotal,
   saleTotals,
   type ProductOption,
 } from '@/lib/quick-sale';
@@ -53,7 +54,7 @@ export type QuickSale = {
   quantity?: number;
   partId?: string;
 };
-export type SaleSuggestion = { description: string; value: number; cost?: number };
+export type SaleSuggestion = { description: string; value: number; cost?: number; partId?: string };
 
 const methodLook: Record<PaymentMethod, { icon: LucideIcon; label: string }> = {
   Pix: { icon: QrCode, label: 'Pix' },
@@ -108,6 +109,7 @@ export default function QuickSaleRoute({
   const [method, setMethod] = useState<PaymentMethod>('Pix');
   const [given, setGiven] = useState('');
   const [saving, setSaving] = useState(false);
+  const linkedProduct = product || uniqueStockProduct(products, description);
 
   const matches = useMemo(
     () => (product ? [] : matchProducts(products, description)),
@@ -117,6 +119,12 @@ export default function QuickSaleRoute({
 
   const price = parseMoney(priceText);
   const quantity = parseQuantity(quantityText);
+  const stock = useStockCheck(
+    linkedProduct && Number.isFinite(quantity) ? [{ partId: linkedProduct.id, quantity }] : [],
+  );
+  const productStock = linkedProduct
+    ? stock.check?.parts.find((part) => part.id === linkedProduct.id)?.available
+    : undefined;
   const subtotal = Number.isFinite(price) && Number.isFinite(quantity) ? price * quantity : price;
   const discount = parseDiscount(discountText, subtotal);
   const cost = costText.trim() ? parseMoney(costText) : undefined;
@@ -128,11 +136,8 @@ export default function QuickSaleRoute({
   const costError = cost !== undefined && !Number.isFinite(cost) ? 'Custo inválido.' : '';
   const quantityError = !Number.isFinite(quantity)
     ? 'Informe uma quantidade inteira maior que zero.'
-    : product && quantity > product.stock
-      ? `Há apenas ${product.stock} ${product.stock === 1 ? 'unidade' : 'unidades'} em estoque.`
-      : '';
+    : '';
   const { total, profit, margin } = saleTotals(price, discount, cost, quantity);
-  const resultTotal = saleResultTotal(total, profit);
   const valid =
     Boolean(description.trim()) &&
     price > 0 &&
@@ -140,7 +145,7 @@ export default function QuickSaleRoute({
     !discountError &&
     !costError &&
     total > 0;
-  const change = method === 'Dinheiro' && given ? cashChange(resultTotal, parseMoney(given)) : null;
+  const change = method === 'Dinheiro' && given ? cashChange(total, parseMoney(given)) : null;
 
   const withCost = sales.filter((sale) => sale.cost !== undefined);
   const profitToday = withCost.reduce(
@@ -148,7 +153,12 @@ export default function QuickSaleRoute({
     0,
   );
 
-  const fill = (next: { description: string; value: number; cost?: number }) => {
+  const fill = (next: SaleSuggestion, selected?: ProductOption) => {
+    setProduct(
+      selected ||
+        (next.partId ? products.find((part) => part.id === next.partId) : null) ||
+        uniqueStockProduct(products, next.description),
+    );
     setDescription(next.description);
     setPriceText(typed(next.value));
     setQuantityText('1');
@@ -158,8 +168,7 @@ export default function QuickSaleRoute({
     priceRef.current?.focus();
   };
   const choose = (option: ProductOption) => {
-    setProduct(option);
-    fill({ description: option.name, value: option.price, cost: option.cost });
+    fill({ description: option.name, value: option.price, cost: option.cost }, option);
   };
 
   const onSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -212,26 +221,40 @@ export default function QuickSaleRoute({
     savingRef.current = true;
     setSaving(true);
     try {
-      const response = await fetch('/api/quick-sales', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          description: description.trim(),
-          price,
-          discount,
-          quantity,
-          ...(cost === undefined ? {} : { cost }),
-          ...(product ? { partId: product.id } : {}),
-          method,
-        }),
-      });
-      const result = (await response.json()) as { error?: string; sale?: QuickSale };
-      if (!response.ok || !result.sale)
-        throw new Error(result.error || 'Não foi possível registrar a venda.');
-      setSales((current) => [result.sale!, ...current]);
-      notify(`Venda de ${formatMoney(result.sale.value)} registrada.`, 'success');
-      reset();
-      router.refresh();
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const stockDecision = await stock.confirm();
+        if (!stockDecision) return;
+        const response = await fetch('/api/quick-sales', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...stockDecision,
+            description: description.trim(),
+            price,
+            discount,
+            quantity,
+            ...(cost === undefined ? {} : { cost }),
+            ...(linkedProduct ? { partId: linkedProduct.id } : {}),
+            method,
+          }),
+        });
+        const result = (await response.json()) as {
+          error?: string;
+          code?: string;
+          sale?: QuickSale;
+        };
+        if (!response.ok && result.code === 'INSUFFICIENT_STOCK') {
+          notify('O estoque mudou. Revise e confirme a venda novamente.', 'error');
+          if (!attempt) continue;
+        }
+        if (!response.ok || !result.sale)
+          throw new Error(result.error || 'Não foi possível registrar a venda.');
+        setSales((current) => [result.sale!, ...current]);
+        notify(`Venda de ${formatMoney(result.sale.value)} registrada.`, 'success');
+        reset();
+        router.refresh();
+        return;
+      }
     } catch (error) {
       notify(
         error instanceof Error ? error.message : 'Não foi possível registrar a venda.',
@@ -266,9 +289,10 @@ export default function QuickSaleRoute({
 
   return (
     <>
+      <StockAlertDialog alert={stock.alert} onDecision={stock.decide} />
       <PageHeader
         title="Venda rápida"
-        description="Receba o valor líquido; o custo serve para margem e não cria conta a pagar."
+        description="Receba o total da venda; o custo serve para margem e não cria conta a pagar."
         action={
           <Button asChild variant="outline">
             <Link href="/pagamentos/historico">
@@ -366,23 +390,25 @@ export default function QuickSaleRoute({
                   </ul>
                 )}
               </div>
-              {product ? (
+              {linkedProduct ? (
                 <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-700 dark:text-emerald-300">
                     <Package aria-hidden="true" className="size-3" />
                     Do estoque
                   </span>
-                  {stockLabel(product.stock)} · preço e custo preenchidos para a margem
+                  {productStock === undefined ? 'Verificando saldo' : stockLabel(productStock)} ·
+                  vinculado ao estoque
                   <button
                     className="inline-flex items-center gap-0.5 underline-offset-4 hover:underline"
                     onClick={() => {
                       setProduct(null);
+                      setDescription('');
                       descriptionRef.current?.focus();
                     }}
                     type="button"
                   >
                     <X aria-hidden="true" className="size-3" />
-                    Desvincular
+                    Buscar outro
                   </button>
                 </p>
               ) : (
@@ -445,7 +471,6 @@ export default function QuickSaleRoute({
                   autoComplete="off"
                   id="sale-quantity"
                   inputMode="numeric"
-                  max={product?.stock}
                   min={1}
                   name="quantity"
                   onChange={(event) => setQuantityText(event.target.value)}
@@ -454,6 +479,12 @@ export default function QuickSaleRoute({
                   value={quantityText}
                 />
               </div>
+              <StockCheckStatus
+                checking={stock.checking}
+                error={stock.error}
+                shortages={stock.shortages}
+                retry={() => void stock.refresh()}
+              />
               <div className="grid grid-cols-2 gap-3">
                 <div className="grid gap-2">
                   <Label htmlFor="sale-discount">Desconto</Label>
@@ -532,8 +563,8 @@ export default function QuickSaleRoute({
                         </>
                       )}
                       <div className="flex justify-between gap-3 font-semibold">
-                        <dt>Total líquido</dt>
-                        <dd className="tabular-nums">{formatMoney(resultTotal)}</dd>
+                        <dt>Total a receber</dt>
+                        <dd className="tabular-nums">{formatMoney(total)}</dd>
                       </div>
                       {profit !== null && (
                         <div className="flex justify-between gap-3">
@@ -606,7 +637,7 @@ export default function QuickSaleRoute({
                 <div className="grid gap-2">
                   {total > 0 && (
                     <div className="flex flex-wrap gap-1.5">
-                      {billSuggestions(resultTotal).map((bill) => (
+                      {billSuggestions(total).map((bill) => (
                         <Button
                           key={bill}
                           onClick={() => setGiven(String(bill))}
@@ -645,12 +676,12 @@ export default function QuickSaleRoute({
             )}
 
             <div className="grid gap-2">
-              <Button className="h-12 w-full text-base" disabled={saving} type="submit">
-                {saving
-                  ? 'Registrando…'
-                  : valid
-                    ? `Receber ${formatMoney(resultTotal)}`
-                    : 'Receber'}
+              <Button
+                className="h-12 w-full text-base"
+                disabled={saving || stock.checking || Boolean(stock.error)}
+                type="submit"
+              >
+                {saving ? 'Registrando…' : valid ? `Receber ${formatMoney(total)}` : 'Receber'}
               </Button>
               <p className="text-center text-xs text-muted-foreground">
                 Entra no caixa de hoje e em Receber e pagar, em “Pagos e recebidos”.
@@ -709,7 +740,7 @@ export default function QuickSaleRoute({
                         : undefined
                     }
                     title={sale.description}
-                    value={`+${formatMoney(saleProfit(sale.value, sale.cost) ?? sale.value)}`}
+                    value={`+${formatMoney(sale.value)}`}
                     valueClassName={toneText.success}
                   />
                 );

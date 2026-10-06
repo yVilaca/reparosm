@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Eye } from 'lucide-react';
 import { type Dispatch, type SetStateAction } from 'react';
 import OrderActions from '@/components/order-actions';
 import OrderPaymentStatus from '@/components/order-payment-status';
@@ -40,6 +41,7 @@ export default function OrdersTable({
   emptyMessage,
   onCreate,
   onEdit,
+  onView,
   onCharge,
   onRemoved,
   selectedIds,
@@ -54,6 +56,7 @@ export default function OrdersTable({
   emptyMessage?: string;
   onCreate?: () => void;
   onEdit?: (order: OrderRow) => void;
+  onView?: (order: OrderRow) => void;
   onCharge?: (order: OrderRow) => void;
   onRemoved?: (id: string) => void;
   stages?: readonly OrderStage[];
@@ -178,7 +181,19 @@ export default function OrdersTable({
                       {order.device || 'Aparelho não informado'}
                     </p>
                   </div>
-                  <div className="flex items-end justify-end gap-3 border-t pt-3">
+                  <div className="flex items-end justify-between gap-3 border-t pt-3">
+                    {onView ? (
+                      <Button
+                        aria-label={`Ver OS ${order.code}`}
+                        onClick={() => onView(order)}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        <Eye aria-hidden="true" />
+                        Ver OS
+                      </Button>
+                    ) : null}
                     <div className="text-right">
                       <p className="text-xs text-muted-foreground">Total</p>
                       <p className="font-semibold tabular-nums">
@@ -236,9 +251,23 @@ export default function OrdersTable({
                     />
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2 font-medium">
-                      {order.code}
-                      <PriorityBadge priority={order.priority} />
+                    <div className="grid justify-items-start gap-2">
+                      <div className="flex items-center gap-2 font-medium">
+                        {order.code}
+                        <PriorityBadge priority={order.priority} />
+                      </div>
+                      {onView ? (
+                        <Button
+                          aria-label={`Ver OS ${order.code}`}
+                          onClick={() => onView(order)}
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                        >
+                          <Eye aria-hidden="true" />
+                          Ver OS
+                        </Button>
+                      ) : null}
                     </div>
                   </TableCell>
                   <TableCell>

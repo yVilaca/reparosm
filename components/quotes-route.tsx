@@ -1,5 +1,7 @@
 'use client';
 
+import { newestFirst } from '@/lib/sorting';
+
 import { useState } from 'react';
 import { useFeedback } from '@/components/feedback';
 import QuoteModal, { type QuoteRow, type SaveQuote } from '@/components/quote-modal';
@@ -119,7 +121,7 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
   const byStatus = (status: QuoteStatus) =>
     quotes
       .filter((quote) => (quote.status || 'Aguardando') === status)
-      .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+      .sort((a, b) => (status === 'Aguardando' ? newestFirst(b, a) : newestFirst(a, b)));
   const pending = byStatus('Aguardando');
   const approved = byStatus('Aprovado');
   const refused = byStatus('Recusado');

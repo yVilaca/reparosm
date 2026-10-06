@@ -1,4 +1,5 @@
-import { tenantQueryFor, type Query } from '@/lib/db';
+import { tenantQueryFor, tenantTransaction, type Query } from '@/lib/db';
+import * as orderItems from '@/lib/repos/order-items';
 import {
   compact,
   dateOrNull,
@@ -115,7 +116,7 @@ const toOrder = (row: OrderRow) =>
 
 export async function list(accountId: string, run?: Query) {
   const rows = await tenantQueryFor(accountId, run)<OrderRow>(
-    `${select} WHERE o.account_id = $1 ORDER BY o.updated_at DESC`,
+    `${select} WHERE o.account_id = $1 ORDER BY o.created_at DESC, o.id DESC`,
     [accountId],
   );
   return rows.map(toOrder);
@@ -203,9 +204,17 @@ export async function linkClient(accountId: string, id: string, clientId: string
 }
 
 export async function remove(accountId: string, id: string) {
-  const rows = await tenantQueryFor(accountId)(
-    'DELETE FROM orders WHERE account_id = $1 AND id = $2 RETURNING id',
-    [accountId, id],
-  );
-  return rows.length > 0;
+  return tenantTransaction(accountId, async (run) => {
+    const found = await run('SELECT id FROM orders WHERE account_id = $1 AND id = $2 FOR UPDATE', [
+      accountId,
+      id,
+    ]);
+    if (!found.length) return false;
+    await orderItems.replace(accountId, id, [], run);
+    const rows = await run('DELETE FROM orders WHERE account_id = $1 AND id = $2 RETURNING id', [
+      accountId,
+      id,
+    ]);
+    return rows.length > 0;
+  });
 }

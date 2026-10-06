@@ -387,18 +387,18 @@ export default function DashboardRoute({
         }
       />
       <section
-        aria-label="Totais financeiros das ordens"
+        aria-label="Totais financeiros"
         className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4"
       >
         <StatCard
-          detail="Valor de todas as OS, exceto canceladas."
+          detail="Valores recebidos de OS não canceladas e vendas avulsas."
           icon={ArrowDownLeft}
           label="Total Bruto"
           tone="success"
           value={formatMoney(orderTotals.gross)}
         />
         <StatCard
-          detail="Valor das OS menos os custos registrados."
+          detail="Resultado de OS e vendas avulsas, sem a margem ainda a receber."
           icon={Wallet}
           label="Total Líquido"
           tone="success"
@@ -406,14 +406,14 @@ export default function DashboardRoute({
           valueTone={orderTotals.net < 0 ? 'danger' : undefined}
         />
         <StatCard
-          detail="Saldo pendente das OS, após os recebimentos."
+          detail="Saldo pendente apenas das OS, após os recebimentos."
           icon={Receipt}
           label="Bruto a receber"
           tone="warning"
           value={formatMoney(orderTotals.grossReceivable)}
         />
         <StatCard
-          detail="Margem proporcional ao saldo ainda a receber."
+          detail="Margem das OS proporcional ao saldo ainda a receber."
           icon={Receipt}
           label="Líquido a receber"
           tone="warning"

@@ -58,6 +58,7 @@ export function installmentDueDates(first: string, count: number): string[] {
 }
 
 type Bill = {
+  id?: string;
   amount: number;
   dueDate?: string;
   status?: 'pending' | 'paid';
@@ -104,7 +105,11 @@ const dueOrder: DueGroup[] = ['overdue', 'today', 'week', 'later', 'undated'];
 export function groupOpenPayables<T extends Bill>(rows: T[], today: string) {
   const open = rows
     .filter(isOpen)
-    .sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'));
+    .sort(
+      (a, b) =>
+        (a.dueDate || '9999').localeCompare(b.dueDate || '9999') ||
+        (a.id || '').localeCompare(b.id || ''),
+    );
   return dueOrder
     .map((group) => {
       const items = open.filter((row) => dueGroup(row.dueDate, today) === group);
@@ -128,7 +133,10 @@ export const monthLabel = (month: string) => {
 export function groupPaidPayables<T extends Bill>(rows: T[]) {
   const paid = rows
     .filter((row) => !isOpen(row))
-    .sort((a, b) => (b.paidOn || '').localeCompare(a.paidOn || ''));
+    .sort(
+      (a, b) =>
+        (b.paidOn || '').localeCompare(a.paidOn || '') || (b.id || '').localeCompare(a.id || ''),
+    );
   const months = [...new Set(paid.map((row) => (row.paidOn || '').slice(0, 7)))];
   return months.map((month) => {
     const items = paid.filter((row) => (row.paidOn || '').slice(0, 7) === month);

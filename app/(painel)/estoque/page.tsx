@@ -10,7 +10,8 @@ export default async function StockPage({
   const account = await requireServerAccount();
   const params = await searchParams;
   const records = await parts.list(account.id);
-  const initialView = params.view === 'inventory' ? 'inventory' : 'catalog';
+  const initialView =
+    params.view === 'kardex' ? 'kardex' : params.view === 'inventory' ? 'inventory' : 'catalog';
   return (
     <StockRoute
       accountId={account.id}

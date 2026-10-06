@@ -97,6 +97,56 @@ const render = (props = {}) =>
       ),
     ),
   );
+
+test('main finance shows gross received and net after costs with date filters, excluding receivables', () => {
+  const markup = render({
+    showHistory: true,
+    historySince: today,
+    historyUntil: today,
+    initialReceipts: [
+      {
+        id: 'sale-finance',
+        orderId: null,
+        code: '',
+        customer: 'Venda rápida',
+        device: '',
+        value: 100,
+        cost: 40,
+        date: today,
+      },
+      {
+        id: 'os-finance',
+        orderId: 'os-f',
+        code: 'OS-f',
+        customer: 'Cliente',
+        device: 'Tela',
+        value: 240,
+        cost: 80,
+        date: today,
+      },
+      {
+        id: 'old-finance',
+        orderId: null,
+        code: '',
+        customer: 'Antigo',
+        device: '',
+        value: 999,
+        cost: 0,
+        date: shift(-1),
+      },
+    ],
+  });
+  const summary = markup.match(/<section aria-label="Resumo"[\s\S]*?<\/section>/)[0];
+  assert.match(summary, /Total Bruto/);
+  assert.match(summary, /Total Líquido/);
+  assert.match(summary, /R\$[^<]*340,00/);
+  assert.match(summary, /R\$[^<]*220,00/);
+  assert.match(summary, /Custos: R\$[^<]*120,00/);
+  assert.match(markup, /id="received-from"[^>]*type="date"|type="date"[^>]*id="received-from"/);
+  assert.match(markup, /Filtrar período/);
+  assert.match(markup, /Custo R\$[^<]*40,00/);
+  assert.doesNotMatch(markup, /Antigo/);
+});
 const section = (markup, title) => {
   const start = markup.indexOf(`aria-label="${title}"`);
   assert.ok(start > 0, `sem o grupo ${title}`);

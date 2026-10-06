@@ -79,7 +79,7 @@ export async function accountUsernameExistsAsAdmin(actor: AdminActor, username: 
 export async function listAccounts(actor: AdminActor) {
   const rows = await adminQuery<AccountRow>(
     actor,
-    `SELECT ${accountColumns} FROM accounts a ORDER BY a.created_at DESC`,
+    `SELECT ${accountColumns} FROM accounts a ORDER BY a.created_at DESC, a.id DESC`,
   );
   return rows.map(toAccount);
 }
@@ -184,7 +184,7 @@ export async function listPendingPasswordRequests(actor: AdminActor): Promise<Pa
     actor,
     `SELECT r.account_id, a.username, r.created_at FROM password_requests r
      JOIN accounts a ON a.id = r.account_id
-     WHERE r.status = 'pending' ORDER BY r.created_at`,
+     WHERE r.status = 'pending' ORDER BY r.created_at, r.account_id`,
   );
   return rows.map((row) => ({
     id: `password-request-${row.account_id}`,

@@ -105,7 +105,7 @@ export async function actions(
       // Reposição não tem data de espera: vai para o fim.
       if ((left.kind === 'restock') !== (right.kind === 'restock'))
         return left.kind === 'restock' ? 1 : -1;
-      return right.days - left.days;
+      return right.days - left.days || left.id.localeCompare(right.id);
     });
 }
 

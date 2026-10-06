@@ -3,6 +3,7 @@
 import {
   Bot,
   ClipboardList,
+  Columns3,
   CreditCard,
   Database,
   ArrowDownUp,
@@ -40,6 +41,7 @@ const groups = (isAdmin: boolean): NavGroup[] => [
     items: [
       primary[0],
       primary[2],
+      { href: '/mesa', label: 'Mesa', icon: Columns3 },
       { href: '/orcamentos', label: 'Orçamentos', icon: ClipboardList },
     ],
   },

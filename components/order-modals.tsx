@@ -3,6 +3,8 @@
 import { useState, type ChangeEvent } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { useFeedback } from '@/components/feedback';
+import StockAlertDialog, { StockCheckStatus } from '@/components/stock-alert-dialog';
+import { useStockCheck } from '@/components/use-stock-check';
 import OrderPhotos from '@/components/order-photos';
 import { Button } from '@/components/ui/button';
 import {
@@ -51,6 +53,7 @@ export function OrderEditModal({
   const [form, setForm] = useState({ ...item }),
     [selectedItems, setSelectedItems] = useState<OrderItem[]>(item.items || []),
     [saving, setSaving] = useState(false);
+  const stock = useStockCheck(form.status === 'Cancelado' ? [] : selectedItems, item.id);
   const field = (key: keyof OrderRow) => (event: FieldChange) =>
     setForm(
       (value) =>
@@ -67,23 +70,44 @@ export function OrderEditModal({
   const total = Number(form.labor || 0) + partsTotal;
   const profit = total - Number(form.cost || 0);
   const submit = async () => {
+    if (saving) return;
     if (!String(form.customer || '').trim() || !String(form.device || '').trim()) {
       notify('Informe cliente e aparelho.', 'error');
       return;
     }
     setSaving(true);
     try {
-      await save(
-        {
-          ...form,
-          items: selectedItems,
-          parts: partsTotal,
-          total,
-          profit: total - Number(form.cost || 0),
-          updatedAt: new Date().toISOString(),
-        },
-        item.id,
-      );
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const stockDecision = await stock.confirm();
+        if (!stockDecision) return;
+        try {
+          await save(
+            {
+              ...form,
+              acknowledgeNegativeStock: stockDecision.acknowledgeNegativeStock,
+              items: selectedItems,
+              parts: partsTotal,
+              total,
+              profit: total - Number(form.cost || 0),
+              updatedAt: new Date().toISOString(),
+            },
+            item.id,
+          );
+          return;
+        } catch (error) {
+          if (
+            !attempt &&
+            error &&
+            typeof error === 'object' &&
+            'code' in error &&
+            error.code === 'INSUFFICIENT_STOCK'
+          )
+            continue;
+          throw error;
+        }
+      }
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'Não foi possível salvar a ordem.', 'error');
     } finally {
       setSaving(false);
     }
@@ -167,6 +191,7 @@ export function OrderEditModal({
                 parts={parts}
                 value={selectedItems}
                 onChange={setSelectedItems}
+                stock={stock}
               />
               <OrderPhotos orderId={item.id} />
             </div>
@@ -293,13 +318,14 @@ export function OrderEditModal({
               <Button onClick={close} type="button" variant="outline">
                 Cancelar
               </Button>
-              <Button disabled={saving} type="submit">
+              <Button disabled={saving || stock.checking || Boolean(stock.error)} type="submit">
                 {saving ? 'Salvando…' : 'Salvar alterações'}
               </Button>
             </div>
           </div>
         </form>
       </DialogContent>
+      <StockAlertDialog alert={stock.alert} onDecision={stock.decide} />
     </Dialog>
   );
 }
@@ -341,6 +367,7 @@ export function OrderCreateModal({
     ? selectedItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
     : parts;
   const total = labor + partsTotal;
+  const stock = useStockCheck(selectedItems);
   const field = (key: keyof typeof form) => (event: FieldChange) =>
     setForm((value) => ({ ...value, [key]: event.target.value }));
   const selectPhotos = (event: ChangeEvent<HTMLInputElement>) => {
@@ -370,27 +397,47 @@ export function OrderCreateModal({
     if (saving) return;
     setSaving(true);
     try {
-      await save(
-        {
-          // The server assigns the real, unique code; this placeholder is discarded.
-          code: '',
-          ...form,
-          whatsappConsent,
-          pattern,
-          labor,
-          parts: partsTotal,
-          items: selectedItems,
-          cost,
-          warrantyDays,
-          total,
-          profit: total - cost,
-          stage: 'Recebido',
-          status: 'Aberto',
-          createdAt: new Date().toISOString(),
-        },
-        undefined,
-        photos,
-      );
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const stockDecision = await stock.confirm();
+        if (!stockDecision) return;
+        try {
+          await save(
+            {
+              // The server assigns the real, unique code; this placeholder is discarded.
+              code: '',
+              ...form,
+              ...stockDecision,
+              whatsappConsent,
+              pattern,
+              labor,
+              parts: partsTotal,
+              items: selectedItems,
+              cost,
+              warrantyDays,
+              total,
+              profit: total - cost,
+              stage: 'Recebido',
+              status: 'Aberto',
+              createdAt: new Date().toISOString(),
+            },
+            undefined,
+            photos,
+          );
+          return;
+        } catch (error) {
+          if (
+            !attempt &&
+            error &&
+            typeof error === 'object' &&
+            'code' in error &&
+            error.code === 'INSUFFICIENT_STOCK'
+          )
+            continue;
+          throw error;
+        }
+      }
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'Não foi possível criar a ordem.', 'error');
     } finally {
       setSaving(false);
     }
@@ -662,6 +709,7 @@ export function OrderCreateModal({
                 parts={availableParts}
                 value={selectedItems}
                 onChange={setSelectedItems}
+                stock={stock}
               />
               <div className="grid gap-2">
                 <Label htmlFor="order-create-labor">Mão de obra</Label>
@@ -742,13 +790,18 @@ export function OrderCreateModal({
                 Continuar
               </Button>
             ) : (
-              <Button disabled={saving} onClick={() => void create()} type="button">
+              <Button
+                disabled={saving || stock.checking || Boolean(stock.error)}
+                onClick={() => void create()}
+                type="button"
+              >
                 {saving ? 'Criando…' : 'Criar ordem'}
               </Button>
             )}
           </div>
         </form>
       </DialogContent>
+      <StockAlertDialog alert={stock.alert} onDecision={stock.decide} />
     </Dialog>
   );
 }
@@ -757,10 +810,12 @@ function OrderProductsPicker({
   parts,
   value,
   onChange,
+  stock,
 }: {
   parts: PartRow[];
   value: OrderItem[];
   onChange: (items: OrderItem[]) => void;
+  stock: ReturnType<typeof useStockCheck>;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -775,16 +830,13 @@ function OrderProductsPicker({
   };
   const quantity = (partId: string, next: number) =>
     onChange(value.map((item) => (item.partId === partId ? { ...item, quantity: next } : item)));
-  const visibleParts = parts.filter(
-    (part) => Number(part.stock || 0) > 0 || value.some((item) => item.partId === part.id),
-  );
   const normalize = (text: string) =>
     text
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLocaleLowerCase('pt-BR');
   const query = normalize(search.trim());
-  const matches = visibleParts.filter((part) =>
+  const matches = parts.filter((part) =>
     normalize(`${part.name} ${part.sku || ''} ${part.category || ''}`).includes(query),
   );
 
@@ -847,7 +899,10 @@ function OrderProductsPicker({
                           {[part.sku, part.category].filter(Boolean).join(' · ')}
                         </span>
                         <span className="block text-xs text-muted-foreground">
-                          {money(part.price)} · {part.stock} em estoque
+                          {money(part.price)} ·{' '}
+                          {stock.check?.parts.find((item) => item.id === part.id)?.available ??
+                            part.stock}{' '}
+                          em estoque
                         </span>
                       </span>
                     </label>
@@ -867,6 +922,12 @@ function OrderProductsPicker({
           </DialogContent>
         </Dialog>
       </div>
+      <StockCheckStatus
+        checking={stock.checking}
+        error={stock.error}
+        shortages={stock.shortages}
+        retry={() => void stock.refresh()}
+      />
       {value.length ? (
         <div className="grid min-w-0 gap-2">
           {value.map((item) => (
@@ -877,6 +938,11 @@ function OrderProductsPicker({
               <div className="min-w-0 flex-1">
                 <p className="break-words text-sm font-medium">{item.name}</p>
                 <p className="text-xs text-muted-foreground">{money(item.unitPrice)} por unidade</p>
+                <p className="text-xs text-muted-foreground">
+                  Disponível:{' '}
+                  {stock.check?.parts.find((part) => part.id === item.partId)?.available ??
+                    'verificando…'}
+                </p>
               </div>
               <Input
                 aria-label={`Quantidade de ${item.name}`}

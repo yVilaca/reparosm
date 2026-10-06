@@ -1,5 +1,7 @@
 'use client';
 
+import { compareText } from '@/lib/sorting';
+
 import { useState } from 'react';
 import { useFeedback } from '@/components/feedback';
 import { Button } from '@/components/ui/button';
@@ -124,34 +126,36 @@ export default function SupportRoute({ initialTutorials }: { initialTutorials: T
         <>
           <h2 className="mb-3 text-lg font-semibold">Vídeos da assistência</h2>
           <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {tutorials.map((tutorial) => (
-              <Card key={tutorial.id}>
-                <CardContent className="grid gap-2">
-                  {youtube(tutorial.url) ? (
-                    <iframe
-                      allowFullScreen
-                      className="aspect-video w-full rounded-lg"
-                      src={`https://www.youtube.com/embed/${youtube(tutorial.url)}`}
-                      title={tutorial.title}
-                    />
-                  ) : (
-                    <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-muted text-2xl">
-                      ▶
-                    </div>
-                  )}
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {tutorial.category || 'Tutorial'}
-                  </span>
-                  <h3 className="font-semibold">{tutorial.title}</h3>
-                  <p className="text-sm text-muted-foreground">{tutorial.description}</p>
-                  <Button asChild className="w-fit" size="sm" variant="outline">
-                    <a href={tutorial.url} rel="noreferrer" target="_blank">
-                      Assistir vídeo →
-                    </a>
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+            {[...tutorials]
+              .sort((a, b) => compareText(a.title, b.title) || a.id.localeCompare(b.id))
+              .map((tutorial) => (
+                <Card key={tutorial.id}>
+                  <CardContent className="grid gap-2">
+                    {youtube(tutorial.url) ? (
+                      <iframe
+                        allowFullScreen
+                        className="aspect-video w-full rounded-lg"
+                        src={`https://www.youtube.com/embed/${youtube(tutorial.url)}`}
+                        title={tutorial.title}
+                      />
+                    ) : (
+                      <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-muted text-2xl">
+                        ▶
+                      </div>
+                    )}
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {tutorial.category || 'Tutorial'}
+                    </span>
+                    <h3 className="font-semibold">{tutorial.title}</h3>
+                    <p className="text-sm text-muted-foreground">{tutorial.description}</p>
+                    <Button asChild className="w-fit" size="sm" variant="outline">
+                      <a href={tutorial.url} rel="noreferrer" target="_blank">
+                        Assistir vídeo →
+                      </a>
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
           </div>
         </>
       )}

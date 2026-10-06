@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import OrdersScreen, { type OrdersSearchParams } from '@/components/orders-screen';
 
-export default async function MesaPage() {
-  redirect('/ordens?view=kanban');
+export default function MesaPage({ searchParams }: { searchParams: Promise<OrdersSearchParams> }) {
+  return <OrdersScreen view="kanban" searchParams={searchParams} />;
 }

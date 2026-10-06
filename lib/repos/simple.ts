@@ -65,6 +65,16 @@ export function simpleRepo<T extends BusinessRecordType>(options: {
     .join(', ');
   const select = `SELECT t.id, t.created_at, t.updated_at, ${selected} FROM ${table} t`;
   const scoped = scope ? ` AND t.${scope[0]} = '${scope[1]}'` : '';
+  const orderBy =
+    type === 'part' || type === 'automation'
+      ? 'LOWER(t.name), t.id'
+      : type === 'film'
+        ? 'LOWER(t.brand), LOWER(t.model), t.id'
+        : type === 'tutorial'
+          ? 'LOWER(t.title), t.id'
+          : type === 'payment' || type === 'expense'
+            ? "COALESCE(t.date, (t.created_at AT TIME ZONE 'America/Sao_Paulo')::date) DESC, t.created_at DESC, t.id DESC"
+            : 't.created_at DESC, t.id DESC';
 
   const toTypedRecord = (row: Record<string, unknown>) =>
     toRecord(
@@ -106,10 +116,9 @@ export function simpleRepo<T extends BusinessRecordType>(options: {
   return {
     async list(accountId: string, run?: Query) {
       const execute = tenantQueryFor(accountId, run);
-      const rows = await execute(
-        `${select} WHERE t.account_id = $1${scoped} ORDER BY t.updated_at DESC`,
-        [accountId],
-      );
+      const rows = await execute(`${select} WHERE t.account_id = $1${scoped} ORDER BY ${orderBy}`, [
+        accountId,
+      ]);
       return rows.map(toTypedRecord);
     },
     get,
