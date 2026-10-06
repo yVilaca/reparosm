@@ -25,6 +25,7 @@ import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import IconChip from '@/components/ui/icon-chip';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { MaskedInput } from '@/components/ui/masked-input';
 import { ListGroup, ListRow } from '@/components/ui/list-group';
 import PageHeader from '@/components/ui/page-header';
 import RowMenu from '@/components/ui/row-menu';
@@ -446,7 +447,8 @@ export default function QuickSaleRoute({
                   >
                     R$
                   </span>
-                  <Input
+                  <MaskedInput
+                    mask="currency"
                     aria-invalid={priceText !== '' && !(price > 0)}
                     autoComplete="off"
                     className="h-16 pl-14 text-3xl font-semibold tabular-nums md:text-3xl"
@@ -466,16 +468,14 @@ export default function QuickSaleRoute({
               </div>
               <div className="grid gap-2 sm:max-w-40">
                 <Label htmlFor="sale-quantity">Quantidade</Label>
-                <Input
+                <MaskedInput
+                  mask="integer"
                   aria-invalid={Boolean(quantityError)}
                   autoComplete="off"
                   id="sale-quantity"
                   inputMode="numeric"
-                  min={1}
                   name="quantity"
                   onChange={(event) => setQuantityText(event.target.value)}
-                  step={1}
-                  type="number"
                   value={quantityText}
                 />
               </div>
@@ -488,7 +488,8 @@ export default function QuickSaleRoute({
               <div className="grid grid-cols-2 gap-3">
                 <div className="grid gap-2">
                   <Label htmlFor="sale-discount">Desconto</Label>
-                  <Input
+                  <MaskedInput
+                    mask="currency-percent"
                     aria-invalid={Boolean(discountError)}
                     autoComplete="off"
                     id="sale-discount"
@@ -504,7 +505,8 @@ export default function QuickSaleRoute({
                     Custo para margem{' '}
                     <span className="font-normal text-muted-foreground">(opcional)</span>
                   </Label>
-                  <Input
+                  <MaskedInput
+                    mask="currency"
                     aria-invalid={Boolean(costError)}
                     autoComplete="off"
                     id="sale-cost"
@@ -625,7 +627,8 @@ export default function QuickSaleRoute({
               <div className="grid gap-3 rounded-lg bg-muted/40 p-3 sm:grid-cols-[12rem_1fr] sm:items-end">
                 <div className="grid gap-2">
                   <Label htmlFor="sale-given">Recebi do cliente</Label>
-                  <Input
+                  <MaskedInput
+                    mask="currency"
                     autoComplete="off"
                     id="sale-given"
                     inputMode="decimal"

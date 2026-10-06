@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { MaskedInput } from '@/components/ui/masked-input';
 import {
   Select,
   SelectContent,
@@ -19,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { Expense, Payment } from '@/lib/types';
+import { parseMoney } from '@/lib/quick-sale';
 import { todayInSaoPaulo } from '@/lib/warranty';
 
 export type MoneyKind = 'payment' | 'expense';
@@ -73,7 +75,7 @@ export default function MoneyModal({
           reference: form.reference.trim(),
           method: form.method,
           date: form.date,
-          value: Number(form.value),
+          value: parseMoney(form.value),
           ...(item
             ? { createdAt: item.createdAt, updatedAt: new Date().toISOString() }
             : { createdAt: new Date().toISOString() }),
@@ -151,13 +153,11 @@ export default function MoneyModal({
           </div>
           <div className="grid gap-2">
             <Label htmlFor="money-value">Valor *</Label>
-            <Input
+            <MaskedInput
+              mask="currency"
               id="money-value"
-              min="0.01"
               onChange={field('value')}
               required
-              step="0.01"
-              type="number"
               value={form.value}
             />
           </div>

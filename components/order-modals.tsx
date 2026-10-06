@@ -7,6 +7,7 @@ import StockAlertDialog, { StockCheckStatus } from '@/components/stock-alert-dia
 import { useStockCheck } from '@/components/use-stock-check';
 import OrderPhotos from '@/components/order-photos';
 import { Button } from '@/components/ui/button';
+import { MaskedInput } from '@/components/ui/masked-input';
 import {
   Dialog,
   DialogContent,
@@ -27,6 +28,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { formatMoney as money } from '@/lib/format';
 import { addOrderPhotoSelection } from '@/lib/order-photo-selection';
+import { parseMoney } from '@/lib/quick-sale';
 import type { Order, OrderItem, OrderPriority, Part } from '@/lib/types';
 import { orderStages as stages } from '@/lib/order-stages';
 
@@ -37,6 +39,10 @@ type FieldChange = ChangeEvent<HTMLInputElement | HTMLTextAreaElement>;
 
 const statuses = ['Aberto', 'Pendente', 'Aguardando pagamento', 'Concluído', 'Cancelado'];
 const priorities: OrderPriority[] = ['Normal', 'Urgente', 'Garantia'];
+const parseInputMoney = (value: string) => {
+  const parsed = parseMoney(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 export function OrderEditModal({
   item,
@@ -52,16 +58,27 @@ export function OrderEditModal({
   const { notify } = useFeedback();
   const [form, setForm] = useState({ ...item }),
     [selectedItems, setSelectedItems] = useState<OrderItem[]>(item.items || []),
+    [moneyText, setMoneyText] = useState({
+      labor: String(item.labor ?? ''),
+      parts: String(item.parts ?? ''),
+      cost: String(item.cost ?? ''),
+    }),
     [saving, setSaving] = useState(false);
   const stock = useStockCheck(form.status === 'Cancelado' ? [] : selectedItems, item.id);
-  const field = (key: keyof OrderRow) => (event: FieldChange) =>
-    setForm(
-      (value) =>
-        ({
-          ...value,
-          [key]: event.target.type === 'number' ? Number(event.target.value) : event.target.value,
-        }) as OrderRow,
-    );
+  const field = (key: keyof OrderRow) => (event: FieldChange) => {
+    const rawValue = event.target.value;
+    const value =
+      key === 'labor' || key === 'parts' || key === 'cost'
+        ? parseInputMoney(rawValue)
+        : key === 'warrantyDays'
+          ? Number(rawValue)
+          : event.target.type === 'number'
+            ? Number(rawValue)
+            : rawValue;
+    if (key === 'labor' || key === 'parts' || key === 'cost')
+      setMoneyText((current) => ({ ...current, [key]: rawValue }));
+    setForm((current) => ({ ...current, [key]: value }) as OrderRow);
+  };
   const setChoice = (key: 'stage' | 'status' | 'priority', value: string) =>
     setForm((current) => ({ ...current, [key]: value }) as OrderRow);
   const partsTotal = selectedItems.length
@@ -145,9 +162,10 @@ export function OrderEditModal({
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="order-edit-phone">WhatsApp</Label>
-                  <Input
+                  <MaskedInput
                     autoComplete="tel"
                     id="order-edit-phone"
+                    mask="phone"
                     onChange={field('phone')}
                     value={form.phone || ''}
                   />
@@ -263,13 +281,10 @@ export function OrderEditModal({
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="order-edit-warranty">Garantia (dias)</Label>
-                  <Input
+                  <MaskedInput
                     id="order-edit-warranty"
-                    max="3650"
-                    min="1"
+                    mask="integer"
                     onChange={field('warrantyDays')}
-                    step="1"
-                    type="number"
                     value={form.warrantyDays ?? ''}
                   />
                 </div>
@@ -283,14 +298,12 @@ export function OrderEditModal({
                 ].map(({ label, key }) => (
                   <div className="grid gap-2" key={key}>
                     <Label htmlFor={`order-edit-${key}`}>{label}</Label>
-                    <Input
+                    <MaskedInput
                       id={`order-edit-${key}`}
-                      min="0"
+                      mask="currency"
                       onChange={field(key)}
                       readOnly={key === 'parts' && selectedItems.length > 0}
-                      step="0.01"
-                      type="number"
-                      value={key === 'parts' ? partsTotal : form[key] || 0}
+                      value={key === 'parts' && selectedItems.length ? partsTotal : moneyText[key]}
                     />
                   </div>
                 ))}
@@ -345,9 +358,9 @@ export function OrderCreateModal({
   const [step, setStep] = useState(1),
     [pattern, setPattern] = useState<number[]>([]),
     [selectedItems, setSelectedItems] = useState<OrderItem[]>([]),
-    [labor, setLabor] = useState(0),
-    [parts, setParts] = useState(0),
-    [cost, setCost] = useState(0),
+    [laborText, setLaborText] = useState(''),
+    [partsText, setPartsText] = useState(''),
+    [costText, setCostText] = useState(''),
     [warrantyDays, setWarrantyDays] = useState(defaultWarrantyDays),
     [saving, setSaving] = useState(false),
     [photos, setPhotos] = useState<File[]>([]),
@@ -363,6 +376,9 @@ export function OrderCreateModal({
       notes: '',
       priority: 'Normal' as OrderPriority,
     });
+  const labor = parseInputMoney(laborText);
+  const parts = parseInputMoney(partsText);
+  const cost = parseInputMoney(costText);
   const partsTotal = selectedItems.length
     ? selectedItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
     : parts;
@@ -493,9 +509,10 @@ export function OrderCreateModal({
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="order-create-phone">WhatsApp</Label>
-                <Input
+                <MaskedInput
                   autoComplete="tel"
                   id="order-create-phone"
+                  mask="phone"
                   onChange={field('phone')}
                   placeholder="(DDD) número"
                   value={form.phone}
@@ -713,47 +730,44 @@ export function OrderCreateModal({
               />
               <div className="grid gap-2">
                 <Label htmlFor="order-create-labor">Mão de obra</Label>
-                <Input
+                <MaskedInput
                   id="order-create-labor"
-                  min="0"
-                  onChange={(event) => setLabor(Number(event.target.value))}
-                  step="0.01"
-                  type="number"
-                  value={labor}
+                  mask="currency"
+                  onChange={(event) => {
+                    setLaborText(event.target.value);
+                  }}
+                  value={laborText}
                 />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="order-create-parts">Valor das peças</Label>
-                <Input
+                <MaskedInput
                   id="order-create-parts"
-                  min="0"
-                  onChange={(event) => setParts(Number(event.target.value))}
+                  mask="currency"
+                  onChange={(event) => {
+                    setPartsText(event.target.value);
+                  }}
                   readOnly={selectedItems.length > 0}
-                  step="0.01"
-                  type="number"
-                  value={partsTotal}
+                  value={selectedItems.length ? partsTotal : partsText}
                 />
               </div>
               <div className="grid gap-2 sm:col-span-2">
                 <Label htmlFor="order-create-cost">Custo total da assistência</Label>
-                <Input
+                <MaskedInput
                   id="order-create-cost"
-                  min="0"
-                  onChange={(event) => setCost(Number(event.target.value))}
-                  step="0.01"
-                  type="number"
-                  value={cost}
+                  mask="currency"
+                  onChange={(event) => {
+                    setCostText(event.target.value);
+                  }}
+                  value={costText}
                 />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="order-create-warranty">Garantia (dias)</Label>
-                <Input
+                <MaskedInput
                   id="order-create-warranty"
-                  max="3650"
-                  min="1"
+                  mask="integer"
                   onChange={(event) => setWarrantyDays(Number(event.target.value))}
-                  step="1"
-                  type="number"
                   value={warrantyDays}
                 />
               </div>
@@ -944,13 +958,11 @@ function OrderProductsPicker({
                     'verificando…'}
                 </p>
               </div>
-              <Input
+              <MaskedInput
                 aria-label={`Quantidade de ${item.name}`}
                 className="w-20"
-                min="1"
-                step="1"
+                mask="integer"
                 onChange={(event) => quantity(item.partId, Math.max(1, Number(event.target.value)))}
-                type="number"
                 value={item.quantity}
               />
               <span className="text-sm font-medium tabular-nums">

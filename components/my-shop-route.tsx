@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { MaskedInput } from '@/components/ui/masked-input';
 import PageHeader from '@/components/ui/page-header';
 import IconChip from '@/components/ui/icon-chip';
 import Segmented from '@/components/ui/segmented';
@@ -189,13 +190,24 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="shop-document">CPF / CNPJ</Label>
-                  <Input defaultValue={shop?.document || ''} id="shop-document" name="document" />
+                  <MaskedInput
+                    mask="document"
+                    defaultValue={shop?.document || ''}
+                    id="shop-document"
+                    name="document"
+                  />
                 </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
                   <Label htmlFor="shop-phone">WhatsApp *</Label>
-                  <Input defaultValue={shop?.phone || ''} id="shop-phone" name="phone" required />
+                  <MaskedInput
+                    mask="phone"
+                    defaultValue={shop?.phone || ''}
+                    id="shop-phone"
+                    name="phone"
+                    required
+                  />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="shop-email">E-mail</Label>
@@ -369,7 +381,8 @@ export default function MyShopRoute({ initialShop }: { initialShop?: ShopRow }) 
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="shop-internal-phone">Contato interno</Label>
-                <Input
+                <MaskedInput
+                  mask="phone"
                   defaultValue={shop?.internalPhone || ''}
                   id="shop-internal-phone"
                   name="internalPhone"

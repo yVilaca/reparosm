@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { MaskedInput } from '@/components/ui/masked-input';
 import {
   Select,
   SelectContent,
@@ -22,6 +23,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { formatMoney } from '@/lib/format';
+import { parseMoney } from '@/lib/quick-sale';
 import { recurrenceLabels, type PayableRecurrence } from '@/lib/payable-recurrence';
 import {
   MAX_INSTALLMENTS,
@@ -151,7 +153,7 @@ export default function PayableFormDialog({
   const splitting = !item && plan === 'installments';
   const repeating = plan === 'repeat' && kind === 'expense';
   const preview = splitting
-    ? installmentPreview(Number(form.amount), Number(count), form.dueDate)
+    ? installmentPreview(parseMoney(form.amount), Number(count), form.dueDate)
     : null;
   const blocked = (splitting && !preview) || (repeating && !form.dueDate);
 
@@ -170,7 +172,7 @@ export default function PayableFormDialog({
       category: form.category,
       source: installment ? item!.source : kind === 'purchase' ? 'purchase' : 'other',
       recurrence: repeating ? recurrence : undefined,
-      amount: Number(form.amount),
+      amount: parseMoney(form.amount),
       dueDate: form.dueDate || undefined,
       paymentCode: form.paymentCode,
       notes: form.notes,
@@ -295,14 +297,11 @@ export default function PayableFormDialog({
           )}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field id="payable-amount" label={splitting ? 'Valor total (R$) *' : 'Valor (R$) *'}>
-              <Input
+              <MaskedInput
+                mask="currency"
                 id="payable-amount"
-                inputMode="decimal"
-                min="0.01"
                 onChange={field('amount')}
                 required
-                step="0.01"
-                type="number"
                 value={form.amount}
               />
             </Field>
@@ -324,15 +323,11 @@ export default function PayableFormDialog({
           {splitting && (
             <div className="grid gap-3 rounded-lg border bg-muted/30 p-3 sm:grid-cols-[8rem_1fr] sm:items-end">
               <Field id="payable-installments" label="Parcelas">
-                <Input
+                <MaskedInput
                   id="payable-installments"
-                  inputMode="numeric"
-                  max={MAX_INSTALLMENTS}
-                  min={MIN_INSTALLMENTS}
+                  mask="integer"
                   onChange={(event) => setCount(event.target.value)}
                   required
-                  step="1"
-                  type="number"
                   value={count}
                 />
               </Field>

@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { MaskedInput } from '@/components/ui/masked-input';
 import {
   Select,
   SelectContent,
@@ -20,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { Part } from '@/lib/types';
+import { parseMoney } from '@/lib/quick-sale';
 
 export type PartRow = Part & { id: string };
 export type SavePart = (data: Part, id?: string) => Promise<void>;
@@ -90,8 +92,8 @@ export default function PartModal({
           name: form.name.trim(),
           category,
           stock: Number(form.stock),
-          cost: Number(form.cost),
-          price: Number(form.price),
+          cost: parseMoney(form.cost),
+          price: parseMoney(form.price),
           sku: form.sku.trim(),
           published,
           ...(item?.image !== undefined ? { image: item.image } : {}),
@@ -167,38 +169,33 @@ export default function PartModal({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="part-stock">Quantidade em estoque</Label>
-              <Input
+              <MaskedInput
+                mask={item && item.stock < 0 ? 'signed-integer' : 'integer'}
                 id="part-stock"
                 min={item && item.stock < 0 ? String(item.stock) : '0'}
                 onChange={field('stock')}
                 required
-                step="1"
-                type="number"
                 value={form.stock}
               />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="part-cost">Custo unitário</Label>
-              <Input
+              <MaskedInput
+                mask="currency"
                 id="part-cost"
-                min="0"
                 onChange={field('cost')}
                 required
-                step="0.01"
-                type="number"
                 value={form.cost}
               />
             </div>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="part-price">Preço de venda</Label>
-            <Input
+            <MaskedInput
+              mask="currency"
               id="part-price"
-              min="0"
               onChange={field('price')}
               required
-              step="0.01"
-              type="number"
               value={form.price}
             />
           </div>

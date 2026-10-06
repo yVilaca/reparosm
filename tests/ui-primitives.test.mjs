@@ -10,6 +10,7 @@ const dialogModule = await import('../components/ui/dialog.tsx').catch(() => nul
 const selectModule = await import('../components/ui/select.tsx').catch(() => null);
 const tableModule = await import('../components/ui/table.tsx').catch(() => null);
 const textareaModule = await import('../components/ui/textarea.tsx').catch(() => null);
+const maskedInputModule = await import('../components/ui/masked-input.tsx').catch(() => null);
 
 test('PageHeader renders title, description and action', () => {
   const html = renderToStaticMarkup(
@@ -27,6 +28,18 @@ test('PageHeader renders title, description and action', () => {
 test('EmptyState renders title without description when omitted', () => {
   const html = renderToStaticMarkup(createElement(EmptyState, { title: 'Nada por aqui' }));
   assert.match(html, /Nada por aqui/);
+});
+
+test('MaskedInput renders formatted values with an accessible native input mode', () => {
+  const html = renderToStaticMarkup(
+    createElement(maskedInputModule.MaskedInput, {
+      mask: 'phone',
+      value: '11987654321',
+    }),
+  );
+  assert.match(html, /type="text"/);
+  assert.match(html, /inputmode="tel"/i);
+  assert.match(html, /value="\(11\) 98765-4321"/);
 });
 
 test('Badge renders its status text', () => {

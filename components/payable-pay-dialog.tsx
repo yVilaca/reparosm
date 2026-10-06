@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { MaskedInput } from '@/components/ui/masked-input';
 import {
   Select,
   SelectContent,
@@ -22,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formatMoney } from '@/lib/format';
+import { parseMoney } from '@/lib/quick-sale';
 import { dueLabel } from '@/lib/payable-schedule';
 import { PAYMENT_METHODS } from '@/lib/payment-methods';
 import { todayInSaoPaulo } from '@/lib/warranty';
@@ -68,7 +70,7 @@ export default function PayablePayDialog({
     PAYMENT_METHODS.find((item) => item === suggestedMethod) || 'Pix',
   );
   const [saving, setSaving] = useState(false);
-  const value = Number(amount);
+  const value = parseMoney(amount);
   const valid = Number.isFinite(value) && value > 0 && Boolean(paidOn) && paidOn <= today;
   const difference = valid ? paymentDifference(payable.amount, value) : null;
   const details = [
@@ -126,15 +128,12 @@ export default function PayablePayDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="payable-paid-amount">Valor pago (R$)</Label>
-              <Input
+              <MaskedInput
+                mask="currency"
                 autoFocus
                 id="payable-paid-amount"
-                inputMode="decimal"
-                min="0.01"
                 onChange={(event) => setAmount(event.target.value)}
                 required
-                step="0.01"
-                type="number"
                 value={amount}
               />
             </div>

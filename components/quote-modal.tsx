@@ -11,12 +11,18 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { MaskedInput } from '@/components/ui/masked-input';
 import { Textarea } from '@/components/ui/textarea';
 import { formatMoney } from '@/lib/format';
+import { parseMoney } from '@/lib/quick-sale';
 import type { Quote } from '@/lib/types';
 
 export type QuoteRow = Quote & { id: string };
 export type SaveQuote = (data: Quote, id?: string) => Promise<void>;
+const parseInputMoney = (value: string) => {
+  const parsed = parseMoney(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 type FieldChange = ChangeEvent<HTMLInputElement | HTMLTextAreaElement>;
 type QuoteForm = {
@@ -51,9 +57,11 @@ export default function QuoteModal({
   save: SaveQuote;
 }) {
   const [form, setForm] = useState(() => formFrom(item));
-  const [labor, setLabor] = useState(() => Number(item?.labor || 0));
-  const [parts, setParts] = useState(() => Number(item?.parts || 0));
+  const [laborText, setLaborText] = useState(() => String(item?.labor ?? ''));
+  const [partsText, setPartsText] = useState(() => String(item?.parts ?? ''));
   const [saving, setSaving] = useState(false);
+  const labor = parseInputMoney(laborText);
+  const parts = parseInputMoney(partsText);
   const field = (key: keyof QuoteForm) => (event: FieldChange) =>
     setForm((value) => ({ ...value, [key]: event.target.value }));
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -102,7 +110,8 @@ export default function QuoteModal({
             </div>
             <div className="grid gap-2">
               <Label htmlFor="quote-phone">WhatsApp *</Label>
-              <Input
+              <MaskedInput
+                mask="phone"
                 id="quote-phone"
                 onChange={field('phone')}
                 placeholder="(DDD) número"
@@ -153,24 +162,24 @@ export default function QuoteModal({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="quote-labor">Mão de obra</Label>
-              <Input
+              <MaskedInput
+                mask="currency"
                 id="quote-labor"
-                min="0"
-                onChange={(event) => setLabor(Number(event.target.value))}
-                step="0.01"
-                type="number"
-                value={labor}
+                onChange={(event) => {
+                  setLaborText(event.target.value);
+                }}
+                value={laborText}
               />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="quote-parts">Peças</Label>
-              <Input
+              <MaskedInput
+                mask="currency"
                 id="quote-parts"
-                min="0"
-                onChange={(event) => setParts(Number(event.target.value))}
-                step="0.01"
-                type="number"
-                value={parts}
+                onChange={(event) => {
+                  setPartsText(event.target.value);
+                }}
+                value={partsText}
               />
             </div>
           </div>

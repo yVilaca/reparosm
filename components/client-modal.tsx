@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { MaskedInput } from '@/components/ui/masked-input';
 import {
   Select,
   SelectContent,
@@ -118,7 +119,8 @@ export default function ClientModal({
             </div>
             <div className="grid gap-2">
               <Label htmlFor="client-phone">WhatsApp</Label>
-              <Input
+              <MaskedInput
+                mask="phone"
                 autoComplete="tel"
                 id="client-phone"
                 onChange={field('phone')}
@@ -137,7 +139,12 @@ export default function ClientModal({
             </div>
             <div className="grid gap-2">
               <Label htmlFor="client-document">CPF / CNPJ</Label>
-              <Input id="client-document" onChange={field('document')} value={form.document} />
+              <MaskedInput
+                mask="document"
+                id="client-document"
+                onChange={field('document')}
+                value={form.document}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="client-birth">Data de nascimento</Label>
