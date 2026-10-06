@@ -820,7 +820,7 @@ export function OrderCreateModal({
   );
 }
 
-function OrderProductsPicker({
+export function OrderProductsPicker({
   parts,
   value,
   onChange,
@@ -946,10 +946,10 @@ function OrderProductsPicker({
         <div className="grid min-w-0 gap-2">
           {value.map((item) => (
             <div
-              className="flex min-w-0 flex-wrap items-center gap-3 rounded-lg border bg-background p-3"
+              className="grid min-w-0 gap-3 rounded-lg border bg-background p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-center"
               key={item.partId}
             >
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0">
                 <p className="break-words text-sm font-medium">{item.name}</p>
                 <p className="text-xs text-muted-foreground">{money(item.unitPrice)} por unidade</p>
                 <p className="text-xs text-muted-foreground">
@@ -960,12 +960,12 @@ function OrderProductsPicker({
               </div>
               <MaskedInput
                 aria-label={`Quantidade de ${item.name}`}
-                className="w-20"
+                className="w-full sm:w-20"
                 mask="integer"
                 onChange={(event) => quantity(item.partId, Math.max(1, Number(event.target.value)))}
                 value={item.quantity}
               />
-              <span className="text-sm font-medium tabular-nums">
+              <span className="text-left text-sm font-medium tabular-nums sm:text-right">
                 {money(item.quantity * item.unitPrice)}
               </span>
               <Button
@@ -975,6 +975,7 @@ function OrderProductsPicker({
                 aria-label={`Remover ${item.name}`}
                 title="Remover produto da OS"
                 onClick={() => onChange(value.filter((current) => current.partId !== item.partId))}
+                className="justify-self-start sm:justify-self-end"
               >
                 <Trash2 className="size-4" />
               </Button>
