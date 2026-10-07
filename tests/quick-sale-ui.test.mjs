@@ -34,7 +34,7 @@ test('asks only what was sold, the amount and how it was paid', () => {
 test('one tap fills a frequent item', () => {
   const html = render({ suggestions: [{ description: 'Película 3D', value: 30 }] });
   assert.match(html, /Vendidos com frequência/);
-  assert.match(html, /Película 3D<span[^>]*>R\$\s*30,00/);
+  assert.match(html, /Película 3D<\/span><span[^>]*>R\$\s*30,00/);
 });
 
 test("shows today's sales with the total and a way to undo", () => {
@@ -92,5 +92,5 @@ test("today's sales show the discount given and the profit", () => {
   assert.match(html, /Lucro hoje[\s\S]*R\$\s*42,00/);
   assert.match(html, /Película 3D[\s\S]*\+R\$\s*54,00/);
   // O total do dia avisa que uma venda ficou sem custo.
-  assert.match(html, /lucro R\$\s*42,00<\/span> \(1 sem custo\)/);
+  assert.match(html, /2 vendas rápidas · 1 sem custo/);
 });

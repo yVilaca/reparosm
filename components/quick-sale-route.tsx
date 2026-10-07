@@ -293,7 +293,7 @@ export default function QuickSaleRoute({
       <StockAlertDialog alert={stock.alert} onDecision={stock.decide} />
       <PageHeader
         title="Venda rápida"
-        description="Receba o total da venda; o custo serve para margem e não cria conta a pagar."
+        description="Venda de balcão com recebimento imediato."
         action={
           <Button asChild variant="outline">
             <Link href="/pagamentos/historico">
@@ -303,13 +303,13 @@ export default function QuickSaleRoute({
           </Button>
         }
       />
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start">
         <form
           aria-label="Nova venda"
-          className="rounded-xl bg-card p-4 ring-1 ring-foreground/10 sm:p-6"
+          className="min-w-0 rounded-xl bg-card p-4 ring-1 ring-foreground/10 sm:p-6"
           onSubmit={submit}
         >
-          <fieldset className="grid gap-6" disabled={saving}>
+          <fieldset className="grid min-w-0 gap-5" disabled={saving}>
             <div className="grid gap-2">
               <Label htmlFor="sale-description">O que foi vendido?</Label>
               <div className="relative">
@@ -420,13 +420,13 @@ export default function QuickSaleRoute({
                     <div className="flex flex-wrap gap-1.5">
                       {suggestions.map((suggestion) => (
                         <button
-                          className="inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                          className="inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                           key={`${suggestion.description}-${suggestion.value}`}
                           onClick={() => fill(suggestion)}
                           type="button"
                         >
-                          {suggestion.description}
-                          <span className="text-muted-foreground tabular-nums">
+                          <span className="min-w-0 text-left">{suggestion.description}</span>
+                          <span className="shrink-0 text-muted-foreground tabular-nums">
                             {formatMoney(suggestion.value)}
                           </span>
                         </button>
@@ -438,54 +438,59 @@ export default function QuickSaleRoute({
             </div>
 
             <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="sale-value">Preço</Label>
-                <div className="relative">
-                  <span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-xl font-medium text-muted-foreground"
-                  >
-                    R$
-                  </span>
+              <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] items-start gap-3 sm:grid-cols-[minmax(0,1fr)_8rem]">
+                <div className="grid gap-2">
+                  <Label htmlFor="sale-value">Preço unitário</Label>
+                  <div className="relative">
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base font-medium text-muted-foreground"
+                    >
+                      R$
+                    </span>
+                    <MaskedInput
+                      mask="currency"
+                      aria-invalid={priceText !== '' && !(price > 0)}
+                      autoComplete="off"
+                      className="h-12 pl-10 text-2xl font-semibold tabular-nums md:text-2xl"
+                      id="sale-value"
+                      inputMode="decimal"
+                      name="price"
+                      onChange={(event) => setPriceText(event.target.value)}
+                      placeholder="0,00"
+                      ref={priceRef}
+                      required
+                      value={priceText}
+                    />
+                  </div>
+                  {priceText !== '' && !(price > 0) && (
+                    <p className="text-xs text-destructive">Digite um valor como 25 ou 25,90.</p>
+                  )}
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="sale-quantity">Quantidade</Label>
                   <MaskedInput
-                    mask="currency"
-                    aria-invalid={priceText !== '' && !(price > 0)}
+                    mask="integer"
+                    aria-invalid={Boolean(quantityError)}
                     autoComplete="off"
-                    className="h-16 pl-14 text-3xl font-semibold tabular-nums md:text-3xl"
-                    id="sale-value"
-                    inputMode="decimal"
-                    name="price"
-                    onChange={(event) => setPriceText(event.target.value)}
-                    placeholder="0,00"
-                    ref={priceRef}
-                    required
-                    value={priceText}
+                    className="h-12 text-base tabular-nums"
+                    id="sale-quantity"
+                    inputMode="numeric"
+                    name="quantity"
+                    onChange={(event) => setQuantityText(event.target.value)}
+                    value={quantityText}
                   />
                 </div>
-                {priceText !== '' && !(price > 0) && (
-                  <p className="text-xs text-destructive">Digite um valor como 25 ou 25,90.</p>
-                )}
               </div>
-              <div className="grid gap-2 sm:max-w-40">
-                <Label htmlFor="sale-quantity">Quantidade</Label>
-                <MaskedInput
-                  mask="integer"
-                  aria-invalid={Boolean(quantityError)}
-                  autoComplete="off"
-                  id="sale-quantity"
-                  inputMode="numeric"
-                  name="quantity"
-                  onChange={(event) => setQuantityText(event.target.value)}
-                  value={quantityText}
+              <div className="has-[>_:empty]:hidden">
+                <StockCheckStatus
+                  checking={stock.checking}
+                  error={stock.error}
+                  shortages={stock.shortages}
+                  retry={() => void stock.refresh()}
                 />
               </div>
-              <StockCheckStatus
-                checking={stock.checking}
-                error={stock.error}
-                shortages={stock.shortages}
-                retry={() => void stock.refresh()}
-              />
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
                   <Label htmlFor="sale-discount">Desconto</Label>
                   <MaskedInput
@@ -501,7 +506,7 @@ export default function QuickSaleRoute({
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="sale-cost">
+                  <Label htmlFor="sale-cost" className="flex-wrap gap-x-1 gap-y-0">
                     Custo para margem{' '}
                     <span className="font-normal text-muted-foreground">(opcional)</span>
                   </Label>
@@ -518,7 +523,7 @@ export default function QuickSaleRoute({
                   />
                 </div>
               </div>
-              <p className="-mt-1 text-xs text-muted-foreground">
+              <p className="text-xs leading-relaxed text-muted-foreground">
                 Este custo não gera conta a pagar. Registre uma compra separadamente se houve uma
                 saída real para fornecedor.
               </p>
@@ -593,14 +598,14 @@ export default function QuickSaleRoute({
 
             <fieldset className="grid gap-2">
               <legend className="mb-2 text-sm font-medium">Forma de pagamento</legend>
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+              <div className="grid grid-cols-3 gap-2 min-[900px]:grid-cols-5">
                 {PAYMENT_METHODS.map((item) => {
                   const look = methodLook[item];
                   const Icon = look.icon;
                   return (
                     <label
                       className={cn(
-                        'flex cursor-pointer flex-col items-center gap-1 rounded-lg border p-3 text-sm font-medium transition-colors has-focus-visible:ring-3 has-focus-visible:ring-ring/50',
+                        'flex min-w-0 cursor-pointer flex-col items-center gap-2 rounded-lg border px-2 py-3 text-sm font-medium transition-colors has-focus-visible:ring-3 has-focus-visible:ring-ring/50',
                         method === item
                           ? 'border-foreground bg-muted text-foreground'
                           : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
@@ -678,7 +683,7 @@ export default function QuickSaleRoute({
               </div>
             )}
 
-            <div className="grid gap-2">
+            <div className="grid gap-2 border-t pt-5">
               <Button
                 className="h-12 w-full text-base"
                 disabled={saving || stock.checking || Boolean(stock.error)}
@@ -693,24 +698,15 @@ export default function QuickSaleRoute({
           </fieldset>
         </form>
 
-        <aside aria-label="Vendas de hoje" className="grid gap-4">
+        <aside aria-label="Vendas de hoje" className="grid min-w-0 gap-4">
           <div className="flex items-center gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
             <IconChip icon={ShoppingBag} size="lg" tone="success" />
-            <div>
+            <div className="min-w-0">
               <p className="text-sm text-muted-foreground">Lucro hoje</p>
               <p className="text-2xl font-semibold tabular-nums">{formatMoney(profitToday)}</p>
               <p className="text-xs text-muted-foreground">
                 {sales.length} {sales.length === 1 ? 'venda rápida' : 'vendas rápidas'}
-                {withCost.length > 0 && (
-                  <>
-                    {' · '}
-                    <span className={profitToday >= 0 ? toneText.success : toneText.danger}>
-                      lucro {formatMoney(profitToday)}
-                    </span>
-                    {withCost.length < sales.length &&
-                      ` (${sales.length - withCost.length} sem custo)`}
-                  </>
-                )}
+                {withCost.length < sales.length && ` · ${sales.length - withCost.length} sem custo`}
               </p>
             </div>
           </div>
