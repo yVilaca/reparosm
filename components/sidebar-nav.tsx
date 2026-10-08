@@ -89,10 +89,11 @@ function Item({ item, pathname, close }: { item: NavItem; pathname: string; clos
   return (
     <Link
       className={cn(
-        'flex min-h-10 min-w-0 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground',
+        'flex min-h-10 min-w-0 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none',
         'max-md:min-h-[60px] max-md:flex-col max-md:justify-center max-md:gap-1 max-md:px-1 max-md:py-1 max-md:text-[10px]',
+        // Ativo: pílula violeta da marca sobre a tinta.
         active &&
-          'bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary dark:hover:text-primary-foreground',
+          'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm hover:bg-sidebar-primary hover:text-sidebar-primary-foreground',
       )}
       href={item.href}
       aria-current={active ? 'page' : undefined}
@@ -117,13 +118,13 @@ export default function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <nav
-      className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto"
+      className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto [scrollbar-color:rgb(255_255_255/0.18)_transparent] [scrollbar-width:thin]"
       aria-label="Navegação principal"
     >
       <div className="hidden flex-col gap-4 md:flex">
         {allGroups.map((group) => (
           <div className="flex flex-col gap-1" key={group.label}>
-            <span className="px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
+            <span className="px-3 pb-0.5 text-xs font-medium text-sidebar-foreground/45">
               {group.label}
             </span>
             {group.items.map((item) => (
@@ -132,14 +133,14 @@ export default function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
           </div>
         ))}
       </div>
-      <div className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 items-stretch border-t bg-background p-1 md:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 items-stretch bg-sidebar p-1 text-sidebar-foreground md:hidden">
         {primary.map((item) => (
           <Item item={item} pathname={pathname} key={item.href} close={() => setMoreOpen(false)} />
         ))}
         <button
           className={cn(
-            'flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-lg px-1 py-1 font-sans text-[10px] font-medium text-muted-foreground',
-            moreActive && 'bg-primary/10 text-primary dark:bg-primary dark:text-primary-foreground',
+            'flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-lg px-1 py-1 font-sans text-[10px] font-medium text-sidebar-foreground/70',
+            moreActive && 'bg-sidebar-primary text-sidebar-primary-foreground',
           )}
           type="button"
           aria-controls="mobile-more-menu"
@@ -153,11 +154,11 @@ export default function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
       {moreOpen && (
         <div
           id="mobile-more-menu"
-          className="fixed inset-x-3 bottom-[4.25rem] z-40 flex max-h-[60vh] flex-col gap-4 overflow-y-auto rounded-xl border bg-popover p-3 text-popover-foreground shadow-lg md:hidden"
+          className="fixed inset-x-3 bottom-[4.25rem] z-40 flex max-h-[60vh] flex-col gap-4 overflow-y-auto rounded-xl bg-sidebar p-3 text-sidebar-foreground shadow-lg ring-1 ring-sidebar-border md:hidden"
         >
           {secondary.map((group) => (
             <div className="flex flex-col gap-1" key={group.label}>
-              <span className="px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
+              <span className="px-3 pb-0.5 text-xs font-medium text-sidebar-foreground/45">
                 {group.label}
               </span>
               {group.items.map((item) => (

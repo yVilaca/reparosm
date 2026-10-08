@@ -34,7 +34,10 @@ export default function StatCard({
           <p className="text-sm text-muted-foreground">{label}</p>
         </div>
         <strong
-          className={cn('mt-1 text-lg tabular-nums sm:text-2xl', valueTone && toneText[valueTone])}
+          className={cn(
+            'mt-1 font-display text-xl font-bold tracking-tight tabular-nums sm:text-[1.75rem]',
+            valueTone && toneText[valueTone],
+          )}
         >
           {value}
         </strong>

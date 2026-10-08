@@ -40,7 +40,7 @@ export default function Segmented<T extends string>({
     <div
       aria-label={label}
       className={cn(
-        'max-w-full gap-1 overflow-x-auto rounded-lg bg-muted p-1',
+        'max-w-full gap-1 overflow-x-auto rounded-lg bg-foreground/[0.06] p-1',
         stretch ? 'flex w-full' : 'inline-flex w-fit',
         className,
       )}
