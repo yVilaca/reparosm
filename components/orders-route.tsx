@@ -22,7 +22,7 @@ import Filters, { type Filter, type FilterField } from '@/components/ui/filters'
 import { Input } from '@/components/ui/input';
 import PageHeader from '@/components/ui/page-header';
 import { toneDot } from '@/components/ui/tone';
-import { Columns3, Eye, Plus, Rows3 } from 'lucide-react';
+import { Columns3, Plus, Rows3 } from 'lucide-react';
 import { badgeFor, isNotablePriority, orderPriorityTone, orderStageTone } from '@/lib/status-tones';
 import { formatMoney } from '@/lib/format';
 import type { Order, OrderPayment, OrderStage } from '@/lib/types';
@@ -433,7 +433,7 @@ export default function OrdersRoute({
                         {inStage.length ? (
                           inStage.map((order) => (
                             <article
-                              className={`grid gap-1.5 rounded-lg border bg-card p-2.5 ${movingId === order.id ? 'opacity-50' : 'cursor-grab active:cursor-grabbing'}`}
+                              className={`relative grid gap-1.5 rounded-lg border bg-card p-2.5 transition-colors hover:border-foreground/30 ${movingId === order.id ? 'opacity-50' : 'cursor-grab active:cursor-grabbing'}`}
                               key={order.id}
                               draggable={!movingId}
                               aria-busy={movingId === order.id}
@@ -447,16 +447,24 @@ export default function OrdersRoute({
                               onDragEnd={() => setDropStage(null)}
                             >
                               <div className="flex items-center justify-between gap-2">
-                                <label className="flex items-center gap-2">
+                                <div className="flex items-center gap-2">
                                   <Input
                                     type="checkbox"
-                                    className="size-4"
+                                    className="relative z-10 size-4"
                                     checked={selectedIds.has(order.id)}
                                     onChange={() => toggleSelected(order.id)}
                                     aria-label={`Selecionar ordem ${order.code}`}
                                   />
-                                  <strong className="text-sm">{order.code}</strong>
-                                </label>
+                                  <button
+                                    aria-label={`Ver OS ${order.code}`}
+                                    // A área clicável cobre o cartão; os controles ficam por cima.
+                                    className="rounded-sm text-sm font-semibold underline-offset-4 after:absolute after:inset-0 after:content-[''] hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                                    onClick={() => setViewingId(order.id)}
+                                    type="button"
+                                  >
+                                    {order.code}
+                                  </button>
+                                </div>
                                 {isNotablePriority(order.priority) && (
                                   <Badge variant={badgeFor(orderPriorityTone(order.priority))}>
                                     {order.priority}
@@ -469,6 +477,7 @@ export default function OrdersRoute({
                               </p>
                               <div className="flex items-center justify-between gap-2 border-t pt-2">
                                 <Button
+                                  className="relative z-10"
                                   aria-label={`Voltar etapa de ${order.code}`}
                                   disabled={Boolean(movingId) || column === orderStages[0]}
                                   onClick={() => move(order, -1)}
@@ -483,6 +492,7 @@ export default function OrdersRoute({
                                   {formatMoney(Number(order.total || 0))}
                                 </span>
                                 <Button
+                                  className="relative z-10"
                                   aria-label={`Avançar etapa de ${order.code}`}
                                   disabled={Boolean(movingId) || column === orderStages.at(-1)}
                                   onClick={() => move(order, 1)}
@@ -496,18 +506,7 @@ export default function OrdersRoute({
                               </div>
                               <div className="flex items-center gap-2">
                                 <Button
-                                  className="flex-1"
-                                  onClick={() => setViewingId(order.id)}
-                                  aria-label={`Ver OS ${order.code}`}
-                                  size="sm"
-                                  type="button"
-                                  variant="outline"
-                                >
-                                  <Eye aria-hidden="true" />
-                                  Ver OS
-                                </Button>
-                                <Button
-                                  className="flex-1"
+                                  className="relative z-10 flex-1"
                                   onClick={() => edit(order)}
                                   size="sm"
                                   type="button"
@@ -517,10 +516,12 @@ export default function OrdersRoute({
                                   Editar OS
                                 </Button>
                                 {!order.payment && (
-                                  <OrderPaymentStatus
-                                    onCharge={() => startCharging(order)}
-                                    order={order}
-                                  />
+                                  <span className="relative z-10 empty:hidden">
+                                    <OrderPaymentStatus
+                                      onCharge={() => startCharging(order)}
+                                      order={order}
+                                    />
+                                  </span>
                                 )}
                               </div>
                               {order.payment && <OrderPaymentStatus order={order} />}

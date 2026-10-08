@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { Eye } from 'lucide-react';
-import { type Dispatch, type SetStateAction } from 'react';
+import { ChevronRight } from 'lucide-react';
+import { type Dispatch, type MouseEvent, type SetStateAction } from 'react';
 import { cn } from 'cn';
 import OrderActions from '@/components/order-actions';
 import OrderPaymentStatus from '@/components/order-payment-status';
@@ -104,6 +104,36 @@ export default function OrdersTable({
     );
   };
 
+  const opener = (order: OrderRow, stretch = false) =>
+    onView ? (
+      <button
+        aria-label={`Ver OS ${order.code}`}
+        className={cn(
+          'rounded-sm text-left font-semibold underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
+          // No cartão, a área clicável do botão cobre o cartão todo.
+          stretch && "after:absolute after:inset-0 after:content-['']",
+        )}
+        onClick={() => onView(order)}
+        type="button"
+      >
+        {order.code}
+      </button>
+    ) : (
+      <span className="font-semibold">{order.code}</span>
+    );
+
+  /**
+   * Clique em qualquer ponto da linha abre a OS, menos nos controles dela
+   * (seleção, etapa, cobrança) e quando o clique só selecionou texto.
+   */
+  const openRow = (order: OrderRow) => (event: MouseEvent<HTMLTableRowElement>) => {
+    const target = event.target as HTMLElement;
+    if (!onView || !event.currentTarget.contains(target)) return;
+    if (target.closest('button, a, input, label, select, textarea, [role="combobox"]')) return;
+    if (window.getSelection()?.toString()) return;
+    onView(order);
+  };
+
   const toggleSelected = (id: string) =>
     setSelectedIds((current) => {
       const next = new Set(current);
@@ -169,7 +199,11 @@ export default function OrdersTable({
           {orders.map((order) => (
             <li key={order.id}>
               <Card
-                className={selectedIds.has(order.id) ? 'gap-3 border-primary' : 'gap-3'}
+                className={cn(
+                  'relative gap-3',
+                  selectedIds.has(order.id) && 'border-primary',
+                  onView && 'transition-colors hover:bg-muted/40',
+                )}
                 size="sm"
               >
                 <CardContent className="grid gap-3">
@@ -178,40 +212,36 @@ export default function OrdersTable({
                       <Input
                         aria-label={`Selecionar ordem ${order.code}`}
                         checked={selectedIds.has(order.id)}
-                        className="mt-1 size-4 shrink-0"
+                        className="relative z-10 mt-1 size-4 shrink-0"
                         onChange={() => toggleSelected(order.id)}
                         type="checkbox"
                       />
                       <div className="min-w-0">
-                        <h3 className="flex items-center gap-2 font-semibold">
-                          <span className="truncate">{order.code}</span>
+                        <h3 className="flex items-center gap-2">
+                          {opener(order, true)}
                           <PriorityBadge priority={order.priority} />
                         </h3>
                       </div>
                     </div>
-                    {stageControl(order)}
+                    <div className="relative z-10">{stageControl(order)}</div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">
-                      {order.customer || 'Cliente não informado'}
-                    </p>
-                    <p className="truncate text-sm text-muted-foreground">
-                      {order.device || 'Aparelho não informado'}
-                    </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">
+                        {order.customer || 'Cliente não informado'}
+                      </p>
+                      <p className="truncate text-sm text-muted-foreground">
+                        {order.device || 'Aparelho não informado'}
+                      </p>
+                    </div>
+                    {onView && (
+                      <ChevronRight
+                        aria-hidden="true"
+                        className="size-5 shrink-0 text-muted-foreground"
+                      />
+                    )}
                   </div>
-                  <div className="flex items-end justify-between gap-3 border-t pt-3">
-                    {onView ? (
-                      <Button
-                        aria-label={`Ver OS ${order.code}`}
-                        onClick={() => onView(order)}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        <Eye aria-hidden="true" />
-                        Ver OS
-                      </Button>
-                    ) : null}
+                  <div className="flex items-end justify-end gap-3 border-t pt-3">
                     <div className="text-right">
                       <p className="text-xs text-muted-foreground">Total</p>
                       <p className="font-semibold tabular-nums">
@@ -219,10 +249,12 @@ export default function OrdersTable({
                       </p>
                     </div>
                   </div>
-                  <OrderPaymentStatus
-                    onCharge={onCharge ? () => onCharge(order) : undefined}
-                    order={order}
-                  />
+                  <div className="relative z-10 empty:hidden">
+                    <OrderPaymentStatus
+                      onCharge={onCharge ? () => onCharge(order) : undefined}
+                      order={order}
+                    />
+                  </div>
                 </CardContent>
               </Card>
             </li>
@@ -250,14 +282,21 @@ export default function OrdersTable({
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead>Pagamento</TableHead>
                 <TableHead className="text-right">Custo</TableHead>
+                {onView && (
+                  <TableHead className="w-8">
+                    <span className="sr-only">Abrir</span>
+                  </TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
               {orders.map((order) => (
                 <TableRow
                   aria-selected={selectedIds.has(order.id)}
+                  className={cn(onView && 'group cursor-pointer')}
                   data-state={selectedIds.has(order.id) ? 'selected' : undefined}
                   key={order.id}
+                  onClick={openRow(order)}
                 >
                   <TableCell>
                     <Input
@@ -269,23 +308,9 @@ export default function OrdersTable({
                     />
                   </TableCell>
                   <TableCell>
-                    <div className="grid justify-items-start gap-2">
-                      <div className="flex items-center gap-2 font-medium">
-                        {order.code}
-                        <PriorityBadge priority={order.priority} />
-                      </div>
-                      {onView ? (
-                        <Button
-                          aria-label={`Ver OS ${order.code}`}
-                          onClick={() => onView(order)}
-                          size="sm"
-                          type="button"
-                          variant="outline"
-                        >
-                          <Eye aria-hidden="true" />
-                          Ver OS
-                        </Button>
-                      ) : null}
+                    <div className="flex items-center gap-2">
+                      {opener(order)}
+                      <PriorityBadge priority={order.priority} />
                     </div>
                   </TableCell>
                   <TableCell>
@@ -310,6 +335,14 @@ export default function OrdersTable({
                   <TableCell className="text-right text-muted-foreground tabular-nums">
                     {formatMoney(Number(order.cost || 0))}
                   </TableCell>
+                  {onView && (
+                    <TableCell className="w-8 pr-2">
+                      <ChevronRight
+                        aria-hidden="true"
+                        className="size-4 text-muted-foreground/60 transition-colors group-hover:text-foreground"
+                      />
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

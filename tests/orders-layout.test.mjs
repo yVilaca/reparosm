@@ -47,7 +47,9 @@ test('the list and Mesa are separate screens with links to each other and order 
   const mesa = renderScreen(OrdersRoute, { initialOrders, view: 'kanban' });
   assert.match(mesa, /<h1[^>]*>Mesa<\/h1>/);
   assert.match(mesa, /href="\/ordens"/);
-  assert.match(mesa, /aria-label="Ver OS OS-12"/);
+  assert.match(mesa, /aria-label="Ver OS OS-12"[^>]*>OS-12<\/button>/);
+  // O cartão abre a ficha: nenhum botão "Ver OS" repetido.
+  assert.doesNotMatch(mesa, />Ver OS</);
   assert.match(mesa, /aria-label="Etapa Recebido"/);
   assert.doesNotMatch(mesa, /<table/);
   assert.doesNotMatch(mesa, /Visualização das ordens/);
@@ -86,7 +88,7 @@ test('order list offers the kanban stages on desktop and mobile and locks them w
   );
 });
 
-test('order grid exposes a visible view action on desktop and mobile', () => {
+test('the order itself opens its details, without a repeated "Ver OS" button', () => {
   const html = renderScreen(OrdersTable, {
     orders: [{ id: 'order-1', code: 'OS-12', customer: 'Ana' }],
     selectedIds: new Set(),
@@ -94,14 +96,27 @@ test('order grid exposes a visible view action on desktop and mobile', () => {
     onView() {},
     onEdit() {},
   });
-  const viewButtons =
+  // O número da OS é o botão que abre a ficha, na tabela e no cartão do celular.
+  const openers =
     html.match(/<button\b[^>]*aria-label="Ver OS OS-12"[^>]*>[\s\S]*?<\/button>/g) || [];
-  assert.equal(viewButtons.length, 2);
-  for (const button of viewButtons) {
-    assert.match(button, /<svg[^>]*aria-hidden="true"/);
-    assert.match(button, /Ver OS<\/button>/);
-  }
+  assert.equal(openers.length, 2);
+  for (const opener of openers) assert.match(opener, />OS-12</);
+  assert.doesNotMatch(html, />Ver OS</);
+  // A linha toda é clicável e mostra a seta de "abrir".
+  assert.match(html, /<tr\b[^>]*cursor-pointer/);
+  assert.match(html, /lucide-chevron-right/);
+  // Selecionar continua separado de abrir.
   assert.match(html, /aria-label="Selecionar ordem OS-12"/);
+});
+
+test('without a way to open the order, the code is plain text', () => {
+  const html = renderScreen(OrdersTable, {
+    orders: [{ id: 'order-1', code: 'OS-12', customer: 'Ana' }],
+    selectedIds: new Set(),
+    setSelectedIds() {},
+  });
+  assert.doesNotMatch(html, /aria-label="Ver OS OS-12"/);
+  assert.doesNotMatch(html, /<tr\b[^>]*cursor-pointer/);
 });
 
 test('combines field filters and preserves the general order search', () => {
