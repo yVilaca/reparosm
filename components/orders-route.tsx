@@ -10,7 +10,6 @@ import OrderActions from '@/components/order-actions';
 import OrderDetailsDialog from '@/components/order-details-dialog';
 import {
   OrderCreateModal,
-  OrderEditModal,
   type PartRow,
   type OrderRow,
   type SaveOrder,
@@ -79,9 +78,10 @@ export default function OrdersRoute({
 }) {
   const { notify } = useFeedback();
   const [orders, setOrders] = useState(initialOrders),
-    [modal, setModal] = useState<'create' | 'edit' | null>(startCreating ? 'create' : null),
-    [editing, setEditing] = useState<OrderRow | null>(null),
+    [modal, setModal] = useState<'create' | null>(startCreating ? 'create' : null),
     [viewingId, setViewingId] = useState<string | null>(null),
+    // A ficha abre direto no formulário quando veio de um "Editar".
+    [viewEditing, setViewEditing] = useState(false),
     [charging, setCharging] = useState<{ id: string; code: string; total: number } | null>(null),
     [filters, setFilters] = useState<Filter[]>(
       initialQuery ? [{ field: 'search', value: initialQuery }] : [],
@@ -235,7 +235,6 @@ export default function OrdersRoute({
           code: saved.code,
           total: result.paymentDue.total,
         });
-      setEditing(null);
       setModal(null);
     } catch (error) {
       notify(error instanceof Error ? error.message : 'Não foi possível salvar a ordem.', 'error');
@@ -243,12 +242,16 @@ export default function OrdersRoute({
     }
   };
   const create = () => {
-    setEditing(null);
     setModal('create');
   };
+  // Editar abre a ficha da OS já no formulário; ao salvar, a ficha mostra o resultado.
   const edit = (order: OrderRow) => {
-    setEditing(order);
-    setModal('edit');
+    setViewEditing(true);
+    setViewingId(order.id);
+  };
+  const closeViewing = () => {
+    setViewingId(null);
+    setViewEditing(false);
   };
   const startCharging = (order: OrderRow) =>
     setCharging({ id: order.id, code: order.code, total: Number(order.total || 0) });
@@ -549,16 +552,16 @@ export default function OrdersRoute({
       )}
       {viewing && (
         <OrderDetailsDialog
-          order={viewing}
-          close={() => setViewingId(null)}
-          onEdit={() => {
-            setViewingId(null);
-            edit(viewing);
-          }}
+          close={closeViewing}
+          key={viewing.id}
           onCharge={() => {
-            setViewingId(null);
+            closeViewing();
             startCharging(viewing);
           }}
+          order={viewing}
+          parts={initialParts}
+          save={save}
+          startEditing={viewEditing}
         />
       )}
       {modal === 'create' && (
@@ -567,14 +570,6 @@ export default function OrdersRoute({
           save={save}
           defaultWarrantyDays={defaultWarrantyDays}
           parts={initialParts}
-        />
-      )}
-      {modal === 'edit' && editing && (
-        <OrderEditModal
-          item={editing}
-          close={() => setModal(null)}
-          parts={initialParts}
-          save={save}
         />
       )}
       {charging && (

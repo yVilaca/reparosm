@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import type { Client, ClientStatus } from '@/lib/types';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -21,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { RecordForm } from '@/components/ui/record-dialog';
 
 export type ClientRow = Client & { id: string };
 export type SaveClient = (data: Client, id?: string) => Promise<void>;
@@ -56,22 +56,26 @@ const formFrom = (item?: ClientRow): ClientForm => ({
   notes: item?.notes || '',
 });
 
-export default function ClientModal({
+/** Campos do cliente. Usado na ficha (Editar) e na janela de cliente novo. */
+export function ClientForm({
   item,
-  close,
   save,
+  onCancel,
+  onSaved,
+  markDirty,
 }: {
   item?: ClientRow;
-  close: () => void;
   save: SaveClient;
+  onCancel: () => void;
+  onSaved: () => void;
+  markDirty?: () => void;
 }) {
   const [form, setForm] = useState(() => formFrom(item));
   const [vip, setVip] = useState(item?.vip === true);
   const [saving, setSaving] = useState(false);
   const field = (key: keyof ClientForm) => (event: FieldChange) =>
     setForm((value) => ({ ...value, [key]: event.target.value }));
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const submit = async () => {
     if (saving) return;
     setSaving(true);
     try {
@@ -91,119 +95,125 @@ export default function ClientModal({
         },
         item?.id,
       );
+      onSaved();
+    } catch {
+      // A tela já avisou o motivo; o formulário continua aberto para corrigir.
     } finally {
       setSaving(false);
     }
   };
-  const editing = Boolean(item);
+  return (
+    <RecordForm
+      markDirty={markDirty}
+      onCancel={onCancel}
+      onSubmit={submit}
+      saving={saving}
+      submitLabel={item ? 'Salvar alterações' : 'Cadastrar cliente'}
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-2 sm:col-span-2">
+          <Label htmlFor="client-name">Nome completo *</Label>
+          <Input
+            autoComplete="name"
+            id="client-name"
+            onChange={field('name')}
+            required
+            value={form.name}
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="client-phone">WhatsApp</Label>
+          <MaskedInput
+            mask="phone"
+            autoComplete="tel"
+            id="client-phone"
+            onChange={field('phone')}
+            value={form.phone}
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="client-email">E-mail</Label>
+          <Input
+            autoComplete="email"
+            id="client-email"
+            onChange={field('email')}
+            type="email"
+            value={form.email}
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="client-document">CPF / CNPJ</Label>
+          <MaskedInput
+            mask="document"
+            id="client-document"
+            onChange={field('document')}
+            value={form.document}
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="client-birth">Data de nascimento</Label>
+          <Input id="client-birth" onChange={field('birth')} type="date" value={form.birth} />
+        </div>
+        <div className="grid gap-2 sm:col-span-2">
+          <Label htmlFor="client-address">Endereço</Label>
+          <Input
+            autoComplete="street-address"
+            id="client-address"
+            onChange={field('address')}
+            value={form.address}
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="client-status">{item ? 'Status' : 'Status inicial'}</Label>
+          <Select
+            onValueChange={(status) => {
+              // O seletor não dispara o "change" do formulário: marca aqui.
+              markDirty?.();
+              setForm((current) => ({ ...current, status: status as ClientStatus }));
+            }}
+            value={form.status}
+          >
+            <SelectTrigger id="client-status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {clientStatuses.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {status}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-3 self-end rounded-lg border p-3">
+          <Input
+            checked={vip}
+            className="size-4 shrink-0"
+            id="client-vip"
+            onChange={(event) => setVip(event.target.checked)}
+            type="checkbox"
+          />
+          <Label htmlFor="client-vip">Marcar como cliente VIP</Label>
+        </div>
+        <div className="grid gap-2 sm:col-span-2">
+          <Label htmlFor="client-notes">Observações</Label>
+          <Textarea id="client-notes" onChange={field('notes')} value={form.notes} />
+        </div>
+      </div>
+    </RecordForm>
+  );
+}
 
+/** Janela de cliente novo. Para ver e editar um existente, use a ficha (ClientRecordDialog). */
+export default function ClientModal({ close, save }: { close: () => void; save: SaveClient }) {
   return (
     <Dialog open onOpenChange={(open) => !open && close()}>
-      <DialogContent className="max-w-2xl p-0">
-        <form className="grid max-h-[90dvh] gap-6 overflow-y-auto p-6" onSubmit={submit}>
-          <DialogHeader className="pr-8">
-            <DialogTitle>{editing ? 'Editar cliente' : 'Novo cliente'}</DialogTitle>
-            <DialogDescription>Cadastro independente de ordem de serviço.</DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2 sm:col-span-2">
-              <Label htmlFor="client-name">Nome completo *</Label>
-              <Input
-                autoComplete="name"
-                id="client-name"
-                onChange={field('name')}
-                required
-                value={form.name}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="client-phone">WhatsApp</Label>
-              <MaskedInput
-                mask="phone"
-                autoComplete="tel"
-                id="client-phone"
-                onChange={field('phone')}
-                value={form.phone}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="client-email">E-mail</Label>
-              <Input
-                autoComplete="email"
-                id="client-email"
-                onChange={field('email')}
-                type="email"
-                value={form.email}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="client-document">CPF / CNPJ</Label>
-              <MaskedInput
-                mask="document"
-                id="client-document"
-                onChange={field('document')}
-                value={form.document}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="client-birth">Data de nascimento</Label>
-              <Input id="client-birth" onChange={field('birth')} type="date" value={form.birth} />
-            </div>
-            <div className="grid gap-2 sm:col-span-2">
-              <Label htmlFor="client-address">Endereço</Label>
-              <Input
-                autoComplete="street-address"
-                id="client-address"
-                onChange={field('address')}
-                value={form.address}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="client-status">Status inicial</Label>
-              <Select
-                onValueChange={(status) =>
-                  setForm((current) => ({ ...current, status: status as ClientStatus }))
-                }
-                value={form.status}
-              >
-                <SelectTrigger id="client-status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {clientStatuses.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-3 self-end rounded-lg border p-3">
-              <Input
-                checked={vip}
-                className="size-4 shrink-0"
-                id="client-vip"
-                onChange={(event) => setVip(event.target.checked)}
-                type="checkbox"
-              />
-              <Label htmlFor="client-vip">Marcar como cliente VIP</Label>
-            </div>
-            <div className="grid gap-2 sm:col-span-2">
-              <Label htmlFor="client-notes">Observações</Label>
-              <Textarea id="client-notes" onChange={field('notes')} value={form.notes} />
-            </div>
-          </div>
-
-          <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
-            <Button onClick={close} type="button" variant="outline">
-              Cancelar
-            </Button>
-            <Button disabled={saving} type="submit">
-              {saving ? 'Salvando…' : editing ? 'Salvar alterações' : 'Cadastrar cliente'}
-            </Button>
-          </div>
-        </form>
+      <DialogContent className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b px-5 py-5 pr-12 sm:px-6">
+          <DialogTitle>Novo cliente</DialogTitle>
+          <DialogDescription>Cadastro independente de ordem de serviço.</DialogDescription>
+        </DialogHeader>
+        <ClientForm onCancel={close} onSaved={close} save={save} />
       </DialogContent>
     </Dialog>
   );

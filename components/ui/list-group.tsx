@@ -57,7 +57,13 @@ export function ListRow({
   noteTone,
   actions,
   dense = false,
+  onOpen,
+  openLabel,
 }: {
+  /** Abre o registro: a linha toda fica clicável e o título vira o botão. */
+  onOpen?: () => void;
+  /** Nome acessível do botão de abrir (ex.: "Ver orçamento ORC-19"). */
+  openLabel?: string;
   /** Tudo numa linha só, para listas estreitas (colunas laterais). */
   dense?: boolean;
   leading?: ReactNode;
@@ -76,6 +82,7 @@ export function ListRow({
       className={cn(
         'flex items-center gap-x-3 gap-y-2 px-4 py-3',
         dense ? 'flex-nowrap' : 'flex-wrap',
+        onOpen && 'relative transition-colors hover:bg-muted/40',
       )}
     >
       <div
@@ -88,7 +95,19 @@ export function ListRow({
         <div className="min-w-0">
           <p className="font-medium break-words">
             {srPrefix && <span className="sr-only">{srPrefix}</span>}
-            {title}
+            {onOpen ? (
+              <button
+                aria-label={openLabel}
+                // A área clicável cobre a linha; valor e ações ficam por cima.
+                className="rounded-sm text-left underline-offset-4 after:absolute after:inset-0 after:content-[''] hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                onClick={onOpen}
+                type="button"
+              >
+                {title}
+              </button>
+            ) : (
+              title
+            )}
           </p>
           {details && <p className="text-sm break-words text-muted-foreground">{details}</p>}
         </div>
@@ -120,7 +139,9 @@ export function ListRow({
         </div>
       )}
       {actions && (
-        <div className={cn('flex items-center gap-1', !dense && 'ml-auto')}>{actions}</div>
+        <div className={cn('relative z-10 flex items-center gap-1', !dense && 'ml-auto')}>
+          {actions}
+        </div>
       )}
     </li>
   );

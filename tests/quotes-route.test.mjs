@@ -57,3 +57,10 @@ test('a quote waiting for two days or more asks to follow up', () => {
   assert.match(html, /Esperando há 3 dias/);
   assert.match(html, />Cobrar</);
 });
+
+test('the quote itself opens its record, where it can be edited', () => {
+  const html = render([quote('7', { status: 'Aprovado', customer: 'Diego Santos' })]);
+  // A linha é clicável: o nome do cliente é o botão que abre a ficha.
+  assert.match(html, /<button[^>]*aria-label="Ver orçamento ORC-7"[^>]*>Diego Santos<\/button>/);
+  assert.match(html, /<li class="[^"]*relative[^"]*hover:bg-muted/);
+});

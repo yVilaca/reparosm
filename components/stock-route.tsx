@@ -3,8 +3,10 @@
 import { byName } from '@/lib/sorting';
 import { plainText } from '@/lib/payable-schedule';
 
-import { useState } from 'react';
+import { useState, type MouseEvent } from 'react';
 import PartModal, { type PartRow, type SavePart } from '@/components/part-modal';
+import PartRecordDialog from '@/components/part-record';
+import { cn } from 'cn';
 import StockKardex from '@/components/stock-kardex';
 import { useFeedback } from '@/components/feedback';
 import { Badge } from '@/components/ui/badge';
@@ -57,6 +59,40 @@ const StockBadge = ({ stock }: { stock: number }) => (
     {stockLabel(stock)}
   </Badge>
 );
+
+function PartOpener({
+  part,
+  onOpen,
+  stretch = false,
+}: {
+  part: PartRow;
+  onOpen: (part: PartRow) => void;
+  stretch?: boolean;
+}) {
+  return (
+    <button
+      aria-label={`Ver produto ${part.name}`}
+      className={cn(
+        'rounded-sm text-left font-semibold underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
+        stretch && "after:absolute after:inset-0 after:content-['']",
+      )}
+      onClick={() => onOpen(part)}
+      type="button"
+    >
+      {part.name}
+    </button>
+  );
+}
+
+/** Clique na linha abre a ficha, menos nos controles dela. */
+const openRow =
+  (part: PartRow, onOpen: (part: PartRow) => void) => (event: MouseEvent<HTMLTableRowElement>) => {
+    const target = event.target as HTMLElement;
+    if (!event.currentTarget.contains(target)) return;
+    if (target.closest('button, a, input, label, select, textarea, [role="combobox"]')) return;
+    if (window.getSelection()?.toString()) return;
+    onOpen(part);
+  };
 
 /** Editar à vista; excluir fica no menu. */
 function PartActions({
@@ -145,8 +181,10 @@ export default function StockRoute({
 }) {
   const { notify, confirm } = useFeedback();
   const [parts, setParts] = useState(initialParts);
-  const [modal, setModal] = useState<'create' | 'edit' | null>(null);
-  const [editing, setEditing] = useState<PartRow | null>(null);
+  const [creating, setCreating] = useState(false);
+  // Ficha aberta e se ela começa no formulário (veio de um "Editar").
+  const [viewing, setViewing] = useState<{ id: string; editing: boolean } | null>(null);
+  const viewed = viewing && parts.find((part) => part.id === viewing.id);
   const [filters, setFilters] = useState(initialFilters);
   const save: SavePart = async (data: Part, id?: string) => {
     try {
@@ -165,8 +203,6 @@ export default function StockRoute({
       setParts((current) =>
         id ? current.map((part) => (part.id === id ? saved : part)) : [saved, ...current],
       );
-      setEditing(null);
-      setModal(null);
       notify(id ? 'Produto atualizado.' : 'Produto adicionado.', 'success');
     } catch (error) {
       notify(
@@ -176,14 +212,9 @@ export default function StockRoute({
       throw error;
     }
   };
-  const create = () => {
-    setEditing(null);
-    setModal('create');
-  };
-  const edit = (part: PartRow) => {
-    setEditing(part);
-    setModal('edit');
-  };
+  const create = () => setCreating(true);
+  const view = (part: PartRow) => setViewing({ id: part.id, editing: false });
+  const edit = (part: PartRow) => setViewing({ id: part.id, editing: true });
   const remove = async (part: PartRow) => {
     if (!(await confirm(`Excluir definitivamente o produto ${part.name}?`))) return;
     try {
@@ -371,22 +402,29 @@ export default function StockRoute({
           }
         />
       ) : initialView === 'inventory' ? (
-        <Inventory items={items} onCreate={create} onEdit={edit} onRemove={remove} />
+        <Inventory items={items} onCreate={create} onEdit={edit} onOpen={view} onRemove={remove} />
       ) : (
         <Catalog
           accountId={accountId}
           items={items}
           onCreate={create}
           onEdit={edit}
+          onOpen={view}
           onRemove={remove}
           onCopyStore={copyStore}
           onOpenStore={openStore}
           onTogglePublished={togglePublished}
         />
       )}
-      {modal === 'create' && <PartModal close={() => setModal(null)} save={save} />}
-      {modal === 'edit' && editing && (
-        <PartModal item={editing} close={() => setModal(null)} save={save} />
+      {creating && <PartModal close={() => setCreating(false)} save={save} />}
+      {viewed && (
+        <PartRecordDialog
+          close={() => setViewing(null)}
+          key={viewed.id}
+          part={viewed}
+          save={save}
+          startEditing={viewing.editing}
+        />
       )}
     </>
   );
@@ -397,6 +435,7 @@ function Catalog({
   items,
   onCreate,
   onEdit,
+  onOpen,
   onRemove,
   onCopyStore,
   onOpenStore,
@@ -406,6 +445,7 @@ function Catalog({
   items: PartRow[];
   onCreate: () => void;
   onEdit: (part: PartRow) => void;
+  onOpen: (part: PartRow) => void;
   onRemove: (part: PartRow) => void;
   onCopyStore: () => void;
   onOpenStore: () => void;
@@ -442,19 +482,21 @@ function Catalog({
       {items.length ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((part) => (
-            <Card key={part.id}>
+            <Card className="relative transition-colors hover:bg-muted/40" key={part.id}>
               <CardContent className="grid gap-2">
                 <span className="text-xs font-medium text-muted-foreground">
                   {part.category || 'Sem categoria'}
                 </span>
-                <h3 className="font-semibold">{part.name}</h3>
+                <h3>
+                  <PartOpener onOpen={onOpen} part={part} stretch />
+                </h3>
                 <p className={`text-sm ${toneText[stockTone(part.stock, LOW_STOCK)]}`}>
                   {part.stock <= 0
                     ? `Sem estoque (${part.stock} un.)`
                     : `${part.stock} ${part.stock === 1 ? 'unidade' : 'unidades'}`}
                 </p>
                 <strong className="text-lg">{formatMoney(part.price)}</strong>
-                <div className="flex items-center gap-2 border-t pt-3">
+                <div className="relative z-10 flex items-center gap-2 border-t pt-3">
                   <Input
                     checked={part.published === true}
                     className="size-4 shrink-0"
@@ -486,11 +528,13 @@ function Inventory({
   items,
   onCreate,
   onEdit,
+  onOpen,
   onRemove,
 }: {
   items: PartRow[];
   onCreate: () => void;
   onEdit: (part: PartRow) => void;
+  onOpen: (part: PartRow) => void;
   onRemove: (part: PartRow) => void;
 }) {
   const total = items.reduce(
@@ -535,9 +579,14 @@ function Inventory({
           <CardContent className="grid gap-4">
             <div className="grid gap-3 md:hidden">
               {items.map((part) => (
-                <article className="grid gap-3 rounded-lg border p-4" key={part.id}>
+                <article
+                  className="relative grid gap-3 rounded-lg border p-4 transition-colors hover:bg-muted/40"
+                  key={part.id}
+                >
                   <div>
-                    <h3 className="font-semibold">{part.name}</h3>
+                    <h3>
+                      <PartOpener onOpen={onOpen} part={part} stretch />
+                    </h3>
                     <p className="text-sm text-muted-foreground">
                       {part.category || 'Sem categoria'}
                     </p>
@@ -557,7 +606,7 @@ function Inventory({
                       <strong>{formatMoney(Number(part.price) - Number(part.cost || 0))}</strong>
                     </p>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="relative z-10 flex items-center justify-between gap-2">
                     <StockBadge stock={part.stock} />
                     <PartActions onEdit={onEdit} onRemove={onRemove} part={part} />
                   </div>
@@ -580,8 +629,14 @@ function Inventory({
                 </TableHeader>
                 <TableBody>
                   {items.map((part) => (
-                    <TableRow key={part.id}>
-                      <TableCell className="font-medium">{part.name}</TableCell>
+                    <TableRow
+                      className="cursor-pointer"
+                      key={part.id}
+                      onClick={openRow(part, onOpen)}
+                    >
+                      <TableCell>
+                        <PartOpener onOpen={onOpen} part={part} />
+                      </TableCell>
                       <TableCell>{part.category || '—'}</TableCell>
                       <TableCell>{part.stock} un.</TableCell>
                       <TableCell>{formatMoney(part.cost)}</TableCell>

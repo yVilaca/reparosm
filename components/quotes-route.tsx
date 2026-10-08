@@ -5,6 +5,7 @@ import { newestFirst } from '@/lib/sorting';
 import { useState } from 'react';
 import { useFeedback } from '@/components/feedback';
 import QuoteModal, { type QuoteRow, type SaveQuote } from '@/components/quote-modal';
+import QuoteRecordDialog from '@/components/quote-record';
 import { CheckCircle2, Clock, FileText, MessageCircle, Plus, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -44,8 +45,10 @@ const sum = (rows: QuoteRow[]) =>
 export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow[] }) {
   const { notify, confirm } = useFeedback();
   const [quotes, setQuotes] = useState(initialQuotes);
-  const [modal, setModal] = useState<'create' | 'edit' | null>(null);
-  const [editing, setEditing] = useState<QuoteRow | null>(null);
+  const [creating, setCreating] = useState(false);
+  // Ficha aberta e se ela começa no formulário (veio de um "Editar").
+  const [viewing, setViewing] = useState<{ id: string; editing: boolean } | null>(null);
+  const viewed = viewing && quotes.find((quote) => quote.id === viewing.id);
   const save: SaveQuote = async (data: Quote, id?: string) => {
     try {
       const response = await fetch('/api/quotes', {
@@ -63,8 +66,6 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
       setQuotes((current) =>
         id ? current.map((quote) => (quote.id === id ? saved : quote)) : [saved, ...current],
       );
-      setEditing(null);
-      setModal(null);
       notify(id ? 'Orçamento atualizado.' : 'Orçamento criado.', 'success');
     } catch (error) {
       notify(
@@ -74,14 +75,9 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
       throw error;
     }
   };
-  const create = () => {
-    setEditing(null);
-    setModal('create');
-  };
-  const edit = (quote: QuoteRow) => {
-    setEditing(quote);
-    setModal('edit');
-  };
+  const create = () => setCreating(true);
+  const view = (quote: QuoteRow) => setViewing({ id: quote.id, editing: false });
+  const edit = (quote: QuoteRow) => setViewing({ id: quote.id, editing: true });
   const remove = async (quote: QuoteRow) => {
     if (!(await confirm(`Excluir definitivamente o orçamento ${quote.code || quote.id}?`))) return;
     try {
@@ -235,6 +231,8 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
                         key={quote.id}
                         leading={<IconChip icon={statusIcon[status]} tone={tone} />}
                         note={status === 'Aguardando' ? waiting(days) : status}
+                        onOpen={() => view(quote)}
+                        openLabel={`Ver orçamento ${quote.code || quote.customer}`}
                         noteTone={late ? 'warning' : status === 'Aguardando' ? undefined : tone}
                         title={quote.customer}
                         value={formatMoney(quote.total)}
@@ -253,9 +251,18 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
           action={<Button onClick={create}>Criar orçamento</Button>}
         />
       )}
-      {modal === 'create' && <QuoteModal close={() => setModal(null)} save={save} />}
-      {modal === 'edit' && editing && (
-        <QuoteModal item={editing} close={() => setModal(null)} save={save} />
+      {creating && <QuoteModal close={() => setCreating(false)} save={save} />}
+      {viewed && (
+        <QuoteRecordDialog
+          close={() => setViewing(null)}
+          key={viewed.id}
+          onCopyLink={() => void copy(viewed)}
+          onOpenPage={() => open(viewed)}
+          onSend={() => send(viewed)}
+          quote={viewed}
+          save={save}
+          startEditing={viewing.editing}
+        />
       )}
     </>
   );
