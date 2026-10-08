@@ -18,7 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { toneChip } from '@/components/ui/tone';
+import RefTag from '@/components/ui/ref-tag';
+import { StageTrack } from '@/components/ui/stage-track';
 import {
   Table,
   TableBody,
@@ -73,6 +74,7 @@ export default function OrdersTable({
 }) {
   const selectedOrders = orders.filter((order) => selectedIds.has(order.id));
   const allSelected = orders.length > 0 && selectedOrders.length === orders.length;
+  // A etapa aparece com o trilho da OS: quanto do caminho da bancada já foi feito.
   const stageControl = (order: OrderRow) => {
     const stage = order.stage || 'Recebido';
     return onStageChange ? (
@@ -83,24 +85,28 @@ export default function OrdersTable({
       >
         <SelectTrigger
           aria-label={`Etapa da ordem ${order.code}: ${stage}. Alterar`}
-          className={cn(
-            'h-7 min-w-0 max-w-full gap-1 rounded-full border-transparent px-2.5 text-xs font-medium shadow-none',
-            toneChip[orderStageTone(stage)],
-          )}
+          className="h-7 max-w-full min-w-0 gap-1 border-transparent bg-transparent px-1.5 text-xs font-medium shadow-none hover:bg-muted dark:bg-transparent dark:hover:bg-muted"
           size="sm"
         >
-          <SelectValue />
+          <SelectValue>
+            <StageTrack stage={stage} />
+            <span className="truncate">{stage}</span>
+          </SelectValue>
         </SelectTrigger>
         <SelectContent align="start" className="min-w-48" position="popper">
           {stages.map((item) => (
             <SelectItem key={item} value={item}>
+              <StageTrack stage={item} />
               {item}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
     ) : (
-      <Badge variant={orderStageVariant(stage)}>{stage}</Badge>
+      <span className="inline-flex items-center gap-1.5 text-xs font-medium">
+        <StageTrack stage={stage} />
+        {stage}
+      </span>
     );
   };
 
@@ -109,17 +115,17 @@ export default function OrdersTable({
       <button
         aria-label={`Ver OS ${order.code}`}
         className={cn(
-          'rounded-sm text-left font-semibold underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
+          'rounded-[5px] text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
           // No cartão, a área clicável do botão cobre o cartão todo.
           stretch && "after:absolute after:inset-0 after:content-['']",
         )}
         onClick={() => onView(order)}
         type="button"
       >
-        {order.code}
+        <RefTag code={order.code} />
       </button>
     ) : (
-      <span className="font-semibold">{order.code}</span>
+      <RefTag code={order.code} />
     );
 
   /**

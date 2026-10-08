@@ -20,9 +20,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import Filters, { type Filter, type FilterField } from '@/components/ui/filters';
 import { Input } from '@/components/ui/input';
 import PageHeader from '@/components/ui/page-header';
-import { toneDot } from '@/components/ui/tone';
-import { Columns3, Plus, Rows3 } from 'lucide-react';
-import { badgeFor, isNotablePriority, orderPriorityTone, orderStageTone } from '@/lib/status-tones';
+import RefTag from '@/components/ui/ref-tag';
+import { StageTrack } from '@/components/ui/stage-track';
+import { ArrowLeft, ArrowRight, Columns3, Plus, Rows3 } from 'lucide-react';
+import { badgeFor, isNotablePriority, orderPriorityTone } from '@/lib/status-tones';
 import { formatMoney } from '@/lib/format';
 import type { Order, OrderPayment, OrderStage } from '@/lib/types';
 import { uploadOrderPhotos } from '@/lib/order-photo-upload';
@@ -425,10 +426,7 @@ export default function OrdersRoute({
                       >
                         <div className="flex items-center justify-between gap-2">
                           <h2 className="flex items-center gap-2 text-sm font-semibold">
-                            <span
-                              aria-hidden="true"
-                              className={`size-2 rounded-full ${toneDot[orderStageTone(column)]}`}
-                            />
+                            <StageTrack stage={column} />
                             {column}
                           </h2>
                           <Badge variant="neutral">{inStage.length}</Badge>
@@ -461,11 +459,11 @@ export default function OrdersRoute({
                                   <button
                                     aria-label={`Ver OS ${order.code}`}
                                     // A área clicável cobre o cartão; os controles ficam por cima.
-                                    className="rounded-sm text-sm font-semibold underline-offset-4 after:absolute after:inset-0 after:content-[''] hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                                    className="rounded-[5px] after:absolute after:inset-0 after:content-[''] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                                     onClick={() => setViewingId(order.id)}
                                     type="button"
                                   >
-                                    {order.code}
+                                    <RefTag code={order.code} />
                                   </button>
                                 </div>
                                 {isNotablePriority(order.priority) && (
@@ -489,7 +487,7 @@ export default function OrdersRoute({
                                   type="button"
                                   variant="outline"
                                 >
-                                  ←
+                                  <ArrowLeft aria-hidden="true" />
                                 </Button>
                                 <span className="text-sm font-medium tabular-nums">
                                   {formatMoney(Number(order.total || 0))}
@@ -504,7 +502,7 @@ export default function OrdersRoute({
                                   type="button"
                                   variant="outline"
                                 >
-                                  →
+                                  <ArrowRight aria-hidden="true" />
                                 </Button>
                               </div>
                               <div className="flex items-center gap-2">

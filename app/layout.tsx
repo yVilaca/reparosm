@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
-import { Inter, Red_Hat_Display } from 'next/font/google';
+import { Red_Hat_Display, Red_Hat_Text } from 'next/font/google';
 import { FeedbackProvider } from '@/components/feedback';
 import { ThemeProvider } from '@/components/theme-provider';
 import { env } from '@/lib/env';
 import './globals.css';
 import './print.css';
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
-// Títulos e números de destaque, na mesma família geométrica do letreiro do logo.
+// Uma família só, a do letreiro do logo: Text para ler, Display para títulos e números.
+const text = Red_Hat_Text({ subsets: ['latin'], variable: '--font-sans' });
 const display = Red_Hat_Display({
   subsets: ['latin'],
   weight: ['600', '700', '800'],
@@ -37,7 +37,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className={`${inter.variable} ${display.variable}`} suppressHydrationWarning>
+    <html lang="pt-BR" className={`${text.variable} ${display.variable}`} suppressHydrationWarning>
       <body className="antialiased font-sans print:bg-white print:text-black">
         <ThemeProvider>
           <FeedbackProvider>{children}</FeedbackProvider>

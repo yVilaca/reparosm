@@ -14,7 +14,7 @@ import IconChip from '@/components/ui/icon-chip';
 import { ListGroup, ListRow } from '@/components/ui/list-group';
 import PageHeader from '@/components/ui/page-header';
 import RowMenu from '@/components/ui/row-menu';
-import StatCard from '@/components/ui/stat-card';
+import StatCard, { StatGroup } from '@/components/ui/stat-card';
 import { formatMoney, hasValidWhatsapp, whatsappUrl } from '@/lib/format';
 import { quoteStatusTone } from '@/lib/status-tones';
 import { todayInSaoPaulo } from '@/lib/warranty';
@@ -136,7 +136,7 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
       />
       {quotes.length ? (
         <>
-          <section aria-label="Resumo dos orçamentos" className="mb-6 grid grid-cols-3 gap-3">
+          <StatGroup aria-label="Resumo dos orçamentos" className="mb-6 grid-cols-3">
             <StatCard
               detail={`${formatMoney(sum(pending))} em jogo`}
               icon={Clock}
@@ -158,7 +158,7 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
               tone="danger"
               value={refused.length}
             />
-          </section>
+          </StatGroup>
           <div className="grid gap-6">
             {groups.map(({ status, title }) => {
               const rows = byStatus(status);
@@ -225,7 +225,7 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
                             </RowMenu>
                           </>
                         }
-                        details={[quote.code, quote.device, quote.problem || quote.service]
+                        details={[quote.device, quote.problem || quote.service]
                           .filter(Boolean)
                           .join(' · ')}
                         key={quote.id}
@@ -234,6 +234,7 @@ export default function QuotesRoute({ initialQuotes }: { initialQuotes: QuoteRow
                         onOpen={() => view(quote)}
                         openLabel={`Ver orçamento ${quote.code || quote.customer}`}
                         noteTone={late ? 'warning' : status === 'Aguardando' ? undefined : tone}
+                        tag={quote.code}
                         title={quote.customer}
                         value={formatMoney(quote.total)}
                       />

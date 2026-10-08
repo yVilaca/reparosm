@@ -9,11 +9,10 @@ import {
   type PartRow,
   type SaveOrder,
 } from '@/components/order-modals';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import RecordDialog, { RecordField } from '@/components/ui/record-dialog';
+import { StageSteps, StageTrack } from '@/components/ui/stage-track';
 import { formatMoney } from '@/lib/format';
-import { badgeFor, orderStageTone } from '@/lib/status-tones';
 
 // Mesmo formato de dado de todas as fichas.
 const Detail = RecordField;
@@ -38,6 +37,7 @@ export function OrderDetails({ order }: { order: OrderRow }) {
     `${24 + ((number - 1) % 3) * 56},${24 + Math.floor((number - 1) / 3) * 56}`;
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_17rem]">
+      <StageSteps className="lg:col-span-2" stage={order.stage} />
       <div className="grid min-w-0 content-start gap-6">
         <section aria-label="Cliente e aparelho" className="grid gap-3">
           <h3 className="font-semibold">Cliente e aparelho</h3>
@@ -153,9 +153,10 @@ export function OrderDetails({ order }: { order: OrderRow }) {
           <h3 className="font-semibold">Situação da ordem</h3>
           <dl className="grid gap-4">
             <Detail label="Etapa">
-              <Badge variant={badgeFor(orderStageTone(order.stage || 'Recebido'))}>
+              <span className="inline-flex items-center gap-1.5">
+                <StageTrack stage={order.stage} />
                 {order.stage || 'Recebido'}
-              </Badge>
+              </span>
             </Detail>
             <Detail label="Status">{order.status || 'Aberto'}</Detail>
             <Detail label="Prioridade">{order.priority || 'Normal'}</Detail>
@@ -223,7 +224,6 @@ export default function OrderDetailsDialog({
   startEditing?: boolean;
   onCharge: () => void;
 }) {
-  const stage = order.stage || 'Recebido';
   return (
     <RecordDialog
       actions={
@@ -238,7 +238,6 @@ export default function OrderDetailsDialog({
           </Link>
         </Button>
       }
-      badge={<Badge variant={badgeFor(orderStageTone(stage))}>{stage}</Badge>}
       className="max-w-4xl"
       close={close}
       description="Dados do atendimento e do aparelho."

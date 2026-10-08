@@ -25,7 +25,8 @@ const render = (initialQuotes) =>
 test('a long problem description wraps instead of overflowing', () => {
   const problem = 'The phone display does not turn on after being dropped';
   const html = render([quote('1', { problem })]);
-  const line = html.match(new RegExp(`<p[^>]*>[^<]*${problem}</p>`))?.[0];
+  // A linha de contexto pode começar pela etiqueta do código (ORC-1).
+  const line = html.match(new RegExp(`<p[^>]*>(?:(?!<p)[\\s\\S])*?${problem}</p>`))?.[0];
   assert.ok(line, 'the problem description is rendered');
   assert.match(line, /break-words/);
   assert.doesNotMatch(line, /whitespace-nowrap/);

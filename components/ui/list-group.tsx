@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { cn } from 'cn';
+import RefTag from '@/components/ui/ref-tag';
 import { toneText, type Tone } from '@/components/ui/tone';
 
 /**
@@ -50,6 +51,7 @@ export function ListRow({
   leading,
   srPrefix,
   title,
+  tag,
   details,
   value,
   valueClassName,
@@ -70,6 +72,8 @@ export function ListRow({
   /** Prefixo só para leitores de tela (ex.: "Receber: "). */
   srPrefix?: string;
   title: ReactNode;
+  /** Código do registro (OS-50, ORC-20), mostrado como etiqueta antes do contexto. */
+  tag?: string;
   details?: ReactNode;
   value?: ReactNode;
   valueClassName?: string;
@@ -109,7 +113,12 @@ export function ListRow({
               title
             )}
           </p>
-          {details && <p className="text-sm break-words text-muted-foreground">{details}</p>}
+          {(tag || details) && (
+            <p className="text-sm break-words text-muted-foreground">
+              {tag && <RefTag className="mr-1.5" code={tag} />}
+              {details}
+            </p>
+          )}
         </div>
       </div>
       {(value !== undefined || note) && (

@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import EmptyState from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
 import PageHeader from '@/components/ui/page-header';
+import RefTag from '@/components/ui/ref-tag';
 import FilterPills from '@/components/ui/filter-pills';
-import StatCard from '@/components/ui/stat-card';
+import StatCard, { StatGroup } from '@/components/ui/stat-card';
 import { Clock, HelpCircle, RotateCcw, Search, ShieldCheck } from 'lucide-react';
 import { badgeFor, warrantyStatusTone } from '@/lib/status-tones';
 import {
@@ -76,10 +77,7 @@ export default function WarrantiesRoute({
         title="Garantias"
         description="Acompanhe o prazo de garantia das ordens já entregues."
       />
-      <section
-        aria-label="Resumo de garantias"
-        className="mb-3 grid grid-cols-2 gap-3 xl:grid-cols-4"
-      >
+      <StatGroup aria-label="Resumo de garantias" className="mb-3 grid-cols-2 xl:grid-cols-4">
         <StatCard
           detail="Dentro do prazo"
           icon={ShieldCheck}
@@ -108,7 +106,7 @@ export default function WarrantiesRoute({
           tone="danger"
           value={returns}
         />
-      </section>
+      </StatGroup>
       <p className="mb-6 text-sm text-muted-foreground">
         Prazo padrão da loja:{' '}
         <strong className="text-foreground">{defaultWarrantyDays} dias</strong> (altere em{' '}
@@ -170,7 +168,7 @@ export default function WarrantiesRoute({
                   {filtered.map((order) => (
                     <article className="grid gap-2 rounded-lg border p-4" key={order.id}>
                       <div className="flex items-center justify-between gap-2">
-                        <strong>{order.code}</strong>
+                        <RefTag code={order.code} />
                         <Badge variant={warrantyBadgeVariant(order.period.status)}>
                           {statusLabel(order.period.status, order.deliveredAt)}
                         </Badge>
@@ -210,7 +208,9 @@ export default function WarrantiesRoute({
                     <TableBody>
                       {filtered.map((order) => (
                         <TableRow key={order.id}>
-                          <TableCell className="font-medium">{order.code}</TableCell>
+                          <TableCell>
+                            <RefTag code={order.code} />
+                          </TableCell>
                           <TableCell>
                             <p className="font-medium">{order.customer}</p>
                             <p className="text-xs text-muted-foreground">{order.device}</p>

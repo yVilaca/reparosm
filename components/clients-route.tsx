@@ -32,7 +32,7 @@ import {
 import PageHeader from '@/components/ui/page-header';
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import RowMenu from '@/components/ui/row-menu';
-import StatCard from '@/components/ui/stat-card';
+import StatCard, { StatGroup } from '@/components/ui/stat-card';
 import { toneChip } from '@/components/ui/tone';
 import { MessageCircle, Plus, Search, Star, UserCheck, Users, Wrench } from 'lucide-react';
 import { cn } from 'cn';
@@ -160,10 +160,7 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
         }
       />
 
-      <section
-        aria-label="Resumo de clientes"
-        className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4"
-      >
+      <StatGroup aria-label="Resumo de clientes" className="mb-6 grid-cols-2 xl:grid-cols-4">
         <StatCard icon={Users} label="Clientes" value={clients.length} detail="Cadastrados" />
         <StatCard
           icon={Wrench}
@@ -186,7 +183,7 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
           value={clients.filter((client) => client.vip).length}
           detail="Atendimento prioritário"
         />
-      </section>
+      </StatGroup>
 
       {clients.length ? (
         <section aria-label="Clientes" className="grid gap-3">

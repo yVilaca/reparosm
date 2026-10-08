@@ -50,7 +50,8 @@ export default function Login({ onLogin }: { onLogin: (account: PublicAccount) =
     <main className="flex min-h-svh flex-col items-center justify-center gap-8 bg-brand-ink p-4">
       <BrandLogo className="w-[200px]" onDark priority sizes="200px" />
       <Card className="w-full max-w-sm shadow-xl ring-0">
-        <form onSubmit={submit}>
+        {/* O form é o único filho do cartão: o espaço entre cabeçalho e campos vem dele. */}
+        <form className="grid gap-5" onSubmit={submit}>
           <CardHeader className="gap-4">
             <div>
               <h2 className="font-display text-xl font-bold tracking-tight">

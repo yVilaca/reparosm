@@ -47,7 +47,11 @@ test('the list and Mesa are separate screens with links to each other and order 
   const mesa = renderScreen(OrdersRoute, { initialOrders, view: 'kanban' });
   assert.match(mesa, /<h1[^>]*>Mesa<\/h1>/);
   assert.match(mesa, /href="\/ordens"/);
-  assert.match(mesa, /aria-label="Ver OS OS-12"[^>]*>OS-12<\/button>/);
+  // O código aparece como etiqueta; o código inteiro fica para leitores de tela.
+  assert.match(
+    mesa,
+    /aria-label="Ver OS OS-12"[^>]*>(?:(?!<\/button>)[\s\S])*>OS-12<[\s\S]*?<\/button>/,
+  );
   // O cartão abre a ficha: nenhum botão "Ver OS" repetido.
   assert.doesNotMatch(mesa, />Ver OS</);
   assert.match(mesa, /aria-label="Etapa Recebido"/);

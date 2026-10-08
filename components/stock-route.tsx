@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/select';
 import Segmented from '@/components/ui/segmented';
 import SoftBanner from '@/components/ui/soft-banner';
-import StatCard from '@/components/ui/stat-card';
+import StatCard, { StatGroup } from '@/components/ui/stat-card';
 import { toneText } from '@/components/ui/tone';
 import {
   AlertTriangle,
@@ -544,10 +544,7 @@ function Inventory({
   const low = items.filter((part) => part.stock <= LOW_STOCK).length;
   return (
     <>
-      <section
-        aria-label="Resumo de estoque"
-        className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4"
-      >
+      <StatGroup aria-label="Resumo de estoque" className="mb-6 grid-cols-2 xl:grid-cols-4">
         <StatCard
           detail="Unidades disponíveis"
           icon={Package}
@@ -570,7 +567,7 @@ function Inventory({
           valueTone={low ? 'warning' : undefined}
         />
         <StatCard detail="Todos os tipos" icon={Boxes} label="Produtos" value={items.length} />
-      </section>
+      </StatGroup>
       {items.length ? (
         <Card>
           <CardHeader>

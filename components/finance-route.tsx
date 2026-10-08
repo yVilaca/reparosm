@@ -15,12 +15,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import EmptyState from '@/components/ui/empty-state';
 import PageHeader from '@/components/ui/page-header';
+import RefTag from '@/components/ui/ref-tag';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import IconChip from '@/components/ui/icon-chip';
 import { ListGroup, ListRow } from '@/components/ui/list-group';
 import RowMenu from '@/components/ui/row-menu';
 import Segmented from '@/components/ui/segmented';
-import StatCard from '@/components/ui/stat-card';
+import StatCard, { StatGroup } from '@/components/ui/stat-card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toneText } from '@/components/ui/tone';
@@ -91,7 +92,7 @@ function SummaryMetric({
 
 function TotalsGrid({ totals }: { totals: FinanceTotals }) {
   return (
-    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+    <StatGroup className="grid-cols-2 xl:grid-cols-4">
       <StatCard
         icon={ArrowDownLeft}
         label="Total Bruto"
@@ -120,7 +121,7 @@ function TotalsGrid({ totals }: { totals: FinanceTotals }) {
         value={formatMoney(totals.balance)}
         valueTone={totals.balance < 0 ? 'danger' : undefined}
       />
-    </div>
+    </StatGroup>
   );
 }
 
@@ -473,10 +474,10 @@ export default function FinanceRoute({
                         }
                         details={
                           <Link
-                            className="underline-offset-4 hover:underline"
+                            className="rounded-[5px] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                             href={`/ordens?busca=${encodeURIComponent(order.code)}`}
                           >
-                            {order.code}
+                            <RefTag code={order.code} />
                           </Link>
                         }
                         key={order.id}
@@ -632,10 +633,10 @@ export default function FinanceRoute({
                           <>
                             {row.order ? (
                               <Link
-                                className="underline-offset-4 hover:underline"
+                                className="rounded-[5px] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                                 href={`/ordens?busca=${encodeURIComponent(row.order.code)}`}
                               >
-                                {row.order.code}
+                                <RefTag code={row.order.code} />
                               </Link>
                             ) : (
                               row.reference
