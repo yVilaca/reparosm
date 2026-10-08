@@ -13,15 +13,11 @@ import {
 
 import IconChip from '@/components/ui/icon-chip';
 
-import StatCard from '@/components/ui/stat-card';
+import StatCard, { StatGroup } from '@/components/ui/stat-card';
 
-import {
-  toneDot as statusDot,
-  toneText as statusText,
-  type Tone as StatusTone,
-} from '@/components/ui/tone';
+import { toneText as statusText, type Tone as StatusTone } from '@/components/ui/tone';
 
-import { orderStageTone } from '@/lib/status-tones';
+import { emptySegment, stageFill } from '@/components/ui/stage-track';
 
 import { ReceiveAction, WhatsappAction } from '@/components/dashboard-actions';
 
@@ -386,10 +382,7 @@ export default function DashboardRoute({
           </Button>
         }
       />
-      <section
-        aria-label="Totais financeiros"
-        className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4"
-      >
+      <StatGroup aria-label="Totais financeiros" className="mb-5 grid-cols-2 xl:grid-cols-4">
         <StatCard
           detail="Valores recebidos de OS não canceladas e vendas avulsas."
           icon={ArrowDownLeft}
@@ -420,7 +413,7 @@ export default function DashboardRoute({
           value={formatMoney(orderTotals.netReceivable)}
           valueTone={orderTotals.netReceivable < 0 ? 'danger' : undefined}
         />
-      </section>
+      </StatGroup>
       <div className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <CashTrend trend={trend} />
         <aside aria-labelledby="cash-title" className="rounded-xl border bg-card p-4 sm:p-5">
@@ -471,21 +464,28 @@ export default function DashboardRoute({
             </p>
           </div>
           <Link
-            href="/ordens?view=kanban"
+            href="/mesa"
             className="rounded text-sm font-medium text-primary hover:underline focus-visible:outline-primary"
           >
-            Abrir quadro
+            Abrir Mesa
           </Link>
         </div>
-        <ol className="mt-4 grid grid-cols-3 gap-4 sm:grid-cols-6">
+        <ol
+          className="mt-5 grid gap-1.5 sm:gap-2"
+          style={{ gridTemplateColumns: `repeat(${bench.length || 1}, minmax(0, 1fr))` }}
+        >
           {bench.map((item) => (
-            <li key={item.stage}>
-              <strong className="block text-xl font-semibold tabular-nums">{item.orders}</strong>
-              <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span
-                  aria-hidden="true"
-                  className={`size-2 shrink-0 rounded-full ${statusDot[orderStageTone(item.stage)]}`}
-                />
+            <li key={item.stage} className="min-w-0">
+              <span
+                aria-hidden="true"
+                className={`block h-2 rounded-full ${item.orders ? stageFill(item.stage) : emptySegment}`}
+              />
+              <strong
+                className={`mt-3 block font-display text-2xl font-bold tracking-tight tabular-nums sm:text-[1.75rem] ${item.orders ? '' : 'text-muted-foreground/60'}`}
+              >
+                {item.orders}
+              </strong>
+              <span className="mt-0.5 block text-xs leading-tight text-muted-foreground">
                 {item.stage}
               </span>
             </li>

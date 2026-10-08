@@ -1,31 +1,21 @@
 'use client';
 
-import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { Pencil, Printer } from 'lucide-react';
+import { Printer } from 'lucide-react';
 import OrderPhotos from '@/components/order-photos';
-import type { OrderRow } from '@/components/order-modals';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  OrderEditForm,
+  type OrderRow,
+  type PartRow,
+  type SaveOrder,
+} from '@/components/order-modals';
+import { Button } from '@/components/ui/button';
+import RecordDialog, { RecordField } from '@/components/ui/record-dialog';
+import { StageSteps, StageTrack } from '@/components/ui/stage-track';
 import { formatMoney } from '@/lib/format';
-import { badgeFor, orderStageTone } from '@/lib/status-tones';
 
-function Detail({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="grid min-w-0 gap-1">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="break-words whitespace-pre-wrap text-sm">{children}</dd>
-    </div>
-  );
-}
+// Mesmo formato de dado de todas as fichas.
+const Detail = RecordField;
 
 function date(value?: string) {
   if (!value) return 'Não informada';
@@ -47,6 +37,7 @@ export function OrderDetails({ order }: { order: OrderRow }) {
     `${24 + ((number - 1) % 3) * 56},${24 + Math.floor((number - 1) / 3) * 56}`;
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_17rem]">
+      <StageSteps className="lg:col-span-2" stage={order.stage} />
       <div className="grid min-w-0 content-start gap-6">
         <section aria-label="Cliente e aparelho" className="grid gap-3">
           <h3 className="font-semibold">Cliente e aparelho</h3>
@@ -162,9 +153,10 @@ export function OrderDetails({ order }: { order: OrderRow }) {
           <h3 className="font-semibold">Situação da ordem</h3>
           <dl className="grid gap-4">
             <Detail label="Etapa">
-              <Badge variant={badgeFor(orderStageTone(order.stage || 'Recebido'))}>
+              <span className="inline-flex items-center gap-1.5">
+                <StageTrack stage={order.stage} />
                 {order.stage || 'Recebido'}
-              </Badge>
+              </span>
             </Detail>
             <Detail label="Status">{order.status || 'Aberto'}</Detail>
             <Detail label="Prioridade">{order.priority || 'Normal'}</Detail>
@@ -212,47 +204,56 @@ export function OrderDetails({ order }: { order: OrderRow }) {
   );
 }
 
+/**
+ * Ficha da OS: abre para ver; "Editar" troca para o formulário na mesma janela
+ * e, ao salvar, volta para a ficha já atualizada.
+ */
 export default function OrderDetailsDialog({
   order,
   close,
-  onEdit,
+  save,
+  parts,
+  startEditing = false,
   onCharge,
 }: {
   order: OrderRow;
   close: () => void;
-  onEdit: () => void;
+  save: SaveOrder;
+  parts?: PartRow[];
+  /** Abre direto no formulário (ex.: "Editar OS" na Mesa). */
+  startEditing?: boolean;
   onCharge: () => void;
 }) {
   return (
-    <Dialog open onOpenChange={(open) => !open && close()}>
-      <DialogContent className="flex max-w-4xl flex-col gap-0 overflow-hidden p-0">
-        <DialogHeader className="shrink-0 border-b px-5 py-5 pr-12 sm:px-6">
-          <DialogTitle>Ordem {order.code}</DialogTitle>
-          <DialogDescription>Dados do atendimento e do aparelho.</DialogDescription>
-        </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6">
-          <OrderDetails order={order} />
-        </div>
-        <DialogFooter className="shrink-0 flex-wrap border-t bg-background p-4">
-          <Button variant="outline" asChild>
-            <Link
-              href={`/ordens/${encodeURIComponent(order.id)}/imprimir`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Printer aria-hidden="true" />
-              Imprimir
-            </Link>
-          </Button>
-          <Button variant="outline" onClick={onEdit}>
-            <Pencil aria-hidden="true" />
-            Editar OS
-          </Button>
-          {!order.payment && Number(order.total || 0) > 0 && order.status !== 'Cancelado' && (
-            <Button onClick={onCharge}>Registrar recebimento</Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <RecordDialog
+      actions={
+        <Button variant="outline" asChild>
+          <Link
+            href={`/ordens/${encodeURIComponent(order.id)}/imprimir`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Printer aria-hidden="true" />
+            Imprimir
+          </Link>
+        </Button>
+      }
+      className="max-w-4xl"
+      close={close}
+      description="Dados do atendimento e do aparelho."
+      editLabel="Editar OS"
+      primary={
+        !order.payment &&
+        Number(order.total || 0) > 0 &&
+        order.status !== 'Cancelado' && <Button onClick={onCharge}>Registrar recebimento</Button>
+      }
+      renderEdit={(controls) => (
+        <OrderEditForm controls={controls} item={order} parts={parts} save={save} />
+      )}
+      startEditing={startEditing}
+      title={`Ordem ${order.code}`}
+    >
+      <OrderDetails order={order} />
+    </RecordDialog>
   );
 }

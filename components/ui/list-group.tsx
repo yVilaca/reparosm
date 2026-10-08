@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { cn } from 'cn';
+import RefTag from '@/components/ui/ref-tag';
 import { toneText, type Tone } from '@/components/ui/tone';
 
 /**
@@ -50,6 +51,7 @@ export function ListRow({
   leading,
   srPrefix,
   title,
+  tag,
   details,
   value,
   valueClassName,
@@ -57,13 +59,21 @@ export function ListRow({
   noteTone,
   actions,
   dense = false,
+  onOpen,
+  openLabel,
 }: {
+  /** Abre o registro: a linha toda fica clicável e o título vira o botão. */
+  onOpen?: () => void;
+  /** Nome acessível do botão de abrir (ex.: "Ver orçamento ORC-19"). */
+  openLabel?: string;
   /** Tudo numa linha só, para listas estreitas (colunas laterais). */
   dense?: boolean;
   leading?: ReactNode;
   /** Prefixo só para leitores de tela (ex.: "Receber: "). */
   srPrefix?: string;
   title: ReactNode;
+  /** Código do registro (OS-50, ORC-20), mostrado como etiqueta antes do contexto. */
+  tag?: string;
   details?: ReactNode;
   value?: ReactNode;
   valueClassName?: string;
@@ -76,6 +86,7 @@ export function ListRow({
       className={cn(
         'flex items-center gap-x-3 gap-y-2 px-4 py-3',
         dense ? 'flex-nowrap' : 'flex-wrap',
+        onOpen && 'relative transition-colors hover:bg-muted/40',
       )}
     >
       <div
@@ -88,9 +99,26 @@ export function ListRow({
         <div className="min-w-0">
           <p className="font-medium break-words">
             {srPrefix && <span className="sr-only">{srPrefix}</span>}
-            {title}
+            {onOpen ? (
+              <button
+                aria-label={openLabel}
+                // A área clicável cobre a linha; valor e ações ficam por cima.
+                className="rounded-sm text-left underline-offset-4 after:absolute after:inset-0 after:content-[''] hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                onClick={onOpen}
+                type="button"
+              >
+                {title}
+              </button>
+            ) : (
+              title
+            )}
           </p>
-          {details && <p className="text-sm break-words text-muted-foreground">{details}</p>}
+          {(tag || details) && (
+            <p className="text-sm break-words text-muted-foreground">
+              {tag && <RefTag className="mr-1.5" code={tag} />}
+              {details}
+            </p>
+          )}
         </div>
       </div>
       {(value !== undefined || note) && (
@@ -120,7 +148,9 @@ export function ListRow({
         </div>
       )}
       {actions && (
-        <div className={cn('flex items-center gap-1', !dense && 'ml-auto')}>{actions}</div>
+        <div className={cn('relative z-10 flex items-center gap-1', !dense && 'ml-auto')}>
+          {actions}
+        </div>
       )}
     </li>
   );

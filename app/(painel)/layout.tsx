@@ -12,31 +12,31 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     .toUpperCase();
 
   return (
-    <div className="flex min-h-svh bg-background text-foreground print:block print:min-h-0 print:bg-white print:text-black">
-      <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r bg-background p-4 md:flex print:hidden">
-        <div className="flex items-center px-2 pb-4">
-          <BrandLogo className="w-[172px]" sizes="172px" />
+    <div className="flex min-h-svh bg-canvas text-foreground print:block print:min-h-0 print:bg-white print:text-black">
+      {/* O menu é a superfície da marca: tinta do logo, item ativo em violeta. */}
+      <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col bg-sidebar p-4 text-sidebar-foreground md:flex print:hidden">
+        <div className="flex items-center px-2 pt-1 pb-5">
+          <BrandLogo className="w-[164px]" onDark sizes="164px" />
         </div>
-        <Separator className="mb-4" />
         <SidebarNav isAdmin={account.role === 'admin'} />
-        <Separator className="my-4" />
+        <Separator className="my-4 bg-sidebar-border" />
         <div className="flex items-center justify-between gap-2 px-2">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
               {initials}
             </span>
             <div className="min-w-0">
               <strong className="block truncate text-sm font-medium leading-none">
                 {account.name}
               </strong>
-              <small className="text-xs text-muted-foreground">
+              <small className="text-xs text-sidebar-foreground/60">
                 {account.role === 'admin' ? 'Administrador' : 'Lojista'}
               </small>
             </div>
           </div>
-          <ThemeToggle />
+          <ThemeToggle className="border-sidebar-border bg-transparent text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground dark:bg-transparent" />
         </div>
-        <LogoutButton />
+        <LogoutButton className="text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground" />
       </aside>
       <section className="min-w-0 flex-1 overflow-y-auto p-4 pb-24 sm:p-6 md:p-8 md:pb-8 print:min-h-0 print:w-full print:overflow-visible print:p-0">
         {children}

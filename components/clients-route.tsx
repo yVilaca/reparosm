@@ -2,12 +2,13 @@
 
 import { byName } from '@/lib/sorting';
 
-import { useState } from 'react';
+import { useState, type MouseEvent } from 'react';
 import ClientModal, {
   clientStatuses,
   type ClientRow,
   type SaveClient,
 } from '@/components/client-modal';
+import ClientRecordDialog from '@/components/client-record';
 import { useFeedback } from '@/components/feedback';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -31,7 +32,7 @@ import {
 import PageHeader from '@/components/ui/page-header';
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import RowMenu from '@/components/ui/row-menu';
-import StatCard from '@/components/ui/stat-card';
+import StatCard, { StatGroup } from '@/components/ui/stat-card';
 import { toneChip } from '@/components/ui/tone';
 import { MessageCircle, Plus, Search, Star, UserCheck, Users, Wrench } from 'lucide-react';
 import { cn } from 'cn';
@@ -55,8 +56,10 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
   const { notify, confirm } = useFeedback();
   const [clients, setClients] = useState(initialClients);
   const [search, setSearch] = useState('');
-  const [modal, setModal] = useState<'create' | 'edit' | null>(null);
-  const [editing, setEditing] = useState<ClientRow | null>(null);
+  const [creating, setCreating] = useState(false);
+  // Ficha aberta e se ela começa no formulário (veio de um "Editar").
+  const [viewing, setViewing] = useState<{ id: string; editing: boolean } | null>(null);
+  const viewed = viewing && clients.find((client) => client.id === viewing.id);
   const save: SaveClient = async (data: Client, id?: string) => {
     try {
       const response = await fetch('/api/clients', {
@@ -74,8 +77,6 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
       setClients((current) =>
         id ? current.map((client) => (client.id === id ? saved : client)) : [saved, ...current],
       );
-      setEditing(null);
-      setModal(null);
       notify(id ? 'Cliente atualizado.' : 'Cliente cadastrado.', 'success');
     } catch (error) {
       notify(
@@ -85,13 +86,16 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
       throw error;
     }
   };
-  const create = () => {
-    setEditing(null);
-    setModal('create');
-  };
-  const edit = (client: ClientRow) => {
-    setEditing(client);
-    setModal('edit');
+  const create = () => setCreating(true);
+  const view = (client: ClientRow) => setViewing({ id: client.id, editing: false });
+  const edit = (client: ClientRow) => setViewing({ id: client.id, editing: true });
+  /** Clique na linha abre a ficha, menos nos controles dela (status, conversar, menu). */
+  const openRow = (client: ClientRow) => (event: MouseEvent<HTMLTableRowElement>) => {
+    const target = event.target as HTMLElement;
+    if (!event.currentTarget.contains(target)) return;
+    if (target.closest('button, a, input, label, select, textarea, [role="combobox"]')) return;
+    if (window.getSelection()?.toString()) return;
+    view(client);
   };
   const remove = async (client: ClientRow) => {
     if (!(await confirm(`Excluir definitivamente o cliente ${client.name}?`))) return;
@@ -156,10 +160,7 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
         }
       />
 
-      <section
-        aria-label="Resumo de clientes"
-        className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4"
-      >
+      <StatGroup aria-label="Resumo de clientes" className="mb-6 grid-cols-2 xl:grid-cols-4">
         <StatCard icon={Users} label="Clientes" value={clients.length} detail="Cadastrados" />
         <StatCard
           icon={Wrench}
@@ -182,7 +183,7 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
           value={clients.filter((client) => client.vip).length}
           detail="Atendimento prioritário"
         />
-      </section>
+      </StatGroup>
 
       {clients.length ? (
         <section aria-label="Clientes" className="grid gap-3">
@@ -222,9 +223,12 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
                 className="divide-y overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10 md:hidden"
               >
                 {visible.map((client) => (
-                  <li className="grid gap-3 px-4 py-3" key={client.id}>
-                    <ClientIdentity client={client} />
-                    <div className="flex items-center justify-between gap-2 pl-11">
+                  <li
+                    className="relative grid gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
+                    key={client.id}
+                  >
+                    <ClientIdentity client={client} onOpen={() => view(client)} stretch />
+                    <div className="relative z-10 flex items-center justify-between gap-2 pl-11">
                       <ClientStatusControl client={client} onChange={change} />
                       <ClientActions
                         chat={chat}
@@ -251,9 +255,13 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
                   </TableHeader>
                   <TableBody>
                     {visible.map((client) => (
-                      <TableRow key={client.id}>
+                      <TableRow
+                        className="cursor-pointer"
+                        key={client.id}
+                        onClick={openRow(client)}
+                      >
                         <TableCell className="pl-4">
-                          <ClientIdentity client={client} />
+                          <ClientIdentity client={client} onOpen={() => view(client)} />
                         </TableCell>
                         <TableCell>
                           <ClientStatusControl client={client} onChange={change} />
@@ -290,15 +298,31 @@ export default function ClientsRoute({ initialClients }: { initialClients: Clien
         />
       )}
 
-      {modal === 'create' && <ClientModal close={() => setModal(null)} save={save} />}
-      {modal === 'edit' && editing && (
-        <ClientModal item={editing} close={() => setModal(null)} save={save} />
+      {creating && <ClientModal close={() => setCreating(false)} save={save} />}
+      {viewed && (
+        <ClientRecordDialog
+          client={viewed}
+          close={() => setViewing(null)}
+          key={viewed.id}
+          onChat={() => chat(viewed)}
+          save={save}
+          startEditing={viewing.editing}
+        />
       )}
     </>
   );
 }
 
-function ClientIdentity({ client }: { client: ClientRow }) {
+function ClientIdentity({
+  client,
+  onOpen,
+  stretch = false,
+}: {
+  client: ClientRow;
+  onOpen?: () => void;
+  /** No celular, a área clicável do nome cobre a linha toda. */
+  stretch?: boolean;
+}) {
   const contact = [client.phone, client.email, client.document].filter(Boolean).join(' · ');
   return (
     <div className="flex min-w-0 items-center gap-3">
@@ -313,7 +337,21 @@ function ClientIdentity({ client }: { client: ClientRow }) {
       </span>
       <div className="min-w-0">
         <p className="flex items-center gap-2 font-medium">
-          <span className="truncate">{client.name}</span>
+          {onOpen ? (
+            <button
+              aria-label={`Ver cliente ${client.name}`}
+              className={cn(
+                'truncate rounded-sm text-left underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
+                stretch && "after:absolute after:inset-0 after:content-['']",
+              )}
+              onClick={onOpen}
+              type="button"
+            >
+              {client.name}
+            </button>
+          ) : (
+            <span className="truncate">{client.name}</span>
+          )}
           {client.vip && (
             <Badge variant="warning">
               <Star aria-hidden="true" />

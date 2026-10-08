@@ -4,7 +4,7 @@ import { LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 
-export default function LogoutButton() {
+export default function LogoutButton({ className }: { className?: string }) {
   const router = useRouter();
   const logout = async () => {
     await fetch('/api/auth', {
@@ -21,7 +21,7 @@ export default function LogoutButton() {
       type="button"
       variant="ghost"
       size="sm"
-      className="w-full justify-start gap-2"
+      className={`w-full justify-start gap-2 ${className ?? ''}`}
       onClick={() => void logout()}
     >
       <LogOut className="size-4" aria-hidden="true" />

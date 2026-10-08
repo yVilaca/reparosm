@@ -7,41 +7,52 @@
 
 @custom-variant dark (&:is(.dark *));
 :root {
-  --ui-muted: oklch(0.97 0 0);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  /*
+   * Identidade ReparoSM, tirada do logo: violeta (ação) e tinta (estrutura).
+   * O texto é a tinta, não preto, e os cinzas puxam para ela: é isso que faz
+   * as telas parecerem da mesma marca do menu sem precisar de mais cor.
+   */
+  --brand-ink: #1b1636;
+  --canvas: #f4f4f8;
+  --ui-muted: #f0eff5;
+  --background: #ffffff;
+  --foreground: #1b1636;
+  --card: #ffffff;
+  --card-foreground: #1b1636;
+  --popover: #ffffff;
+  --popover-foreground: #1b1636;
   --primary: #6c4cf1;
   --primary-foreground: #ffffff;
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --secondary: #f0eff5;
+  --secondary-foreground: #1b1636;
+  --muted-foreground: #6b6783;
+  --accent: #f0eff5;
+  --accent-foreground: #1b1636;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: #e5e3ee;
+  --input: #d9d6e5;
+  --ring: #8f78f7;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* O menu é a superfície da marca: tinta com o item ativo em violeta. */
+  --sidebar: var(--brand-ink);
+  --sidebar-foreground: #ece9f8;
+  --sidebar-primary: #6c4cf1;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(255 255 255 / 0.07);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgb(255 255 255 / 0.09);
+  --sidebar-ring: #8f78f7;
 }
 
 @theme inline {
+  --font-display: var(--font-display-family), var(--font-sans), sans-serif;
+  --color-canvas: var(--canvas);
+  --color-brand-ink: var(--brand-ink);
   --font-heading: var(--font-sans);
   --font-sans: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -84,38 +95,45 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/*
+ * Escuro: a tela inteira é feita da tinta do logo, não de cinza neutro. O menu
+ * fica um degrau mais fundo que a página, então menu e conteúdo são a mesma
+ * família, como no claro.
+ */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: #6c4cf1;
+  --brand-ink: #0d0b17;
+  --canvas: #13111f;
+  --background: #13111f;
+  --foreground: #ecebf5;
+  --card: #1a1729;
+  --card-foreground: #ecebf5;
+  --popover: #201d33;
+  --popover-foreground: #ecebf5;
+  --primary: #7556f4;
   --primary-foreground: #ffffff;
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --ui-muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --secondary: #26223a;
+  --secondary-foreground: #ecebf5;
+  --ui-muted: #26223a;
+  --muted-foreground: #a3a0b9;
+  --accent: #2a2640;
+  --accent-foreground: #ecebf5;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: rgb(236 235 245 / 0.09);
+  --input: rgb(236 235 245 / 0.14);
+  --ring: #8f78f7;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar: var(--brand-ink);
+  --sidebar-foreground: #e4e0f5;
+  --sidebar-primary: #6c4cf1;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(255 255 255 / 0.06);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgb(255 255 255 / 0.07);
+  --sidebar-ring: #8f78f7;
 }
 
 @layer base {
@@ -126,6 +144,7 @@
     @apply bg-background text-foreground;
   }
   html {
-    @apply font-sans;
+    /* Checkbox e rádio nativos no violeta da marca, não no azul do navegador. */
+    @apply font-sans accent-primary;
   }
 }

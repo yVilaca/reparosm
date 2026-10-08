@@ -4,9 +4,28 @@ type BrandLogoProps = {
   className: string;
   priority?: boolean;
   sizes: string;
+  /** Sobre a tinta da marca (menu, login): sempre a versão clara do logo. */
+  onDark?: boolean;
 };
 
-export default function BrandLogo({ className, priority = false, sizes }: BrandLogoProps) {
+export default function BrandLogo({
+  className,
+  priority = false,
+  sizes,
+  onDark = false,
+}: BrandLogoProps) {
+  if (onDark)
+    return (
+      <Image
+        src="/brand/reparosm-logo-dark.png"
+        alt="ReparoSM"
+        width={756}
+        height={153}
+        sizes={sizes}
+        className={`block h-auto max-w-full ${className}`}
+        priority={priority}
+      />
+    );
   return (
     <>
       <Image

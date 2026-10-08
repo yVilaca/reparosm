@@ -25,7 +25,8 @@ const render = (initialQuotes) =>
 test('a long problem description wraps instead of overflowing', () => {
   const problem = 'The phone display does not turn on after being dropped';
   const html = render([quote('1', { problem })]);
-  const line = html.match(new RegExp(`<p[^>]*>[^<]*${problem}</p>`))?.[0];
+  // A linha de contexto pode começar pela etiqueta do código (ORC-1).
+  const line = html.match(new RegExp(`<p[^>]*>(?:(?!<p)[\\s\\S])*?${problem}</p>`))?.[0];
   assert.ok(line, 'the problem description is rendered');
   assert.match(line, /break-words/);
   assert.doesNotMatch(line, /whitespace-nowrap/);
@@ -56,4 +57,11 @@ test('a quote waiting for two days or more asks to follow up', () => {
   const html = render([quote('9', { createdAt: old })]);
   assert.match(html, /Esperando há 3 dias/);
   assert.match(html, />Cobrar</);
+});
+
+test('the quote itself opens its record, where it can be edited', () => {
+  const html = render([quote('7', { status: 'Aprovado', customer: 'Diego Santos' })]);
+  // A linha é clicável: o nome do cliente é o botão que abre a ficha.
+  assert.match(html, /<button[^>]*aria-label="Ver orçamento ORC-7"[^>]*>Diego Santos<\/button>/);
+  assert.match(html, /<li class="[^"]*relative[^"]*hover:bg-muted/);
 });

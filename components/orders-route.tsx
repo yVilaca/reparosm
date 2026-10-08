@@ -10,7 +10,6 @@ import OrderActions from '@/components/order-actions';
 import OrderDetailsDialog from '@/components/order-details-dialog';
 import {
   OrderCreateModal,
-  OrderEditModal,
   type PartRow,
   type OrderRow,
   type SaveOrder,
@@ -21,9 +20,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import Filters, { type Filter, type FilterField } from '@/components/ui/filters';
 import { Input } from '@/components/ui/input';
 import PageHeader from '@/components/ui/page-header';
-import { toneDot } from '@/components/ui/tone';
-import { Columns3, Eye, Plus, Rows3 } from 'lucide-react';
-import { badgeFor, isNotablePriority, orderPriorityTone, orderStageTone } from '@/lib/status-tones';
+import RefTag from '@/components/ui/ref-tag';
+import { StageTrack } from '@/components/ui/stage-track';
+import { ArrowLeft, ArrowRight, Columns3, Plus, Rows3 } from 'lucide-react';
+import { badgeFor, isNotablePriority, orderPriorityTone } from '@/lib/status-tones';
 import { formatMoney } from '@/lib/format';
 import type { Order, OrderPayment, OrderStage } from '@/lib/types';
 import { uploadOrderPhotos } from '@/lib/order-photo-upload';
@@ -79,9 +79,10 @@ export default function OrdersRoute({
 }) {
   const { notify } = useFeedback();
   const [orders, setOrders] = useState(initialOrders),
-    [modal, setModal] = useState<'create' | 'edit' | null>(startCreating ? 'create' : null),
-    [editing, setEditing] = useState<OrderRow | null>(null),
+    [modal, setModal] = useState<'create' | null>(startCreating ? 'create' : null),
     [viewingId, setViewingId] = useState<string | null>(null),
+    // A ficha abre direto no formulário quando veio de um "Editar".
+    [viewEditing, setViewEditing] = useState(false),
     [charging, setCharging] = useState<{ id: string; code: string; total: number } | null>(null),
     [filters, setFilters] = useState<Filter[]>(
       initialQuery ? [{ field: 'search', value: initialQuery }] : [],
@@ -235,7 +236,6 @@ export default function OrdersRoute({
           code: saved.code,
           total: result.paymentDue.total,
         });
-      setEditing(null);
       setModal(null);
     } catch (error) {
       notify(error instanceof Error ? error.message : 'Não foi possível salvar a ordem.', 'error');
@@ -243,12 +243,16 @@ export default function OrdersRoute({
     }
   };
   const create = () => {
-    setEditing(null);
     setModal('create');
   };
+  // Editar abre a ficha da OS já no formulário; ao salvar, a ficha mostra o resultado.
   const edit = (order: OrderRow) => {
-    setEditing(order);
-    setModal('edit');
+    setViewEditing(true);
+    setViewingId(order.id);
+  };
+  const closeViewing = () => {
+    setViewingId(null);
+    setViewEditing(false);
   };
   const startCharging = (order: OrderRow) =>
     setCharging({ id: order.id, code: order.code, total: Number(order.total || 0) });
@@ -422,10 +426,7 @@ export default function OrdersRoute({
                       >
                         <div className="flex items-center justify-between gap-2">
                           <h2 className="flex items-center gap-2 text-sm font-semibold">
-                            <span
-                              aria-hidden="true"
-                              className={`size-2 rounded-full ${toneDot[orderStageTone(column)]}`}
-                            />
+                            <StageTrack stage={column} />
                             {column}
                           </h2>
                           <Badge variant="neutral">{inStage.length}</Badge>
@@ -433,7 +434,7 @@ export default function OrdersRoute({
                         {inStage.length ? (
                           inStage.map((order) => (
                             <article
-                              className={`grid gap-1.5 rounded-lg border bg-card p-2.5 ${movingId === order.id ? 'opacity-50' : 'cursor-grab active:cursor-grabbing'}`}
+                              className={`relative grid gap-1.5 rounded-lg border bg-card p-2.5 transition-colors hover:border-foreground/30 ${movingId === order.id ? 'opacity-50' : 'cursor-grab active:cursor-grabbing'}`}
                               key={order.id}
                               draggable={!movingId}
                               aria-busy={movingId === order.id}
@@ -447,16 +448,24 @@ export default function OrdersRoute({
                               onDragEnd={() => setDropStage(null)}
                             >
                               <div className="flex items-center justify-between gap-2">
-                                <label className="flex items-center gap-2">
+                                <div className="flex items-center gap-2">
                                   <Input
                                     type="checkbox"
-                                    className="size-4"
+                                    className="relative z-10 size-4"
                                     checked={selectedIds.has(order.id)}
                                     onChange={() => toggleSelected(order.id)}
                                     aria-label={`Selecionar ordem ${order.code}`}
                                   />
-                                  <strong className="text-sm">{order.code}</strong>
-                                </label>
+                                  <button
+                                    aria-label={`Ver OS ${order.code}`}
+                                    // A área clicável cobre o cartão; os controles ficam por cima.
+                                    className="rounded-[5px] after:absolute after:inset-0 after:content-[''] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                                    onClick={() => setViewingId(order.id)}
+                                    type="button"
+                                  >
+                                    <RefTag code={order.code} />
+                                  </button>
+                                </div>
                                 {isNotablePriority(order.priority) && (
                                   <Badge variant={badgeFor(orderPriorityTone(order.priority))}>
                                     {order.priority}
@@ -469,6 +478,7 @@ export default function OrdersRoute({
                               </p>
                               <div className="flex items-center justify-between gap-2 border-t pt-2">
                                 <Button
+                                  className="relative z-10"
                                   aria-label={`Voltar etapa de ${order.code}`}
                                   disabled={Boolean(movingId) || column === orderStages[0]}
                                   onClick={() => move(order, -1)}
@@ -477,12 +487,13 @@ export default function OrdersRoute({
                                   type="button"
                                   variant="outline"
                                 >
-                                  ←
+                                  <ArrowLeft aria-hidden="true" />
                                 </Button>
                                 <span className="text-sm font-medium tabular-nums">
                                   {formatMoney(Number(order.total || 0))}
                                 </span>
                                 <Button
+                                  className="relative z-10"
                                   aria-label={`Avançar etapa de ${order.code}`}
                                   disabled={Boolean(movingId) || column === orderStages.at(-1)}
                                   onClick={() => move(order, 1)}
@@ -491,23 +502,12 @@ export default function OrdersRoute({
                                   type="button"
                                   variant="outline"
                                 >
-                                  →
+                                  <ArrowRight aria-hidden="true" />
                                 </Button>
                               </div>
                               <div className="flex items-center gap-2">
                                 <Button
-                                  className="flex-1"
-                                  onClick={() => setViewingId(order.id)}
-                                  aria-label={`Ver OS ${order.code}`}
-                                  size="sm"
-                                  type="button"
-                                  variant="outline"
-                                >
-                                  <Eye aria-hidden="true" />
-                                  Ver OS
-                                </Button>
-                                <Button
-                                  className="flex-1"
+                                  className="relative z-10 flex-1"
                                   onClick={() => edit(order)}
                                   size="sm"
                                   type="button"
@@ -517,10 +517,12 @@ export default function OrdersRoute({
                                   Editar OS
                                 </Button>
                                 {!order.payment && (
-                                  <OrderPaymentStatus
-                                    onCharge={() => startCharging(order)}
-                                    order={order}
-                                  />
+                                  <span className="relative z-10 empty:hidden">
+                                    <OrderPaymentStatus
+                                      onCharge={() => startCharging(order)}
+                                      order={order}
+                                    />
+                                  </span>
                                 )}
                               </div>
                               {order.payment && <OrderPaymentStatus order={order} />}
@@ -548,16 +550,16 @@ export default function OrdersRoute({
       )}
       {viewing && (
         <OrderDetailsDialog
-          order={viewing}
-          close={() => setViewingId(null)}
-          onEdit={() => {
-            setViewingId(null);
-            edit(viewing);
-          }}
+          close={closeViewing}
+          key={viewing.id}
           onCharge={() => {
-            setViewingId(null);
+            closeViewing();
             startCharging(viewing);
           }}
+          order={viewing}
+          parts={initialParts}
+          save={save}
+          startEditing={viewEditing}
         />
       )}
       {modal === 'create' && (
@@ -566,14 +568,6 @@ export default function OrdersRoute({
           save={save}
           defaultWarrantyDays={defaultWarrantyDays}
           parts={initialParts}
-        />
-      )}
-      {modal === 'edit' && editing && (
-        <OrderEditModal
-          item={editing}
-          close={() => setModal(null)}
-          parts={initialParts}
-          save={save}
         />
       )}
       {charging && (

@@ -2,6 +2,7 @@
 
 import { useState, type ChangeEvent } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
+import type { RecordEditControls } from '@/components/ui/record-dialog';
 import { useFeedback } from '@/components/feedback';
 import StockAlertDialog, { StockCheckStatus } from '@/components/stock-alert-dialog';
 import { useStockCheck } from '@/components/use-stock-check';
@@ -44,26 +45,36 @@ const parseInputMoney = (value: string) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-export function OrderEditModal({
+/** Formulário de edição da OS, aberto pelo "Editar" da ficha (veja OrderDetailsDialog). */
+export function OrderEditForm({
   item,
-  close,
   save,
   parts = [],
+  controls,
 }: {
   item: OrderRow;
-  close: () => void;
   save: SaveOrder;
   parts?: PartRow[];
+  controls: RecordEditControls;
 }) {
   const { notify } = useFeedback();
-  const [form, setForm] = useState({ ...item }),
-    [selectedItems, setSelectedItems] = useState<OrderItem[]>(item.items || []),
+  const [form, setFormState] = useState({ ...item }),
+    [selectedItems, setSelectedItemsState] = useState<OrderItem[]>(item.items || []),
     [moneyText, setMoneyText] = useState({
       labor: String(item.labor ?? ''),
       parts: String(item.parts ?? ''),
       cost: String(item.cost ?? ''),
     }),
     [saving, setSaving] = useState(false);
+  // Toda alteração marca a ficha como "com alterações", para não perder ao sair.
+  const setForm: typeof setFormState = (next) => {
+    controls.markDirty();
+    setFormState(next);
+  };
+  const setSelectedItems: typeof setSelectedItemsState = (next) => {
+    controls.markDirty();
+    setSelectedItemsState(next);
+  };
   const stock = useStockCheck(form.status === 'Cancelado' ? [] : selectedItems, item.id);
   const field = (key: keyof OrderRow) => (event: FieldChange) => {
     const rawValue = event.target.value;
@@ -110,6 +121,7 @@ export function OrderEditModal({
             },
             item.id,
           );
+          controls.saved();
           return;
         } catch (error) {
           if (
@@ -131,215 +143,208 @@ export function OrderEditModal({
   };
 
   return (
-    <Dialog open onOpenChange={(open) => !open && close()}>
-      <DialogContent className="flex max-w-4xl flex-col gap-0 overflow-hidden p-0">
-        <form
-          className="flex min-h-0 flex-1 flex-col"
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault();
-            void submit();
-          }}
-        >
-          <DialogHeader className="shrink-0 border-b px-5 py-5 pr-12 sm:px-6 sm:pr-12">
-            <DialogTitle>Editar ordem {item.code}</DialogTitle>
-            <DialogDescription>Atualize os dados e salve as alterações.</DialogDescription>
-          </DialogHeader>
-
-          <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto overscroll-contain p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_17rem]">
-            <div className="flex min-w-0 flex-col gap-6">
-              <fieldset className="grid gap-4 sm:grid-cols-2">
-                <legend className="mb-4 text-sm font-semibold">Cliente e aparelho</legend>
-                <div className="grid gap-2">
-                  <Label htmlFor="order-edit-customer">Cliente *</Label>
-                  <Input
-                    autoComplete="name"
-                    id="order-edit-customer"
-                    onChange={field('customer')}
-                    required
-                    value={form.customer || ''}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="order-edit-phone">WhatsApp</Label>
-                  <MaskedInput
-                    autoComplete="tel"
-                    id="order-edit-phone"
-                    mask="phone"
-                    onChange={field('phone')}
-                    value={form.phone || ''}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="order-edit-device">Aparelho *</Label>
-                  <Input
-                    id="order-edit-device"
-                    onChange={field('device')}
-                    required
-                    value={form.device || ''}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="order-edit-imei">IMEI / série</Label>
-                  <Input id="order-edit-imei" onChange={field('imei')} value={form.imei || ''} />
-                </div>
-              </fieldset>
-              <fieldset className="grid gap-4 sm:grid-cols-2">
-                <legend className="mb-4 text-sm font-semibold">Serviço</legend>
-                <div className="grid gap-2">
-                  <Label htmlFor="order-edit-problem">Problema relatado</Label>
-                  <Textarea
-                    id="order-edit-problem"
-                    className="min-h-24"
-                    onChange={field('problem')}
-                    value={form.problem || ''}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="order-edit-notes">Observações</Label>
-                  <Textarea
-                    className="min-h-24"
-                    id="order-edit-notes"
-                    onChange={field('notes')}
-                    value={form.notes || ''}
-                  />
-                </div>
-              </fieldset>
-              <OrderProductsPicker
-                parts={parts}
-                value={selectedItems}
-                onChange={setSelectedItems}
-                stock={stock}
-              />
-              <OrderPhotos orderId={item.id} />
-            </div>
-
-            <div className="grid min-w-0 content-start gap-6 border-t pt-6 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
-              <fieldset className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-                <legend className="mb-4 text-sm font-semibold">Acompanhamento</legend>
-                <div className="grid gap-2">
-                  <Label htmlFor="order-edit-stage">Etapa</Label>
-                  <Select
-                    onValueChange={(value) => setChoice('stage', value)}
-                    value={form.stage || 'Recebido'}
-                  >
-                    <SelectTrigger className="w-full" id="order-edit-stage">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {stages.map((stage) => (
-                        <SelectItem key={stage} value={stage}>
-                          {stage}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="order-edit-status">Status</Label>
-                  <Select
-                    onValueChange={(value) => setChoice('status', value)}
-                    value={form.status || 'Aberto'}
-                  >
-                    <SelectTrigger className="w-full" id="order-edit-status">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {statuses.map((status) => (
-                        <SelectItem key={status} value={status}>
-                          {status}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="order-edit-priority">Prioridade</Label>
-                  <Select
-                    onValueChange={(value) => setChoice('priority', value)}
-                    value={form.priority || 'Normal'}
-                  >
-                    <SelectTrigger className="w-full" id="order-edit-priority">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {priorities.map((priority) => (
-                        <SelectItem key={priority} value={priority}>
-                          {priority}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="order-edit-technician">Técnico responsável</Label>
-                  <Input
-                    id="order-edit-technician"
-                    onChange={field('technician')}
-                    value={form.technician || ''}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="order-edit-warranty">Garantia (dias)</Label>
-                  <MaskedInput
-                    id="order-edit-warranty"
-                    mask="integer"
-                    onChange={field('warrantyDays')}
-                    value={form.warrantyDays ?? ''}
-                  />
-                </div>
-              </fieldset>
-              <fieldset className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
-                <legend className="mb-4 text-sm font-semibold">Valores (R$)</legend>
-                {[
-                  { label: 'Mão de obra', key: 'labor' as const },
-                  { label: 'Peças', key: 'parts' as const },
-                  { label: 'Custo', key: 'cost' as const },
-                ].map(({ label, key }) => (
-                  <div className="grid gap-2" key={key}>
-                    <Label htmlFor={`order-edit-${key}`}>{label}</Label>
-                    <MaskedInput
-                      id={`order-edit-${key}`}
-                      mask="currency"
-                      onChange={field(key)}
-                      readOnly={key === 'parts' && selectedItems.length > 0}
-                      value={key === 'parts' && selectedItems.length ? partsTotal : moneyText[key]}
-                    />
-                  </div>
-                ))}
-              </fieldset>
-            </div>
+    <>
+      <form
+        className="flex min-h-0 flex-1 flex-col"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto overscroll-contain p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_17rem]">
+          <div className="flex min-w-0 flex-col gap-6">
+            <fieldset className="grid gap-4 sm:grid-cols-2">
+              <legend className="mb-4 text-sm font-semibold">Cliente e aparelho</legend>
+              <div className="grid gap-2">
+                <Label htmlFor="order-edit-customer">Cliente *</Label>
+                <Input
+                  autoComplete="name"
+                  id="order-edit-customer"
+                  onChange={field('customer')}
+                  required
+                  value={form.customer || ''}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="order-edit-phone">WhatsApp</Label>
+                <MaskedInput
+                  autoComplete="tel"
+                  id="order-edit-phone"
+                  mask="phone"
+                  onChange={field('phone')}
+                  value={form.phone || ''}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="order-edit-device">Aparelho *</Label>
+                <Input
+                  id="order-edit-device"
+                  onChange={field('device')}
+                  required
+                  value={form.device || ''}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="order-edit-imei">IMEI / série</Label>
+                <Input id="order-edit-imei" onChange={field('imei')} value={form.imei || ''} />
+              </div>
+            </fieldset>
+            <fieldset className="grid gap-4 sm:grid-cols-2">
+              <legend className="mb-4 text-sm font-semibold">Serviço</legend>
+              <div className="grid gap-2">
+                <Label htmlFor="order-edit-problem">Problema relatado</Label>
+                <Textarea
+                  id="order-edit-problem"
+                  className="min-h-24"
+                  onChange={field('problem')}
+                  value={form.problem || ''}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="order-edit-notes">Observações</Label>
+                <Textarea
+                  className="min-h-24"
+                  id="order-edit-notes"
+                  onChange={field('notes')}
+                  value={form.notes || ''}
+                />
+              </div>
+            </fieldset>
+            <OrderProductsPicker
+              parts={parts}
+              value={selectedItems}
+              onChange={setSelectedItems}
+              stock={stock}
+            />
+            <OrderPhotos orderId={item.id} />
           </div>
 
-          <div className="grid shrink-0 gap-4 border-t bg-muted/30 px-5 py-4 sm:flex sm:items-center sm:justify-between sm:px-6">
-            <div className="grid grid-cols-2 gap-6 sm:gap-8" aria-label="Resumo de valores">
-              <div>
-                <p className="text-sm text-muted-foreground">Total</p>
-                <p className="mt-1 font-semibold tabular-nums">{money(total)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Lucro</p>
-                <p
-                  className={`mt-1 font-semibold tabular-nums ${profit < 0 ? 'text-destructive' : ''}`}
+          <div className="grid min-w-0 content-start gap-6 border-t pt-6 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
+            <fieldset className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+              <legend className="mb-4 text-sm font-semibold">Acompanhamento</legend>
+              <div className="grid gap-2">
+                <Label htmlFor="order-edit-stage">Etapa</Label>
+                <Select
+                  onValueChange={(value) => setChoice('stage', value)}
+                  value={form.stage || 'Recebido'}
                 >
-                  {money(profit)}
-                </p>
+                  <SelectTrigger className="w-full" id="order-edit-stage">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stages.map((stage) => (
+                      <SelectItem key={stage} value={stage}>
+                        {stage}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </div>
+              <div className="grid gap-2">
+                <Label htmlFor="order-edit-status">Status</Label>
+                <Select
+                  onValueChange={(value) => setChoice('status', value)}
+                  value={form.status || 'Aberto'}
+                >
+                  <SelectTrigger className="w-full" id="order-edit-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statuses.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {status}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="order-edit-priority">Prioridade</Label>
+                <Select
+                  onValueChange={(value) => setChoice('priority', value)}
+                  value={form.priority || 'Normal'}
+                >
+                  <SelectTrigger className="w-full" id="order-edit-priority">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {priorities.map((priority) => (
+                      <SelectItem key={priority} value={priority}>
+                        {priority}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="order-edit-technician">Técnico responsável</Label>
+                <Input
+                  id="order-edit-technician"
+                  onChange={field('technician')}
+                  value={form.technician || ''}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="order-edit-warranty">Garantia (dias)</Label>
+                <MaskedInput
+                  id="order-edit-warranty"
+                  mask="integer"
+                  onChange={field('warrantyDays')}
+                  value={form.warrantyDays ?? ''}
+                />
+              </div>
+            </fieldset>
+            <fieldset className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
+              <legend className="mb-4 text-sm font-semibold">Valores (R$)</legend>
+              {[
+                { label: 'Mão de obra', key: 'labor' as const },
+                { label: 'Peças', key: 'parts' as const },
+                { label: 'Custo', key: 'cost' as const },
+              ].map(({ label, key }) => (
+                <div className="grid gap-2" key={key}>
+                  <Label htmlFor={`order-edit-${key}`}>{label}</Label>
+                  <MaskedInput
+                    id={`order-edit-${key}`}
+                    mask="currency"
+                    onChange={field(key)}
+                    readOnly={key === 'parts' && selectedItems.length > 0}
+                    value={key === 'parts' && selectedItems.length ? partsTotal : moneyText[key]}
+                  />
+                </div>
+              ))}
+            </fieldset>
+          </div>
+        </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:flex">
-              <Button onClick={close} type="button" variant="outline">
-                Cancelar
-              </Button>
-              <Button disabled={saving || stock.checking || Boolean(stock.error)} type="submit">
-                {saving ? 'Salvando…' : 'Salvar alterações'}
-              </Button>
+        <div className="grid shrink-0 gap-4 border-t bg-muted/30 px-5 py-4 sm:flex sm:items-center sm:justify-between sm:px-6">
+          <div className="grid grid-cols-2 gap-6 sm:gap-8" aria-label="Resumo de valores">
+            <div>
+              <p className="text-sm text-muted-foreground">Total</p>
+              <p className="mt-1 font-semibold tabular-nums">{money(total)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Lucro</p>
+              <p
+                className={`mt-1 font-semibold tabular-nums ${profit < 0 ? 'text-destructive' : ''}`}
+              >
+                {money(profit)}
+              </p>
             </div>
           </div>
-        </form>
-      </DialogContent>
+
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <Button onClick={controls.cancel} type="button" variant="outline">
+              Cancelar
+            </Button>
+            <Button disabled={saving || stock.checking || Boolean(stock.error)} type="submit">
+              {saving ? 'Salvando…' : 'Salvar alterações'}
+            </Button>
+          </div>
+        </div>
+      </form>
       <StockAlertDialog alert={stock.alert} onDecision={stock.decide} />
-    </Dialog>
+    </>
   );
 }
 

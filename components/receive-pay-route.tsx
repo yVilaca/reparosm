@@ -25,7 +25,7 @@ import PageHeader from '@/components/ui/page-header';
 import RowMenu from '@/components/ui/row-menu';
 import FilterPills from '@/components/ui/filter-pills';
 import Segmented from '@/components/ui/segmented';
-import StatCard from '@/components/ui/stat-card';
+import StatCard, { StatGroup } from '@/components/ui/stat-card';
 import { toneText, type Tone } from '@/components/ui/tone';
 import {
   groupAgenda,
@@ -428,7 +428,7 @@ export default function ReceivePayRoute({
           pendências permanecem completas.
         </p>
       </form>
-      <section aria-label="Resumo" className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <StatGroup aria-label="Resumo" className="mb-6 grid-cols-2 xl:grid-cols-4">
         <StatCard
           icon={ArrowDownLeft}
           label="Total Bruto"
@@ -472,7 +472,7 @@ export default function ReceivePayRoute({
           ]}
           value={formatMoney(summary.pay.week.amount)}
         />
-      </section>
+      </StatGroup>
 
       <div className="mb-4 grid gap-3 lg:flex lg:items-center lg:justify-between">
         <Segmented<Tab>
@@ -536,7 +536,8 @@ export default function ReceivePayRoute({
                         return (
                           <Row
                             amount={order.total}
-                            details={[order.code, order.device]}
+                            details={[order.device]}
+                            tag={order.code}
                             direction="receive"
                             key={`receive-${order.id}`}
                             menu={
@@ -662,8 +663,8 @@ export default function ReceivePayRoute({
                     return (
                       <Row
                         amount={receipt.value}
+                        tag={receipt.code}
                         details={[
-                          receipt.code,
                           receipt.device,
                           `Custo ${formatMoney(receipt.cost || 0)} · Líquido ${formatMoney(receipt.value - (receipt.cost || 0))}`,
                         ]}
@@ -846,6 +847,7 @@ function Group({
 function Row({
   direction,
   title,
+  tag,
   details,
   amount,
   note,
@@ -855,6 +857,7 @@ function Row({
 }: {
   direction: Direction;
   title: string;
+  tag?: string;
   details: (string | null | undefined)[];
   amount: number;
   note?: string;
@@ -876,6 +879,7 @@ function Row({
       note={note}
       noteTone={noteTone}
       srPrefix={`${style.label}: `}
+      tag={tag}
       title={title}
       value={`${style.sign}${formatMoney(amount)}`}
       valueClassName={style.amount}

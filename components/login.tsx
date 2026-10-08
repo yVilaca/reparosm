@@ -46,15 +46,15 @@ export default function Login({ onLogin }: { onLogin: (account: PublicAccount) =
   };
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-muted/40 p-4">
-      <Card className="w-full max-w-sm">
-        <form onSubmit={submit}>
+    // A entrada já é a marca: a tinta do logo em volta, o logo claro em cima.
+    <main className="flex min-h-svh flex-col items-center justify-center gap-8 bg-brand-ink p-4">
+      <BrandLogo className="w-[200px]" onDark priority sizes="200px" />
+      <Card className="w-full max-w-sm shadow-xl ring-0">
+        {/* O form é o único filho do cartão: o espaço entre cabeçalho e campos vem dele. */}
+        <form className="grid gap-5" onSubmit={submit}>
           <CardHeader className="gap-4">
-            <div className="flex items-center">
-              <BrandLogo className="w-[190px]" priority sizes="190px" />
-            </div>
             <div>
-              <h2 className="text-base font-medium">
+              <h2 className="font-display text-xl font-bold tracking-tight">
                 {forgot ? 'Esqueci minha senha' : 'Entre na sua assistência'}
               </h2>
               <p className="text-sm text-muted-foreground">
