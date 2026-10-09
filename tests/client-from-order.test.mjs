@@ -10,8 +10,8 @@ before(async () => {
   if (skip) return;
   db = await createTestDatabase();
   await db.migrationQuery(
-    `INSERT INTO accounts (id, username, name, role, status, password_hash)
-     VALUES ('account-cfo', 'cfo', 'CFO', 'merchant', 'active', 'x')`,
+    `INSERT INTO accounts (id, username, name, role, status)
+     VALUES ('account-cfo', 'cfo', 'CFO', 'merchant', 'active')`,
   );
   clients = await import('../lib/repos/clients.ts');
   ({ saveOrder } = await import('../lib/orders.ts'));

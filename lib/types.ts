@@ -35,14 +35,41 @@ export interface StoreUser {
   name: string;
   role: UserRole;
   status: UserStatus;
+  /** E-mail para entrar e recuperar a senha (único no sistema). */
+  email?: string;
+  /** A pessoa já usou um link recebido nesse e-mail. */
+  emailVerified: boolean;
   mustChangePassword: boolean;
   lastLoginAt?: string;
   createdAt: string;
   updatedAt: string;
 }
 
+/**
+ * Situação do acesso: `ready` já criou a senha; `invited` tem convite valendo;
+ * `invite-expired` foi convidada e o convite venceu sem uso.
+ */
+export type UserAccess = 'ready' | 'invited' | 'invite-expired';
+
 /** Uma pessoa da equipe, com os aparelhos conectados e se pediu senha nova. */
-export type TeamMember = StoreUser & { sessions: number; passwordRequested: boolean };
+export type TeamMember = StoreUser & {
+  sessions: number;
+  passwordRequested: boolean;
+  access: UserAccess;
+};
+
+/**
+ * Como um link de acesso chegou: por e-mail (`sent`) ou, sem e-mail ou sem
+ * SMTP, como endereço para copiar e mandar à pessoa (WhatsApp).
+ */
+export type LinkDelivery =
+  | { sent: true; to: string }
+  | {
+      sent: false;
+      url: string;
+      expiresAt: string;
+      reason: 'no-email' | 'not-configured' | 'failed' | 'copy';
+    };
 
 /** A loja da sessão e quem está usando. */
 export interface SessionAccount extends Account {

@@ -18,7 +18,7 @@ before(async () => {
   if (skip) return;
   db = await createTestDatabase();
   await db.migrationQuery(
-    `INSERT INTO accounts(id,username,name,role,status,password_hash) VALUES ($1,$1,'Estoque','merchant','active','unused')`,
+    `INSERT INTO accounts(id,username,name,role,status) VALUES ($1,$1,'Estoque','merchant','active')`,
     [A],
   );
   ({ saveOrder } = await import('../lib/orders.ts'));

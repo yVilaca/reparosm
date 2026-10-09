@@ -7,9 +7,9 @@ let db, cash, quickSales;
 before(async () => {
   if (skip) return;
   db = await createTestDatabase();
-  await db.migrationQuery(`INSERT INTO accounts (id,username,name,role,status,password_hash) VALUES
-    ('totals-owner','totals-owner','Owner','merchant','active','x'),
-    ('totals-other','totals-other','Other','merchant','active','x')`);
+  await db.migrationQuery(`INSERT INTO accounts (id,username,name,role,status) VALUES
+    ('totals-owner','totals-owner','Owner','merchant','active'),
+    ('totals-other','totals-other','Other','merchant','active')`);
   await db.migrationQuery(`INSERT INTO orders (id,account_id,code,customer,device,total,cost,status) VALUES
     ('paid','totals-owner','OS-1','Ana','Moto',100,40,'Concluído'),
     ('unpaid','totals-owner','OS-2','Ana','Moto',200,80,'Aberto'),
@@ -68,8 +68,8 @@ test(
 );
 
 test('returns zero totals when the account has no orders or receipts', { skip }, async () => {
-  await db.migrationQuery(`INSERT INTO accounts (id,username,name,role,status,password_hash)
-    VALUES ('totals-empty','totals-empty','Empty','merchant','active','x')`);
+  await db.migrationQuery(`INSERT INTO accounts (id,username,name,role,status)
+    VALUES ('totals-empty','totals-empty','Empty','merchant','active')`);
   assert.deepEqual(await cash.orderFinancialTotals('totals-empty'), {
     gross: 0,
     net: 0,

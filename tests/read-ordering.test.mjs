@@ -7,8 +7,8 @@ let db, orders, clients, parts, payments;
 before(async () => {
   if (skip) return;
   db = await createTestDatabase();
-  await db.migrationQuery(`INSERT INTO accounts (id,username,name,role,status,password_hash)
-    VALUES ('sorting-owner','sorting-owner','Sorting','merchant','active','x')`);
+  await db.migrationQuery(`INSERT INTO accounts (id,username,name,role,status)
+    VALUES ('sorting-owner','sorting-owner','Sorting','merchant','active')`);
   await db.migrationQuery(`INSERT INTO orders (id,account_id,code,customer,device,created_at,updated_at) VALUES
     ('old','sorting-owner','OS-1','Ana','Moto','2026-10-01T12:00:00Z','2026-10-05T12:00:00Z'),
     ('new-a','sorting-owner','OS-2','Ana','Moto','2026-10-04T12:00:00Z','2026-10-04T12:00:00Z'),

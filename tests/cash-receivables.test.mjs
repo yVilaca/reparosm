@@ -22,8 +22,8 @@ before(async () => {
   if (skip) return;
   db = await createTestDatabase();
   await db.migrationQuery(
-    `INSERT INTO accounts (id, username, name, role, status, password_hash)
-     VALUES ('account-rec', 'rec', 'Rec', 'merchant', 'active', 'x')`,
+    `INSERT INTO accounts (id, username, name, role, status)
+     VALUES ('account-rec', 'rec', 'Rec', 'merchant', 'active')`,
   );
   await order('order-ready', 'OS-1', 350, 'Retirada', 'Concluído');
   await order('order-done-early', 'OS-8', 120, 'Teste final', 'Concluído');

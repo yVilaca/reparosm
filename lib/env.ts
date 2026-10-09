@@ -16,8 +16,52 @@ export const env = {
       throw new Error(`A variável URL precisa conter uma URL válida: ${value}`);
     }
   },
+  /**
+   * Endereço público do sistema, usado nos links enviados por e-mail. Nunca vem
+   * da requisição (o Host pode ser forjado): APP_URL, depois URL (Netlify), depois
+   * o domínio de produção da Vercel.
+   */
+  get appUrl() {
+    const vercel = read('VERCEL_PROJECT_PRODUCTION_URL');
+    const value =
+      read('APP_URL') || read('URL') || (vercel && `https://${vercel}`) || 'http://localhost:3000';
+    try {
+      return new URL(value).origin;
+    } catch {
+      throw new Error(`A variável APP_URL precisa conter uma URL válida: ${value}`);
+    }
+  },
   get adminPasswordHash() {
     return read('ADMIN_PASSWORD_HASH');
+  },
+  /** SMTP para os e-mails de acesso. Sem SMTP_HOST, os links são copiados à mão. */
+  get smtp() {
+    const host = read('SMTP_HOST');
+    if (!host) return null;
+    const port = Number(read('SMTP_PORT') || 587);
+    return {
+      host,
+      port,
+      // 465 é TLS direto; 587 e 2525 começam sem TLS e sobem com STARTTLS.
+      secure: read('SMTP_SECURE') ? read('SMTP_SECURE') === 'true' : port === 465,
+      user: read('SMTP_USER'),
+      password: read('SMTP_PASSWORD'),
+    };
+  },
+  /** Remetente dos e-mails, ex.: "ReparoSM <nao-responda@seudominio.com.br>". */
+  get emailFrom() {
+    return read('EMAIL_FROM');
+  },
+  get emailReplyTo() {
+    return read('EMAIL_REPLY_TO');
+  },
+  /** "memory": os testes guardam os e-mails em vez de enviar. */
+  get emailTransport() {
+    return read('EMAIL_TRANSPORT');
+  },
+  /** Chave que a integração de pagamento usa para criar lojas depois da compra. */
+  get provisioningToken() {
+    return read('PROVISIONING_TOKEN');
   },
   get whatsappAccessToken() {
     return read('WHATSAPP_ACCESS_TOKEN');
@@ -57,5 +101,13 @@ export function validateEnv() {
   requiredEnv('ADMIN_PASSWORD_HASH', env.adminPasswordHash, /^pbkdf2\$/);
   if (env.whatsappConfigKey)
     requiredEnv('WHATSAPP_CONFIG_KEY', env.whatsappConfigKey, /^[a-f0-9]{64}$/i);
+  requiredEnv('APP_URL', env.appUrl);
+  if (env.smtp) {
+    requiredEnv('EMAIL_FROM', env.emailFrom, /@/);
+    if (!Number.isInteger(env.smtp.port) || env.smtp.port < 1)
+      throw new Error('A variável SMTP_PORT precisa ser um número de porta.');
+  }
+  if (env.provisioningToken && env.provisioningToken.length < 32)
+    throw new Error('A variável PROVISIONING_TOKEN precisa ter pelo menos 32 caracteres.');
   return env;
 }

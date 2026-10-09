@@ -20,6 +20,7 @@ test('migrations leave one table per entity and no records table', { skip }, asy
     )
   ).map((row) => row.table_name);
   assert.deepEqual(tables, [
+    'access_links',
     'accounts',
     'automations',
     'cash_entries',
@@ -152,9 +153,9 @@ test(
   { skip },
   async () => {
     await db.migrationQuery(
-      `INSERT INTO accounts (id, username, name, role, status, password_hash)
-     VALUES ('rls-a', 'rls-a', 'RLS A', 'merchant', 'active', 'test'),
-            ('rls-b', 'rls-b', 'RLS B', 'merchant', 'active', 'test')`,
+      `INSERT INTO accounts (id, username, name, role, status)
+     VALUES ('rls-a', 'rls-a', 'RLS A', 'merchant', 'active'),
+            ('rls-b', 'rls-b', 'RLS B', 'merchant', 'active')`,
     );
     await db.migrationQuery(
       `INSERT INTO parts (id, account_id, name, stock, published)
@@ -279,9 +280,9 @@ test(
   { skip },
   async () => {
     await db.migrationQuery(
-      `INSERT INTO accounts (id, username, name, role, status, password_hash)
-       VALUES ('p1-fk-a', 'p1-fk-a', 'A', 'merchant', 'active', 'test'),
-              ('p1-fk-b', 'p1-fk-b', 'B', 'merchant', 'active', 'test')`,
+      `INSERT INTO accounts (id, username, name, role, status)
+       VALUES ('p1-fk-a', 'p1-fk-a', 'A', 'merchant', 'active'),
+              ('p1-fk-b', 'p1-fk-b', 'B', 'merchant', 'active')`,
     );
     await db.migrationQuery(
       `INSERT INTO clients (id, account_id, name)
@@ -348,10 +349,10 @@ test('P1 auth controls force RLS and require matching scoped capabilities', { sk
   const tokenHashA = 'a'.repeat(64);
   const tokenHashB = 'b'.repeat(64);
   await db.migrationQuery(
-    `INSERT INTO accounts (id, username, name, role, status, password_hash)
-       VALUES ('p1-auth-a', 'p1-auth-a', 'A', 'merchant', 'active', 'test'),
-              ('p1-auth-b', 'p1-auth-b', 'B', 'merchant', 'active', 'test'),
-              ('p1-auth-admin', 'p1-auth-admin', 'Admin', 'admin', 'active', 'test')`,
+    `INSERT INTO accounts (id, username, name, role, status)
+       VALUES ('p1-auth-a', 'p1-auth-a', 'A', 'merchant', 'active'),
+              ('p1-auth-b', 'p1-auth-b', 'B', 'merchant', 'active'),
+              ('p1-auth-admin', 'p1-auth-admin', 'Admin', 'admin', 'active')`,
   );
   await db.migrationQuery(
     `INSERT INTO users (id, account_id, username, name, role, password_hash)
@@ -391,8 +392,8 @@ test('P1 auth controls force RLS and require matching scoped capabilities', { sk
   for (const table of tables) assert.deepEqual(await db.query(`SELECT 1 FROM ${table}`), []);
   await assert.rejects(
     db.query(
-      `INSERT INTO accounts (id, username, name, role, status, password_hash)
-         VALUES ('p1-auth-unscoped', 'unscoped', 'No context', 'merchant', 'active', 'test')`,
+      `INSERT INTO accounts (id, username, name, role, status)
+         VALUES ('p1-auth-unscoped', 'unscoped', 'No context', 'merchant', 'active')`,
     ),
     { code: '42501' },
   );
@@ -463,16 +464,16 @@ test('P1 auth controls force RLS and require matching scoped capabilities', { sk
   assert.deepEqual(await db.authQuery('p1-auth-a', 'SELECT id FROM accounts ORDER BY id'), [
     { id: 'p1-auth-a' },
   ]);
-  await assert.rejects(
-    db.authQuery('p1-auth-a', 'SELECT password_hash FROM accounts WHERE id = $1', ['p1-auth-a']),
-    { code: '42501' },
-  );
+  // A loja não guarda senha: só o usuário guarda (0027).
   assert.deepEqual(
-    await db.authQuery('p1-auth-a', 'SELECT account_password_hash($1) AS hash', ['p1-auth-a']),
-    [{ hash: 'test' }],
+    await db.migrationQuery(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_name = 'accounts' AND column_name LIKE '%password%'`,
+    ),
+    [],
   );
   const [publicCredential] = await db.publicStoreTransaction('p1-auth-a', (run) =>
-    run('SELECT account_password_hash($1) AS hash', ['p1-auth-a']),
+    run('SELECT user_password_hash($1) AS hash', ['user-p1-auth-a']),
   );
   assert.equal(publicCredential.hash, null);
   const sessionAccount = await db.sessionTransaction(tokenHashA, async (run) => {
@@ -483,8 +484,6 @@ test('P1 auth controls force RLS and require matching scoped capabilities', { sk
       tokenHashA,
     ]);
     assert.equal(await db.setSessionAccountContext(run, session.account_id), 'user-p1-auth-a');
-    const [credential] = await run('SELECT account_password_hash($1) AS hash', ['p1-auth-a']);
-    assert.equal(credential.hash, null);
     // A própria sessão confere a senha atual do usuário dela, e só dele.
     const [own] = await run('SELECT user_password_hash($1) AS hash', ['user-p1-auth-a']);
     assert.equal(own.hash, 'user-hash-a');

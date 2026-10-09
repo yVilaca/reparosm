@@ -18,8 +18,8 @@ before(async () => {
   db = await createTestDatabase();
   process.env.ADMIN_PASSWORD_HASH = await passwordHash('adminreparosm', 'TestAdminPassword123');
   await db.migrationQuery(
-    `INSERT INTO accounts (id, username, name, role, status, password_hash)
-     VALUES ('account-history-route', 'history-route', 'History Route', 'merchant', 'active', 'x')`,
+    `INSERT INTO accounts (id, username, name, role, status)
+     VALUES ('account-history-route', 'history-route', 'History Route', 'merchant', 'active')`,
   );
   const { sessionCookie } = await import('./support/session.mjs');
   cookie = await sessionCookie(db, 'history-route', 'account-history-route');

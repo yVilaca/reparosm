@@ -1,5 +1,6 @@
 import {
   adminQuery,
+  authEmailTransaction,
   authTransaction,
   loginFailureQuery,
   loginFailureTransaction,
@@ -42,42 +43,60 @@ export async function findLogin(username: string) {
   });
 }
 
+/** O usuário dono de um e-mail (login e "esqueci minha senha" pelo e-mail). */
+export async function usernameForEmail(email: string) {
+  const [row] = await authEmailTransaction(email, (run) =>
+    run<{ username: string }>('SELECT username FROM users WHERE email = $1', [email]),
+  );
+  return row?.username ?? null;
+}
+
+export type Device = { userAgent: string; ip: string };
+
 /**
- * Abre uma sessão para o usuário sem derrubar as outras (dele ou da loja):
- * cada aparelho tem a sua. Só as já vencidas dele são limpas.
+ * Abre uma sessão dentro de uma transação já no login do usuário
+ * (app.auth_username): cada aparelho tem a sua, e só as já vencidas dele saem.
  */
-export async function createSession(
-  username: string,
+export async function insertSession(
+  run: Query,
   user: Pick<StoreUser, 'id' | 'accountId'>,
-  device: { userAgent: string; ip: string },
+  device: Device,
   upgradedHash?: string,
 ) {
   const token = crypto.randomUUID();
   const tokenHash = await hashToken(token);
-  await authTransaction(username, async (run) => {
-    await run('DELETE FROM sessions WHERE user_id = $1 AND expires_at <= now()', [user.id]);
-    await run(
-      `INSERT INTO sessions (token_hash, account_id, user_id, expires_at, user_agent, ip)
-       VALUES ($1, $2, $3, now() + make_interval(secs => $4), $5, $6)`,
-      [
-        tokenHash,
-        user.accountId,
-        user.id,
-        SESSION_SECONDS,
-        device.userAgent.slice(0, 300),
-        device.ip.slice(0, 80),
-      ],
-    );
-    // Senha no formato antigo é regravada no novo, no mesmo acesso. (O runtime
-    // não lê password_hash, então não dá para usar COALESCE com a coluna.)
-    await run(
-      upgradedHash
-        ? 'UPDATE users SET last_login_at = now(), password_hash = $2 WHERE id = $1'
-        : 'UPDATE users SET last_login_at = now() WHERE id = $1',
-      upgradedHash ? [user.id, upgradedHash] : [user.id],
-    );
-  });
+  await run('DELETE FROM sessions WHERE user_id = $1 AND expires_at <= now()', [user.id]);
+  await run(
+    `INSERT INTO sessions (token_hash, account_id, user_id, expires_at, user_agent, ip)
+     VALUES ($1, $2, $3, now() + make_interval(secs => $4), $5, $6)`,
+    [
+      tokenHash,
+      user.accountId,
+      user.id,
+      SESSION_SECONDS,
+      device.userAgent.slice(0, 300),
+      device.ip.slice(0, 80),
+    ],
+  );
+  // Senha no formato antigo é regravada no novo, no mesmo acesso. (O runtime
+  // não lê password_hash, então não dá para usar COALESCE com a coluna.)
+  await run(
+    upgradedHash
+      ? 'UPDATE users SET last_login_at = now(), password_hash = $2 WHERE id = $1'
+      : 'UPDATE users SET last_login_at = now() WHERE id = $1',
+    upgradedHash ? [user.id, upgradedHash] : [user.id],
+  );
   return token;
+}
+
+/** Abre uma sessão sem derrubar as outras (dele ou da loja). */
+export async function createSession(
+  username: string,
+  user: Pick<StoreUser, 'id' | 'accountId'>,
+  device: Device,
+  upgradedHash?: string,
+) {
+  return authTransaction(username, (run) => insertSession(run, user, device, upgradedHash));
 }
 
 /** A loja e o usuário por trás de um token válido (qualquer situação), ou null. */
@@ -117,7 +136,7 @@ export async function revokeSessionsAsAdmin(actor: AdminActor, accountId: string
  * Roda `fn` dentro da sessão do próprio usuário (app.session_user_id), para ele
  * cuidar da própria conta. Null se a sessão não vale mais.
  */
-async function ownSession<T>(
+export async function withOwnSession<T>(
   token: string,
   fn: (run: Query, session: { userId: string; accountId: string; tokenHash: string }) => Promise<T>,
 ) {
@@ -136,7 +155,7 @@ async function ownSession<T>(
 
 /** Os aparelhos conectados do usuário, este primeiro. */
 export async function listOwnSessions(token: string) {
-  return ownSession(token, async (run, { userId, tokenHash }) => {
+  return withOwnSession(token, async (run, { userId, tokenHash }) => {
     const rows = await run<{
       id: string;
       user_agent: string | null;
@@ -163,7 +182,7 @@ export async function listOwnSessions(token: string) {
 
 /** Encerra um aparelho do próprio usuário. */
 export async function endOwnSession(token: string, sessionId: string) {
-  return ownSession(token, async (run, { userId }) => {
+  return withOwnSession(token, async (run, { userId }) => {
     const rows = await run('DELETE FROM sessions WHERE id = $1 AND user_id = $2 RETURNING id', [
       sessionId,
       userId,
@@ -174,7 +193,7 @@ export async function endOwnSession(token: string, sessionId: string) {
 
 /** "Sair dos outros aparelhos": fica só este. */
 export async function endOtherOwnSessions(token: string) {
-  return ownSession(token, async (run, { userId, tokenHash }) => {
+  return withOwnSession(token, async (run, { userId, tokenHash }) => {
     const rows = await run(
       'DELETE FROM sessions WHERE user_id = $1 AND token_hash <> $2 RETURNING id',
       [userId, tokenHash],
@@ -184,7 +203,7 @@ export async function endOtherOwnSessions(token: string) {
 }
 
 export async function updateOwnName(token: string, name: string) {
-  return ownSession(token, async (run, { userId }) => {
+  return withOwnSession(token, async (run, { userId }) => {
     const [row] = await run<UserRow>(
       `UPDATE users AS u SET name = $2, updated_at = now() WHERE u.id = $1
        RETURNING ${userColumns}`,
@@ -202,7 +221,7 @@ export async function changeOwnPassword(
   token: string,
   check: (user: { username: string; passwordHash: string }) => Promise<string | null>,
 ) {
-  return ownSession(token, async (run, { userId, tokenHash }) => {
+  return withOwnSession(token, async (run, { userId, tokenHash }) => {
     const [row] = await run<{ username: string; password_hash: string | null }>(
       'SELECT username, public.user_password_hash(id) AS password_hash FROM users WHERE id = $1',
       [userId],

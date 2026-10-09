@@ -1,6 +1,13 @@
 import { authQuery, type Query } from '@/lib/db';
 import { iso, type Timestamp } from '@/lib/repos/rows';
-import type { PasswordRequest, StoreUser, TeamMember, UserRole, UserStatus } from '@/lib/types';
+import type {
+  PasswordRequest,
+  StoreUser,
+  TeamMember,
+  UserAccess,
+  UserRole,
+  UserStatus,
+} from '@/lib/types';
 
 /*
  * Usuários de uma loja. As funções recebem um `run` já no contexto certo (loja,
@@ -14,6 +21,8 @@ export type UserRow = {
   name: string;
   role: UserRole;
   status: UserStatus;
+  email: string | null;
+  email_verified_at: Timestamp | null;
   must_change_password: boolean;
   last_login_at: Timestamp | null;
   created_at: Timestamp;
@@ -21,7 +30,8 @@ export type UserRow = {
 };
 
 export const userColumns = `u.id, u.account_id, u.username, u.name, u.role, u.status,
-  u.must_change_password, u.last_login_at, u.created_at, u.updated_at`;
+  u.email, u.email_verified_at, u.must_change_password, u.last_login_at, u.created_at,
+  u.updated_at`;
 
 export const toUser = (row: UserRow): StoreUser => ({
   id: row.id,
@@ -30,6 +40,8 @@ export const toUser = (row: UserRow): StoreUser => ({
   name: row.name,
   role: row.role,
   status: row.status,
+  email: row.email ?? undefined,
+  emailVerified: Boolean(row.email_verified_at),
   mustChangePassword: row.must_change_password,
   lastLoginAt: row.last_login_at ? iso(row.last_login_at) : undefined,
   createdAt: iso(row.created_at),
@@ -39,9 +51,24 @@ export const toUser = (row: UserRow): StoreUser => ({
 /** Regra da equipe que o usuário vê como mensagem (ex.: o último Dono). */
 export class TeamRuleError extends Error {}
 
+/**
+ * Já criou a senha (entrou, confirmou o e-mail ou tem senha provisória antiga);
+ * senão, depende de haver convite valendo. Usa o alias `u` de users.
+ */
+export const accessColumn = `CASE
+    WHEN u.last_login_at IS NOT NULL OR u.email_verified_at IS NOT NULL OR u.must_change_password
+      THEN 'ready'
+    WHEN EXISTS (SELECT 1 FROM access_links l
+                 WHERE l.user_id = u.id AND l.purpose = 'invite' AND l.used_at IS NULL
+                   AND l.expires_at > now())
+      THEN 'invited'
+    ELSE 'invite-expired' END`;
+
 export async function listUsers(run: Query, accountId: string): Promise<TeamMember[]> {
-  const rows = await run<UserRow & { sessions: number; password_requested: boolean }>(
-    `SELECT ${userColumns},
+  const rows = await run<
+    UserRow & { sessions: number; password_requested: boolean; access: UserAccess }
+  >(
+    `SELECT ${userColumns}, ${accessColumn} AS access,
        (SELECT count(*)::int FROM sessions s
         WHERE s.user_id = u.id AND s.expires_at > now()) AS sessions,
        EXISTS (SELECT 1 FROM password_requests r
@@ -54,26 +81,107 @@ export async function listUsers(run: Query, accountId: string): Promise<TeamMemb
     ...toUser(row),
     sessions: row.sessions,
     passwordRequested: row.password_requested,
+    access: row.access,
   }));
 }
 
+/** Quem vai receber um link: dados da pessoa, da loja e se já criou a senha. */
+export type LinkTarget = {
+  id: string;
+  accountId: string;
+  username: string;
+  name: string;
+  role: UserRole;
+  email?: string;
+  storeName: string;
+  ready: boolean;
+};
+
+/** Pessoa ativa de uma loja ativa (nunca a conta do administrador). */
+export async function linkTarget(
+  run: Query,
+  where: { userId: string; accountId?: string } | { username: string },
+): Promise<LinkTarget | null> {
+  const byId = 'userId' in where;
+  const [row] = await run<{
+    id: string;
+    account_id: string;
+    username: string;
+    name: string;
+    role: UserRole;
+    email: string | null;
+    store_name: string;
+    access: UserAccess;
+  }>(
+    `SELECT u.id, u.account_id, u.username, u.name, u.role, u.email, a.name AS store_name,
+            ${accessColumn} AS access
+     FROM users u JOIN accounts a ON a.id = u.account_id
+     WHERE u.status = 'active' AND a.status = 'active' AND a.role = 'merchant'
+       AND ${byId ? 'u.id = $1 AND ($2::text IS NULL OR u.account_id = $2)' : 'u.username = $1'}`,
+    byId ? [where.userId, where.accountId ?? null] : [where.username],
+  );
+  return row
+    ? {
+        id: row.id,
+        accountId: row.account_id,
+        username: row.username,
+        name: row.name,
+        role: row.role,
+        email: row.email ?? undefined,
+        storeName: row.store_name,
+        ready: row.access === 'ready',
+      }
+    : null;
+}
+
+/** Senha que nenhuma senha digitada confere: a pessoa cria a dela pelo link. */
+const NO_PASSWORD = '!';
+
 /**
- * Cadastra alguém na loja. A senha é provisória: a pessoa cria a dela no
- * primeiro acesso. Usuário repetido vira o erro 23505 do banco.
+ * Cadastra alguém na loja, sem senha: o acesso começa pelo link de convite.
+ * Usuário ou e-mail repetidos viram o erro 23505 do banco.
  */
 export async function createUser(
   run: Query,
   accountId: string,
-  user: { username: string; name: string; role: UserRole; passwordHash: string },
+  user: { username: string; name: string; role: UserRole; email?: string },
 ) {
   const [row] = await run<UserRow>(
-    `INSERT INTO users AS u
-       (id, account_id, username, name, role, status, password_hash, must_change_password)
-     VALUES ($1, $2, $3, $4, $5, 'active', $6, true)
+    `INSERT INTO users AS u (id, account_id, username, name, role, status, email, password_hash)
+     VALUES ($1, $2, $3, $4, $5, 'active', $6, $7)
      RETURNING ${userColumns}`,
-    [`user-${user.username}`, accountId, user.username, user.name, user.role, user.passwordHash],
+    [
+      `user-${user.username}`,
+      accountId,
+      user.username,
+      user.name,
+      user.role,
+      user.email ?? null,
+      NO_PASSWORD,
+    ],
   );
   return toUser(row);
+}
+
+/**
+ * O Dono (ou o administrador) corrige o e-mail de alguém: passa a valer na hora,
+ * mas sem confirmação até a pessoa usar um link recebido nele.
+ */
+export async function setUserEmail(
+  run: Query,
+  accountId: string,
+  id: string,
+  email: string | null,
+) {
+  const [row] = await run<UserRow>(
+    `UPDATE users AS u SET email = $3,
+       email_verified_at = CASE WHEN u.email IS NOT DISTINCT FROM $3 THEN u.email_verified_at END,
+       updated_at = now()
+     WHERE u.id = $1 AND u.account_id = $2
+     RETURNING ${userColumns}`,
+    [id, accountId, email],
+  );
+  return row ? toUser(row) : null;
 }
 
 /**
@@ -117,31 +225,6 @@ export async function updateUser(
   return row ? toUser(row) : null;
 }
 
-/**
- * Senha definida por outra pessoa (Dono ou administrador): fica provisória,
- * desconecta o usuário e encerra o pedido de senha dele.
- */
-export async function setUserPassword(
-  run: Query,
-  accountId: string,
-  id: string,
-  passwordHash: string,
-) {
-  const rows = await run(
-    `UPDATE users SET password_hash = $3, must_change_password = true, updated_at = now()
-     WHERE id = $1 AND account_id = $2 RETURNING id`,
-    [id, accountId, passwordHash],
-  );
-  if (!rows.length) return false;
-  await endUserSessions(run, accountId, id);
-  await run(
-    `UPDATE password_requests SET status = 'resolved', resolved_at = now()
-     WHERE user_id = $1 AND account_id = $2 AND status = 'pending'`,
-    [id, accountId],
-  );
-  return true;
-}
-
 export async function endUserSessions(run: Query, accountId: string, userId: string) {
   const rows = await run(
     'DELETE FROM sessions WHERE user_id = $1 AND account_id = $2 RETURNING token_hash',
@@ -151,8 +234,8 @@ export async function endUserSessions(run: Query, accountId: string, userId: str
 }
 
 /**
- * "Esqueci minha senha": abre (ou mantém) o pedido do usuário. Resposta igual
- * exista ou não o usuário; a conta do administrador não pede por aqui.
+ * "Esqueci minha senha" de quem não tem e-mail: abre (ou mantém) o pedido para o
+ * Dono ou o administrador mandar um link. A conta do administrador não pede por aqui.
  */
 export async function requestPasswordReset(username: string) {
   await authQuery(

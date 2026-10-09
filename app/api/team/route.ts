@@ -1,24 +1,23 @@
-import {
-  currentAccount,
-  isOwner,
-  normalizeUser,
-  passwordHash,
-  passwordProblem,
-  sameOrigin,
-} from '@/lib/auth';
+import { deliverLink, normalizeEmail, type Context } from '@/lib/access';
+import { currentAccount, isOwner, normalizeUser, sameOrigin } from '@/lib/auth';
 import { tenantTransaction, type Query } from '@/lib/db';
+import { emailConfigured } from '@/lib/email';
 import {
   createUser,
   endUserSessions,
+  linkTarget,
   listPasswordRequests,
   listUsers,
-  setUserPassword,
+  setUserEmail,
   TeamRuleError,
   updateUser,
 } from '@/lib/repos/users';
 import type { DataObject, SessionAccount, UserRole, UserStatus } from '@/lib/types';
 
-/** Equipe: o Dono cadastra e cuida do acesso das pessoas da loja. */
+/**
+ * Equipe: o Dono cadastra e cuida do acesso das pessoas da loja. Ninguém define
+ * senha de ninguém: a pessoa cria a dela pelo link (e-mail ou copiado).
+ */
 
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -38,6 +37,7 @@ async function owner(request: Request): Promise<SessionAccount | Response> {
 const teamOf = async (run: Query, accountId: string) => ({
   users: await listUsers(run, accountId),
   requests: await listPasswordRequests(run, { role: 'staff', accountId }),
+  emailEnabled: emailConfigured(),
 });
 
 export async function GET(request: Request) {
@@ -57,6 +57,7 @@ export async function POST(request: Request) {
     return json({ error: 'Dados inválidos' }, 400);
   }
   if (!isObject(body)) return json({ error: 'Dados inválidos' }, 400);
+  const context: Context = (fn) => tenantTransaction(account.id, fn);
   const id = String(body.id || '');
   const self = id === account.user.id;
   const name =
@@ -66,6 +67,9 @@ export async function POST(request: Request) {
           .trim()
           .slice(0, 80);
   if (name !== undefined && name.length < 2) return json({ error: 'Informe o nome.' }, 400);
+  const typedEmail = String(body.email ?? '').trim();
+  const email = typedEmail ? normalizeEmail(typedEmail) : null;
+  if (typedEmail && !email) return json({ error: 'Informe um e-mail válido.' }, 400);
 
   try {
     if (body.action === 'create') {
@@ -74,14 +78,15 @@ export async function POST(request: Request) {
         return json({ error: 'Use um usuário com pelo menos 3 letras ou números.' }, 400);
       if (RESERVED.includes(username)) return json({ error: 'Este usuário já existe.' }, 409);
       if (!name) return json({ error: 'Informe o nome.' }, 400);
-      const problem = passwordProblem(String(body.password || ''));
-      if (problem) return json({ error: problem }, 400);
       const role = ROLES.includes(body.role as UserRole) ? (body.role as UserRole) : 'staff';
-      const hash = await passwordHash(username, String(body.password));
-      const user = await tenantTransaction(account.id, (run) =>
-        createUser(run, account.id, { username, name, role, passwordHash: hash }),
+      const user = await context((run) =>
+        createUser(run, account.id, { username, name, role, email: email ?? undefined }),
       );
-      return json({ user }, 201);
+      const target = await context((run) =>
+        linkTarget(run, { userId: user.id, accountId: account.id }),
+      );
+      const invite = target ? await deliverLink(context, target, { send: true }) : null;
+      return json({ user, invite }, 201);
     }
 
     if (body.action === 'update') {
@@ -91,39 +96,44 @@ export async function POST(request: Request) {
         : undefined;
       if (self && status === 'disabled')
         return json({ error: 'Você não pode desativar o próprio acesso.' }, 400);
-      const user = await tenantTransaction(account.id, (run) =>
-        updateUser(run, account.id, id, { name, role, status }),
-      );
+      const user = await context((run) => updateUser(run, account.id, id, { name, role, status }));
       return user ? json({ user }) : json({ error: 'Pessoa não encontrada.' }, 404);
     }
 
-    if (body.action === 'reset-password') {
-      if (self) return json({ error: 'Troque a sua senha em Minha conta.' }, 400);
-      const problem = passwordProblem(String(body.password || ''));
-      if (problem) return json({ error: problem }, 400);
-      const done = await tenantTransaction(account.id, async (run) => {
-        const [user] = await run<{ username: string }>(
-          'SELECT username FROM users WHERE id = $1 AND account_id = $2',
-          [id, account.id],
-        );
-        if (!user) return false;
-        const hash = await passwordHash(user.username, String(body.password));
-        return setUserPassword(run, account.id, id, hash);
-      });
-      return done ? json({ ok: true }) : json({ error: 'Pessoa não encontrada.' }, 404);
+    if (body.action === 'set-email') {
+      if (self) return json({ error: 'Troque o seu e-mail em Minha conta.' }, 400);
+      const user = await context((run) => setUserEmail(run, account.id, id, email));
+      return user ? json({ user }) : json({ error: 'Pessoa não encontrada.' }, 404);
+    }
+
+    if (body.action === 'send-link' || body.action === 'copy-link') {
+      if (self) return json({ error: 'Para a sua senha, use Minha conta.' }, 400);
+      const target = await context((run) => linkTarget(run, { userId: id, accountId: account.id }));
+      if (!target) return json({ error: 'Pessoa não encontrada ou sem acesso.' }, 404);
+      if (body.action === 'send-link' && !target.email)
+        return json({ error: 'Cadastre o e-mail da pessoa ou copie o link.' }, 400);
+      const invite = await deliverLink(context, target, { send: body.action === 'send-link' });
+      return json({ invite });
     }
 
     if (body.action === 'disconnect') {
       if (self) return json({ error: 'Use "Sair dos outros aparelhos" em Minha conta.' }, 400);
-      const ended = await tenantTransaction(account.id, (run) =>
-        endUserSessions(run, account.id, id),
-      );
+      const ended = await context((run) => endUserSessions(run, account.id, id));
       return json({ ended });
     }
   } catch (error) {
     if (error instanceof TeamRuleError) return json({ error: error.message }, 400);
-    if ((error as { code?: string }).code === '23505')
-      return json({ error: 'Este usuário já existe. Escolha outro.' }, 409);
+    const database = error as { code?: string; constraint?: string };
+    if (database.code === '23505')
+      return json(
+        {
+          error:
+            database.constraint === 'users_email_key'
+              ? 'Este e-mail já está em uso no ReparoSM.'
+              : 'Este usuário já existe. Escolha outro.',
+        },
+        409,
+      );
     throw error;
   }
   return json({ error: 'Ação inválida.' }, 400);

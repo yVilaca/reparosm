@@ -9,7 +9,7 @@ before(async () => {
   db = await createTestDatabase();
   process.env.ADMIN_PASSWORD_HASH = await passwordHash('adminreparosm', 'TestAdminPassword123');
   await db.migrationQuery(
-    "INSERT INTO accounts(id,username,name,role,status,password_hash) VALUES($1,$1,'Loja','merchant','active','x')",
+    "INSERT INTO accounts(id,username,name,role,status) VALUES($1,$1,'Loja','merchant','active')",
     [A],
   );
   await db.migrationQuery(

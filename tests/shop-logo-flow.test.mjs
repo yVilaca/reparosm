@@ -14,8 +14,8 @@ async function merchant(username) {
   const { sessionCookie } = await import('./support/session.mjs');
   const id = `account-${username}`;
   await db.migrationQuery(
-    `INSERT INTO accounts (id, username, name, role, status, password_hash)
-     VALUES ($1, $2, $2, 'merchant', 'active', 'unused')`,
+    `INSERT INTO accounts (id, username, name, role, status)
+     VALUES ($1, $2, $2, 'merchant', 'active')`,
     [id, username],
   );
   return { id, cookie: await sessionCookie(db, username, id) };

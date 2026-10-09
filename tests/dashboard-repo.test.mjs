@@ -25,9 +25,9 @@ before(async () => {
   if (skip) return;
   db = await createTestDatabase();
   await db.migrationQuery(
-    `INSERT INTO accounts (id, username, name, role, status, password_hash)
-     VALUES ('account-dash', 'dash', 'Dash', 'merchant', 'active', 'x'),
-            ('account-other', 'other', 'Other', 'merchant', 'active', 'x')`,
+    `INSERT INTO accounts (id, username, name, role, status)
+     VALUES ('account-dash', 'dash', 'Dash', 'merchant', 'active'),
+            ('account-other', 'other', 'Other', 'merchant', 'active')`,
   );
   await order('o-ready', 'OS-1', { stage: 'Retirada', total: 280, days: 1 });
   await order('o-charge', 'OS-2', { stage: 'Retirada', status: 'Concluído', total: 520, days: 2 });
@@ -97,7 +97,7 @@ test(
   async () => {
     const { trend } = await import('../lib/repos/cash.ts');
     await db.migrationQuery(
-      "INSERT INTO accounts (id, username, name, role, status, password_hash) VALUES ('account-trend', 'trend', 'Trend', 'merchant', 'active', 'x')",
+      "INSERT INTO accounts (id, username, name, role, status) VALUES ('account-trend', 'trend', 'Trend', 'merchant', 'active')",
     );
     await db.migrationQuery(
       "INSERT INTO orders (id, account_id, code, customer, device, status, total) VALUES ('order-trend', 'account-trend', 'OS-TREND', 'Teste', 'Aparelho', 'Concluído', 250)",

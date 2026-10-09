@@ -1,7 +1,7 @@
 import { adminQuery, adminTransaction, type AdminActor, type Query } from '@/lib/db';
 import { dateOrNull, iso, type Timestamp } from '@/lib/repos/rows';
-import { createUser } from '@/lib/repos/users';
-import type { Account, AccountRole, AccountStatus } from '@/lib/types';
+import { accessColumn, createUser } from '@/lib/repos/users';
+import type { Account, AccountRole, AccountStatus, StoreUser, UserAccess } from '@/lib/types';
 
 type AccountRow = {
   id: string;
@@ -37,6 +37,9 @@ export const toAccount = (row: AccountRow): Account => ({
 export type AdminStore = Account & {
   ownerName: string;
   ownerUsername: string;
+  ownerEmail?: string;
+  /** O dono já criou a senha ou ainda está com o convite (valendo ou vencido). */
+  ownerAccess?: UserAccess;
   users: number;
   lastLoginAt?: string;
 };
@@ -44,6 +47,8 @@ export type AdminStore = Account & {
 type AdminStoreRow = AccountRow & {
   owner_name: string | null;
   owner_username: string | null;
+  owner_email: string | null;
+  owner_access: UserAccess | null;
   users: number;
   last_login_at: Timestamp | null;
 };
@@ -51,9 +56,10 @@ type AdminStoreRow = AccountRow & {
 const storeColumns = `${accountColumns},
   (SELECT count(*)::int FROM users u WHERE u.account_id = a.id AND u.status = 'active') AS users,
   (SELECT max(u.last_login_at) FROM users u WHERE u.account_id = a.id) AS last_login_at,
-  owner.name AS owner_name, owner.username AS owner_username`;
+  owner.name AS owner_name, owner.username AS owner_username, owner.email AS owner_email,
+  owner.access AS owner_access`;
 const storeFrom = `accounts a LEFT JOIN LATERAL (
-    SELECT u.name, u.username FROM users u
+    SELECT u.name, u.username, u.email, ${accessColumn} AS access FROM users u
     WHERE u.account_id = a.id AND u.role = 'owner'
     ORDER BY u.status, u.created_at, u.id LIMIT 1
   ) owner ON true`;
@@ -62,6 +68,8 @@ const toStore = (row: AdminStoreRow): AdminStore => ({
   ...toAccount(row),
   ownerName: row.owner_name ?? '',
   ownerUsername: row.owner_username ?? '',
+  ownerEmail: row.owner_email ?? undefined,
+  ownerAccess: row.owner_access ?? undefined,
   users: row.users,
   lastLoginAt: row.last_login_at ? iso(row.last_login_at) : undefined,
 });
@@ -102,22 +110,52 @@ export async function getStoreAsAdmin(actor: AdminActor, id: string) {
   return row ? toStore(row) : null;
 }
 
-/** Cria a loja e o Dono dela, com senha provisória, numa transação só. */
+/**
+ * Primeiro usuário livre a partir de uma base (ex.: o começo do e-mail):
+ * "marcos", "marcos2", "marcos3"… O usuário é único no sistema inteiro.
+ */
+export async function availableUsername(run: Query, base: string) {
+  const clean =
+    base
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9._-]/g, '')
+      .replace(/^[._-]+|[._-]+$/g, '')
+      .slice(0, 30) || 'loja';
+  const root = clean.length < 3 ? `${clean}loja` : clean;
+  for (let attempt = 1; attempt <= 200; attempt++) {
+    const candidate = attempt === 1 ? root : `${root}${attempt}`;
+    const taken = await run(
+      `SELECT 1 FROM users WHERE username = $1
+       UNION ALL SELECT 1 FROM accounts WHERE username = $1 OR id = $2 LIMIT 1`,
+      [candidate, `account-${candidate}`],
+    );
+    if (!taken.length && !['admin', 'adminreparosm'].includes(candidate)) return candidate;
+  }
+  throw new Error('Não foi possível escolher um usuário livre.');
+}
+
+/**
+ * Cria a loja e o Dono dela numa transação só. O Dono entra pelo convite (sem
+ * senha definida por ninguém). `externalRef` é a compra que gerou a loja.
+ */
 export async function createStore(
   actor: AdminActor,
   store: {
     username: string;
     name: string;
     ownerName: string;
-    passwordHash: string;
+    ownerEmail?: string;
     plan?: string;
     dueDate?: string;
+    externalRef?: string;
   },
-) {
+): Promise<{ account: Account; owner: StoreUser }> {
   return adminTransaction(actor, async (run) => {
     const [row] = await run<AccountRow>(
-      `INSERT INTO accounts AS a (id, username, name, role, status, plan, due_date)
-       VALUES ($1, $2, $3, 'merchant', 'active', $4, $5)
+      `INSERT INTO accounts AS a (id, username, name, role, status, plan, due_date, external_ref)
+       VALUES ($1, $2, $3, 'merchant', 'active', $4, $5, $6)
        RETURNING ${accountColumns}`,
       [
         `account-${store.username}`,
@@ -125,16 +163,27 @@ export async function createStore(
         store.name,
         store.plan ?? null,
         dateOrNull(store.dueDate),
+        store.externalRef ?? null,
       ],
     );
-    await createUser(run, row.id, {
+    const owner = await createUser(run, row.id, {
       username: store.username,
       name: store.ownerName,
       role: 'owner',
-      passwordHash: store.passwordHash,
+      email: store.ownerEmail,
     });
-    return toAccount(row);
+    return { account: toAccount(row), owner };
   });
+}
+
+/** A loja que uma compra já criou (o mesmo pedido nunca cria duas). */
+export async function storeByExternalRef(actor: AdminActor, externalRef: string) {
+  const [row] = await adminQuery<AdminStoreRow>(
+    actor,
+    `SELECT ${storeColumns} FROM ${storeFrom} WHERE a.external_ref = $1`,
+    [externalRef],
+  );
+  return row ? toStore(row) : null;
 }
 
 export async function updateAccountProfile(
