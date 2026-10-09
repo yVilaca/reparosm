@@ -1,4 +1,4 @@
-import { currentAccount, sameOrigin } from '@/lib/auth';
+import { currentAccount, isOwner, sameOrigin } from '@/lib/auth';
 import { tenantTransaction } from '@/lib/db';
 import * as shopLogos from '@/lib/repos/shop-logos';
 import * as shops from '@/lib/repos/shops';
@@ -29,6 +29,7 @@ export async function POST(request: Request) {
   if (!sameOrigin(request)) return invalid('Origem da solicitação inválida.', 403);
   const current = await currentAccount(request);
   if (!current) return invalid('Não autenticado', 401);
+  if (!isOwner(current)) return invalid('Só o dono da loja muda o logo.', 403);
   const contentLength = Number(request.headers.get('content-length') || 0);
   if (contentLength > MAX_SHOP_LOGO_BYTES + 128 * 1024)
     return invalid('A logo deve ter até 1 MB.', 413);
@@ -50,6 +51,7 @@ export async function DELETE(request: Request) {
   if (!sameOrigin(request)) return invalid('Origem da solicitação inválida.', 403);
   const current = await currentAccount(request);
   if (!current) return invalid('Não autenticado', 401);
+  if (!isOwner(current)) return invalid('Só o dono da loja muda o logo.', 403);
   await tenantTransaction(current.id, async (run) => {
     await shopLogos.remove(current.id, run);
     await shops.setLogoSource(current.id, undefined, run);

@@ -1,25 +1,23 @@
 import {
-  accountByUsername,
   clientIp,
   currentAccount,
   endSession,
   ensureAdmin,
   normalizeUser,
   passwordHash,
-  publicAccount,
   sameOrigin,
   sessionCookie,
   verifyPassword,
 } from '@/lib/auth';
-import { requestPasswordReset, setPasswordHashForLogin } from '@/lib/repos/accounts';
 import {
   clearLoginFailures,
   createSession,
+  findLogin,
   MAX_LOGIN_FAILURES,
   recentLoginFailures,
   recordLoginFailure,
-  revokeSessionsForLogin,
 } from '@/lib/repos/sessions';
+import { requestPasswordReset } from '@/lib/repos/users';
 import type { DataObject } from '@/lib/types';
 
 const json = (body: unknown, init: ResponseInit = {}) =>
@@ -32,9 +30,7 @@ const isObject = (value: unknown): value is DataObject =>
 
 export async function GET(request: Request) {
   const account = await currentAccount(request);
-  return account
-    ? json({ account: publicAccount(account) })
-    : json({ account: null }, { status: 401 });
+  return account ? json({ account }) : json({ account: null }, { status: 401 });
 }
 
 export async function POST(request: Request) {
@@ -66,37 +62,43 @@ export async function POST(request: Request) {
     return json({
       ok: true,
       message:
-        'Se o usuário estiver cadastrado, o administrador receberá a solicitação. Entre em contato com ele para confirmar sua identidade e receber a nova senha.',
+        'Se o usuário estiver cadastrado, o pedido chega ao dono da loja (ou ao suporte ReparoSM, se você for o dono). Fale com ele para receber uma senha provisória.',
     });
   }
   if (body.action !== 'login') return json({ error: 'Ação inválida.' }, { status: 400 });
   const username = normalizeUser(String(body.username || '')).slice(0, 80);
   const password = String(body.password || '');
   const ip = clientIp(request);
+  if (!username) return json({ error: 'Usuário ou senha incorretos.' }, { status: 401 });
   if ((await recentLoginFailures(username, ip)) >= MAX_LOGIN_FAILURES)
     return json(
       { error: 'Muitas tentativas. Aguarde 15 minutos e tente novamente.' },
       { status: 429 },
     );
-  const account = await accountByUsername(username),
-    verified = account
-      ? await verifyPassword(username, password, account.passwordHash)
+  const login = await findLogin(username),
+    verified = login
+      ? await verifyPassword(username, password, login.passwordHash)
       : { valid: false, legacy: false };
-  if (!account || !verified.valid) {
+  if (!login || !verified.valid) {
     await recordLoginFailure(username, ip);
     return json({ error: 'Usuário ou senha incorretos.' }, { status: 401 });
   }
   await clearLoginFailures(username, ip);
-  if (account.status !== 'active')
+  if (login.account.status !== 'active')
     return json(
-      { error: 'Esta conta não está liberada. Fale com o administrador.' },
+      { error: 'Esta loja não está liberada. Fale com o suporte ReparoSM.' },
       { status: 403 },
     );
-  if (verified.legacy)
-    await setPasswordHashForLogin(username, account.id, await passwordHash(username, password));
-  await revokeSessionsForLogin(username, account.id);
-  const token = await createSession(username, account.id);
-  return new Response(JSON.stringify({ account: publicAccount(account) }), {
+  if (login.user.status !== 'active')
+    return json({ error: 'Seu acesso foi desativado. Fale com o dono da loja.' }, { status: 403 });
+  // Cada aparelho tem sua sessão: entrar aqui não derruba ninguém.
+  const token = await createSession(
+    username,
+    login.user,
+    { userAgent: request.headers.get('user-agent') || '', ip },
+    verified.legacy ? await passwordHash(username, password) : undefined,
+  );
+  return new Response(JSON.stringify({ account: { ...login.account, user: login.user } }), {
     headers: {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-store',

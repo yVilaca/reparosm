@@ -16,6 +16,8 @@ import {
   ShieldCheck,
   Smartphone,
   Store,
+  UserCog,
+  UserRound,
   Users,
   Wrench,
   type LucideIcon,
@@ -27,6 +29,8 @@ import { cn } from '@/lib/utils';
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 type NavGroup = { label: string; items: NavItem[] };
+/** O que o menu mostra: o Funcionário não vê as telas de gestão da loja. */
+export type NavAccess = 'admin' | 'owner' | 'staff';
 
 const primary: NavItem[] = [
   { href: '/', label: 'Início', icon: Home },
@@ -35,7 +39,7 @@ const primary: NavItem[] = [
   { href: '/clientes', label: 'Clientes', icon: Users },
 ];
 
-const groups = (isAdmin: boolean): NavGroup[] => [
+const groups = (access: NavAccess): NavGroup[] => [
   {
     label: 'Trabalho',
     items: [
@@ -65,9 +69,15 @@ const groups = (isAdmin: boolean): NavGroup[] => [
   {
     label: 'Gestão',
     items: [
-      { href: '/minha-assistencia', label: 'Minha assistência', icon: Store },
-      { href: '/dados', label: 'Dados e exportação', icon: Database },
-      ...(isAdmin ? [{ href: '/contas', label: 'Contas de lojistas', icon: Settings }] : []),
+      ...(access === 'staff'
+        ? []
+        : [
+            { href: '/minha-assistencia', label: 'Minha assistência', icon: Store },
+            { href: '/equipe', label: 'Equipe', icon: UserCog },
+            { href: '/dados', label: 'Dados e exportação', icon: Database },
+          ]),
+      { href: '/minha-conta', label: 'Minha conta', icon: UserRound },
+      ...(access === 'admin' ? [{ href: '/contas', label: 'Lojas', icon: Settings }] : []),
     ],
   },
   {
@@ -105,10 +115,10 @@ function Item({ item, pathname, close }: { item: NavItem; pathname: string; clos
   );
 }
 
-export default function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
+export default function SidebarNav({ access }: { access: NavAccess }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
-  const allGroups = groups(isAdmin);
+  const allGroups = groups(access);
   const secondary = allGroups
     .map((group) => ({ ...group, items: group.items.filter((item) => !primary.includes(item)) }))
     .filter((group) => group.items.length);

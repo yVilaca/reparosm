@@ -16,14 +16,14 @@ let db,
   B;
 
 async function merchant(username) {
-  const { createSession } = await import('../lib/repos/sessions.ts');
+  const { sessionCookie } = await import('./support/session.mjs');
   const id = `account-${username}`;
   await db.migrationQuery(
     `INSERT INTO accounts (id, username, name, role, status, password_hash)
      VALUES ($1, $2, $2, 'merchant', 'active', 'unused')`,
     [id, username],
   );
-  return { id, cookie: `reparosm_session=${await createSession(username, id)}` };
+  return { id, cookie: await sessionCookie(db, username, id) };
 }
 
 before(async () => {

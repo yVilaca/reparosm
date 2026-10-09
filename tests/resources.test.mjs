@@ -14,7 +14,7 @@ before(async () => {
   filmRoute = await import('../app/api/films/route.ts');
   ({ parts, shops } = await import('../lib/repos/index.ts'));
   whatsapp = await import('../lib/whatsapp.ts');
-  const { createSession } = await import('../lib/repos/sessions.ts');
+  const { sessionCookie } = await import('./support/session.mjs');
   for (const username of ['resource-owner', 'resource-other']) {
     await db.migrationQuery(
       `INSERT INTO accounts (id, username, name, role, status, password_hash)
@@ -24,11 +24,11 @@ before(async () => {
   }
   owner = {
     id: 'account-resource-owner',
-    cookie: `reparosm_session=${await createSession('resource-owner', 'account-resource-owner')}`,
+    cookie: await sessionCookie(db, 'resource-owner', 'account-resource-owner'),
   };
   other = {
     id: 'account-resource-other',
-    cookie: `reparosm_session=${await createSession('resource-other', 'account-resource-other')}`,
+    cookie: await sessionCookie(db, 'resource-other', 'account-resource-other'),
   };
 });
 
