@@ -34,8 +34,15 @@ export default function Login({ onLogin }: { onLogin: (account: PublicAccount) =
           ...(!forgot ? { password: form.get('password') } : {}),
         }),
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Não foi possível continuar.');
+      // Erro do servidor pode vir sem corpo JSON; a pessoa vê uma mensagem, não o erro técnico.
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(
+          result.error ||
+            (response.status >= 500
+              ? 'O sistema não respondeu como deveria. Tente de novo em instantes.'
+              : 'Não foi possível continuar.'),
+        );
       if (forgot) setNotice(result.message);
       else onLogin(result.account);
     } catch (cause) {
