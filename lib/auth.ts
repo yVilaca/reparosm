@@ -1,16 +1,10 @@
 import { authTransaction } from '@/lib/db';
 import { env, requiredEnv } from '@/lib/env';
-import { findAccountByUsername } from '@/lib/repos/accounts';
 import { accountForSession, deleteSession, SESSION_SECONDS } from '@/lib/repos/sessions';
 import { normalizeUser, passwordHash, passwordProblem, verifyPassword } from '@/lib/security';
+import type { SessionAccount } from '@/lib/types';
 export { normalizeUser, passwordHash, passwordProblem, verifyPassword };
-export type { Account } from '@/lib/types';
-
-export const publicAccount = <T extends { passwordHash?: string }>(account: T) => {
-  const safe = { ...account };
-  delete safe.passwordHash;
-  return safe;
-};
+export type { SessionAccount };
 
 async function setupAdmin() {
   await authTransaction('adminreparosm', async (run) => {
@@ -22,12 +16,19 @@ async function setupAdmin() {
     // One-time migration requested by the owner: the administrator password comes from the
     // server environment; every other account and record is preserved.
     await run(
-      `INSERT INTO accounts (id, username, name, role, status, password_hash, plan, access_policy)
-       VALUES ('account-admin', 'adminreparosm', 'Administrador', 'admin', 'active', $1,
+      `INSERT INTO accounts (id, username, name, role, status, plan, access_policy)
+       VALUES ('account-admin', 'adminreparosm', 'Administrador', 'admin', 'active',
                'Administrador', 'admin-managed-v2')
        ON CONFLICT (id) DO UPDATE SET username = 'adminreparosm', role = 'admin',
-         status = 'active', password_hash = $1, must_change_password = false,
-         plan = 'Administrador', access_policy = 'admin-managed-v2', updated_at = now()`,
+         status = 'active', plan = 'Administrador', access_policy = 'admin-managed-v2',
+         updated_at = now()`,
+    );
+    await run(
+      `INSERT INTO users (id, account_id, username, name, role, status, password_hash)
+       VALUES ('user-adminreparosm', 'account-admin', 'adminreparosm', 'Administrador',
+               'owner', 'active', $1)
+       ON CONFLICT (id) DO UPDATE SET role = 'owner', status = 'active', password_hash = $1,
+         must_change_password = false, updated_at = now()`,
       [hash],
     );
     await run('DELETE FROM sessions WHERE account_id = $1', ['account-admin']);
@@ -44,10 +45,6 @@ export function ensureAdmin() {
   return adminReady;
 }
 
-export async function accountByUsername(username: string) {
-  return findAccountByUsername(username);
-}
-
 const cookie = (request: Request, name: string) =>
   request.headers
     .get('cookie')
@@ -56,23 +53,30 @@ const cookie = (request: Request, name: string) =>
     .find((x) => x.startsWith(`${name}=`))
     ?.slice(name.length + 1);
 
-/** The signed-in, active account for this request, or null. */
+export const sessionToken = (request: Request) => cookie(request, 'reparosm_session');
+
+/** The signed-in store and user for this request, or null if either is not active. */
 export async function currentAccount(request: Request) {
   await ensureAdmin();
-  const token = cookie(request, 'reparosm_session');
+  const token = sessionToken(request);
   if (!token) return null;
   const account = await accountForSession(token);
-  return account?.status === 'active' ? account : null;
+  return account?.status === 'active' && account.user.status === 'active' ? account : null;
 }
 
+/** Dono da loja (o administrador também cuida da própria conta). */
+export const isOwner = (account: SessionAccount) =>
+  account.role === 'admin' || account.user.role === 'owner';
+
 export async function endSession(request: Request) {
-  const token = cookie(request, 'reparosm_session');
+  const token = sessionToken(request);
   if (token) await deleteSession(token);
 }
 
-/** Client IP as reported by Netlify's edge, falling back to the proxy header. */
+/** Client IP as reported by the edge, falling back to the proxy header. */
 export const clientIp = (request: Request) =>
   request.headers.get('x-nf-client-connection-ip') ||
+  request.headers.get('x-real-ip') ||
   request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
   'unknown';
 

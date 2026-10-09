@@ -21,8 +21,8 @@ before(async () => {
     `INSERT INTO accounts (id, username, name, role, status, password_hash)
      VALUES ('account-history-route', 'history-route', 'History Route', 'merchant', 'active', 'x')`,
   );
-  const { createSession } = await import('../lib/repos/sessions.ts');
-  cookie = `reparosm_session=${await createSession('history-route', 'account-history-route')}`;
+  const { sessionCookie } = await import('./support/session.mjs');
+  cookie = await sessionCookie(db, 'history-route', 'account-history-route');
   route = await import('../app/api/cash/history/route.ts');
   await db.migrationQuery(
     `INSERT INTO cash_entries (id, account_id, kind, description, value, date)

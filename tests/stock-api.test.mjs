@@ -16,8 +16,8 @@ before(async () => {
     "INSERT INTO parts(id,account_id,name,sku,stock,cost,price) VALUES('part-stock-api',$1,'Tela','TELA',4,40,100)",
     [A],
   );
-  const { createSession } = await import('../lib/repos/sessions.ts');
-  cookie = `reparosm_session=${await createSession(A, A)}`;
+  const { sessionCookie } = await import('./support/session.mjs');
+  cookie = await sessionCookie(db, A, A);
   check = await import('../app/api/stock/route.ts');
   ledger = await import('../app/api/stock/movements/route.ts');
 });

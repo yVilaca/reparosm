@@ -1,4 +1,4 @@
-import { currentAccount, sameOrigin } from '@/lib/auth';
+import { currentAccount, isOwner, sameOrigin } from '@/lib/auth';
 import { repoFor, type TableRepo } from '@/lib/repos';
 import type { BusinessRecordType, DataObject, RecordData } from '@/lib/types';
 import { validateRecord } from '@/lib/validation';
@@ -8,7 +8,11 @@ const isObject = (value: unknown): value is DataObject =>
 
 const denied = () => Response.json({ error: 'Acesso negado' }, { status: 403 });
 
-export function resourceRoute<T extends BusinessRecordType>(type: T) {
+/** `ownerWrites`: só o Dono grava e exclui (ex.: dados da assistência). */
+export function resourceRoute<T extends BusinessRecordType>(
+  type: T,
+  { ownerWrites = false }: { ownerWrites?: boolean } = {},
+) {
   const repo = repoFor(type) as TableRepo<T>;
   const prefix = `${type}-`;
 
@@ -30,6 +34,7 @@ export function resourceRoute<T extends BusinessRecordType>(type: T) {
         return Response.json({ error: 'Origem da solicitação inválida.' }, { status: 403 });
       const account = await currentAccount(request);
       if (!account) return Response.json({ error: 'Não autenticado' }, { status: 401 });
+      if (ownerWrites && !isOwner(account)) return denied();
       let body: unknown;
       try {
         body = await request.json();
@@ -79,6 +84,7 @@ export function resourceRoute<T extends BusinessRecordType>(type: T) {
         return Response.json({ error: 'Origem da solicitação inválida.' }, { status: 403 });
       const account = await currentAccount(request);
       if (!account) return Response.json({ error: 'Não autenticado' }, { status: 401 });
+      if (ownerWrites && !isOwner(account)) return denied();
       const id = new URL(request.url).searchParams.get('id');
       if (!id) return Response.json({ error: 'ID obrigatório' }, { status: 400 });
       if (!id.startsWith(prefix)) return denied();

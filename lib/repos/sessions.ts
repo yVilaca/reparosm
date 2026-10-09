@@ -1,13 +1,17 @@
 import {
   adminQuery,
-  authQuery,
+  authTransaction,
   loginFailureQuery,
   loginFailureTransaction,
   sessionTransaction,
   setSessionAccountContext,
   type AdminActor,
+  type Query,
 } from '@/lib/db';
 import { accountColumns, toAccount } from '@/lib/repos/accounts';
+import { iso, type Timestamp } from '@/lib/repos/rows';
+import { toUser, userColumns, type UserRow } from '@/lib/repos/users';
+import type { SessionAccount, StoreSession, StoreUser } from '@/lib/types';
 
 export const SESSION_SECONDS = 60 * 60 * 12;
 
@@ -16,39 +20,85 @@ async function hashToken(token: string) {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-/** Creates a session after removing only this account's expired sessions. */
-export async function createSession(username: string, accountId: string) {
+/** Login: o usuário, a senha guardada e a loja dele, ou null. */
+export async function findLogin(username: string) {
+  return authTransaction(username, async (run) => {
+    const [row] = await run<UserRow & { password_hash: string | null }>(
+      `SELECT ${userColumns}, public.user_password_hash(u.id) AS password_hash
+       FROM users u WHERE u.username = $1`,
+      [username],
+    );
+    if (!row) return null;
+    const [account] = await run<Parameters<typeof toAccount>[0]>(
+      `SELECT ${accountColumns} FROM accounts a WHERE a.id = $1`,
+      [row.account_id],
+    );
+    if (!account) return null;
+    return {
+      user: toUser(row),
+      passwordHash: row.password_hash ?? '',
+      account: toAccount(account),
+    };
+  });
+}
+
+/**
+ * Abre uma sessão para o usuário sem derrubar as outras (dele ou da loja):
+ * cada aparelho tem a sua. Só as já vencidas dele são limpas.
+ */
+export async function createSession(
+  username: string,
+  user: Pick<StoreUser, 'id' | 'accountId'>,
+  device: { userAgent: string; ip: string },
+  upgradedHash?: string,
+) {
   const token = crypto.randomUUID();
   const tokenHash = await hashToken(token);
-  await authQuery(username, 'DELETE FROM sessions WHERE account_id = $1 AND expires_at <= now()', [
-    accountId,
-  ]);
-  await authQuery(
-    username,
-    `INSERT INTO sessions (token_hash, account_id, expires_at)
-     VALUES ($1, $2, now() + make_interval(secs => $3))`,
-    [tokenHash, accountId, SESSION_SECONDS],
-  );
+  await authTransaction(username, async (run) => {
+    await run('DELETE FROM sessions WHERE user_id = $1 AND expires_at <= now()', [user.id]);
+    await run(
+      `INSERT INTO sessions (token_hash, account_id, user_id, expires_at, user_agent, ip)
+       VALUES ($1, $2, $3, now() + make_interval(secs => $4), $5, $6)`,
+      [
+        tokenHash,
+        user.accountId,
+        user.id,
+        SESSION_SECONDS,
+        device.userAgent.slice(0, 300),
+        device.ip.slice(0, 80),
+      ],
+    );
+    // Senha no formato antigo é regravada no novo, no mesmo acesso. (O runtime
+    // não lê password_hash, então não dá para usar COALESCE com a coluna.)
+    await run(
+      upgradedHash
+        ? 'UPDATE users SET last_login_at = now(), password_hash = $2 WHERE id = $1'
+        : 'UPDATE users SET last_login_at = now() WHERE id = $1',
+      upgradedHash ? [user.id, upgradedHash] : [user.id],
+    );
+  });
   return token;
 }
 
-/** The account behind a valid, unexpired session token (any status), or null. */
-export async function accountForSession(token: string) {
-  const account = await sessionTransaction(await hashToken(token), async (run) => {
+/** A loja e o usuário por trás de um token válido (qualquer situação), ou null. */
+export async function accountForSession(token: string): Promise<SessionAccount | null> {
+  return sessionTransaction(await hashToken(token), async (run) => {
     const [session] = await run<{ account_id: string }>(
       `SELECT account_id FROM sessions
        WHERE token_hash = NULLIF(current_setting('app.session_token_hash', true), '')
          AND expires_at > now()`,
     );
     if (!session) return null;
-    await setSessionAccountContext(run, session.account_id);
-    const [row] = await run<Parameters<typeof toAccount>[0]>(
+    const userId = await setSessionAccountContext(run, session.account_id);
+    const [account] = await run<Parameters<typeof toAccount>[0]>(
       `SELECT ${accountColumns} FROM accounts a WHERE a.id = $1`,
       [session.account_id],
     );
-    return row ? toAccount(row) : null;
+    const [user] = await run<UserRow>(`SELECT ${userColumns} FROM users u WHERE u.id = $1`, [
+      userId,
+    ]);
+    return account && user ? { ...toAccount(account), user: toUser(user) } : null;
   });
-  return account;
 }
 
 export async function deleteSession(token: string) {
@@ -58,12 +108,116 @@ export async function deleteSession(token: string) {
   );
 }
 
-export async function revokeSessionsForLogin(username: string, accountId: string) {
-  await authQuery(username, 'DELETE FROM sessions WHERE account_id = $1', [accountId]);
-}
-
+/** Loja suspensa, cancelada ou excluída: todos saem. */
 export async function revokeSessionsAsAdmin(actor: AdminActor, accountId: string) {
   await adminQuery(actor, 'DELETE FROM sessions WHERE account_id = $1', [accountId]);
+}
+
+/**
+ * Roda `fn` dentro da sessão do próprio usuário (app.session_user_id), para ele
+ * cuidar da própria conta. Null se a sessão não vale mais.
+ */
+async function ownSession<T>(
+  token: string,
+  fn: (run: Query, session: { userId: string; accountId: string; tokenHash: string }) => Promise<T>,
+) {
+  const tokenHash = await hashToken(token);
+  return sessionTransaction(tokenHash, async (run) => {
+    const [session] = await run<{ account_id: string }>(
+      `SELECT account_id FROM sessions
+       WHERE token_hash = NULLIF(current_setting('app.session_token_hash', true), '')
+         AND expires_at > now()`,
+    );
+    if (!session) return null;
+    const userId = await setSessionAccountContext(run, session.account_id);
+    return fn(run, { userId, accountId: session.account_id, tokenHash });
+  });
+}
+
+/** Os aparelhos conectados do usuário, este primeiro. */
+export async function listOwnSessions(token: string) {
+  return ownSession(token, async (run, { userId, tokenHash }) => {
+    const rows = await run<{
+      id: string;
+      user_agent: string | null;
+      ip: string | null;
+      created_at: Timestamp;
+      expires_at: Timestamp;
+      current: boolean;
+    }>(
+      `SELECT id, user_agent, ip, created_at, expires_at, token_hash = $2 AS current
+       FROM sessions WHERE user_id = $1 AND expires_at > now()
+       ORDER BY token_hash = $2 DESC, created_at DESC`,
+      [userId, tokenHash],
+    );
+    return rows.map((row): StoreSession => ({
+      id: row.id,
+      userAgent: row.user_agent ?? '',
+      ip: row.ip ?? '',
+      createdAt: iso(row.created_at),
+      expiresAt: iso(row.expires_at),
+      current: row.current,
+    }));
+  });
+}
+
+/** Encerra um aparelho do próprio usuário. */
+export async function endOwnSession(token: string, sessionId: string) {
+  return ownSession(token, async (run, { userId }) => {
+    const rows = await run('DELETE FROM sessions WHERE id = $1 AND user_id = $2 RETURNING id', [
+      sessionId,
+      userId,
+    ]);
+    return rows.length > 0;
+  });
+}
+
+/** "Sair dos outros aparelhos": fica só este. */
+export async function endOtherOwnSessions(token: string) {
+  return ownSession(token, async (run, { userId, tokenHash }) => {
+    const rows = await run(
+      'DELETE FROM sessions WHERE user_id = $1 AND token_hash <> $2 RETURNING id',
+      [userId, tokenHash],
+    );
+    return rows.length;
+  });
+}
+
+export async function updateOwnName(token: string, name: string) {
+  return ownSession(token, async (run, { userId }) => {
+    const [row] = await run<UserRow>(
+      `UPDATE users AS u SET name = $2, updated_at = now() WHERE u.id = $1
+       RETURNING ${userColumns}`,
+      [userId, name],
+    );
+    return row ? toUser(row) : null;
+  });
+}
+
+/**
+ * Troca a senha do próprio usuário: confere a atual, grava a nova (deixa de ser
+ * provisória) e desconecta os outros aparelhos dele.
+ */
+export async function changeOwnPassword(
+  token: string,
+  check: (user: { username: string; passwordHash: string }) => Promise<string | null>,
+) {
+  return ownSession(token, async (run, { userId, tokenHash }) => {
+    const [row] = await run<{ username: string; password_hash: string | null }>(
+      'SELECT username, public.user_password_hash(id) AS password_hash FROM users WHERE id = $1',
+      [userId],
+    );
+    if (!row) return 'invalid' as const;
+    const newHash = await check({ username: row.username, passwordHash: row.password_hash ?? '' });
+    if (!newHash) return 'wrong-password' as const;
+    await run(
+      `UPDATE users SET password_hash = $2, must_change_password = false, updated_at = now()
+       WHERE id = $1`,
+      [userId, newHash],
+    );
+    await run('DELETE FROM sessions WHERE user_id = $1 AND token_hash <> $2', [userId, tokenHash]);
+    return 'ok' as const;
+  });
 }
 
 const FAILURE_WINDOW = "interval '15 minutes'";

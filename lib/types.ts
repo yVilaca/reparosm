@@ -10,37 +10,55 @@ export type ClientStatus = 'Novo' | 'Em atendimento' | 'Aguardando' | 'Concluíd
 
 export type DataObject = { [key: string]: unknown };
 
-export interface AccountData extends DataObject {
-  username: string;
-  name: string;
-  role: AccountRole;
-  status: AccountStatus;
-  passwordHash: string;
-  mustChangePassword?: boolean;
-  createdAt: string;
-  plan?: string;
-  dueDate?: string;
-  accessPolicy?: string;
-  passwordResetAt?: string;
-  updatedAt?: string;
-}
-
-export interface Account extends AccountData {
-  id: string;
-}
-
-export interface PublicAccount extends DataObject {
+/** A loja: o tenant de todas as tabelas. Quem entra são os usuários dela. */
+export interface Account extends DataObject {
   id: string;
   username: string;
   name: string;
   role: AccountRole;
   status: AccountStatus;
-  mustChangePassword?: boolean;
   createdAt: string;
   plan?: string;
   dueDate?: string;
   accessPolicy?: string;
   updatedAt?: string;
+}
+
+export type UserRole = 'owner' | 'staff';
+export type UserStatus = 'active' | 'disabled';
+
+/** Uma pessoa com login numa loja: Dono ou Funcionário. */
+export interface StoreUser {
+  id: string;
+  accountId: string;
+  username: string;
+  name: string;
+  role: UserRole;
+  status: UserStatus;
+  mustChangePassword: boolean;
+  lastLoginAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Uma pessoa da equipe, com os aparelhos conectados e se pediu senha nova. */
+export type TeamMember = StoreUser & { sessions: number; passwordRequested: boolean };
+
+/** A loja da sessão e quem está usando. */
+export interface SessionAccount extends Account {
+  user: StoreUser;
+}
+
+export type PublicAccount = SessionAccount;
+
+/** Um aparelho conectado: uma sessão aberta de um usuário. */
+export interface StoreSession {
+  id: string;
+  userAgent: string;
+  ip: string;
+  createdAt: string;
+  expiresAt: string;
+  current: boolean;
 }
 
 export type OrderPayment = { id: string; value: number; method: string; date: string };
@@ -53,13 +71,15 @@ export interface OrderItem extends DataObject {
   unitCost?: number;
 }
 
+/** "Esqueci minha senha" de um usuário, à espera do Dono ou do administrador. */
 export interface PasswordRequest {
   id: string;
+  userId: string;
   accountId: string;
   username: string;
-  status: 'pending' | 'resolved';
+  name: string;
+  storeName: string;
   createdAt: string;
-  resolvedAt?: string;
 }
 
 export interface Order extends DataObject {

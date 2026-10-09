@@ -32,21 +32,23 @@ const get = (cookie = '') =>
 const login = (username, password, ip) =>
   auth.POST(request({ action: 'login', username, password }, { ip }));
 const cookieOf = (response) => response.headers.get('set-cookie').split(';')[0];
+const createStore = (adminCookie, username, password) =>
+  accounts.POST(
+    request(
+      { username, name: `Loja ${username}`, ownerName: 'Dono', password },
+      { cookie: adminCookie },
+    ),
+  );
 
-test('recovery flow: admin, merchant, requests, reset and revocation', { skip }, async () => {
+test('recovery flow: admin, owner, requests, reset and revocation', { skip }, async () => {
   for (let i = 0; i < 7; i++) assert.equal((await login('adminreparosm', 'wrong')).status, 401);
   assert.equal((await login('admin', 'admin')).status, 401);
   let response = await login('adminreparosm', 'TestAdminPassword123');
   assert.equal(response.status, 200);
   const adminCookie = cookieOf(response);
-  assert.equal((await response.json()).account.mustChangePassword, false);
+  assert.equal((await response.json()).account.user.mustChangePassword, false);
 
-  response = await accounts.POST(
-    request(
-      { username: 'testmerchant', name: 'Test', password: 'Testpassword123' },
-      { cookie: adminCookie },
-    ),
-  );
+  response = await createStore(adminCookie, 'testmerchant', 'Testpassword123');
   assert.equal(response.status, 201);
   const accountId = (await response.json()).account.id;
   assert.equal((await accounts.GET(get())).status, 403);
@@ -63,11 +65,14 @@ test('recovery flow: admin, merchant, requests, reset and revocation', { skip },
   assert.equal(queue.requests.length, 1);
   assert.equal(queue.requests[0].accountId, accountId);
   assert.equal(queue.requests[0].username, 'testmerchant');
+  const userId = queue.requests[0].userId;
 
   response = await login('testmerchant', 'Testpassword123');
+  // A senha que o administrador definiu é provisória.
+  assert.equal((await response.clone().json()).account.user.mustChangePassword, true);
   const merchantCookie = cookieOf(response);
   assert.equal((await accounts.GET(get(merchantCookie))).status, 403);
-  const reset = { action: 'reset-password', id: accountId, password: 'Newpassword123' };
+  const reset = { action: 'reset-password', userId, password: 'Newpassword123' };
   assert.equal((await accounts.POST(request(reset, { cookie: adminCookie }))).status, 400);
   assert.equal(
     (
@@ -107,7 +112,7 @@ test('recovery flow: admin, merchant, requests, reset and revocation', { skip },
     (
       await accounts.POST(
         request(
-          { ...reset, id: 'account-admin', identityConfirmed: true },
+          { ...reset, userId: 'user-adminreparosm', identityConfirmed: true },
           { cookie: adminCookie },
         ),
       )
@@ -124,11 +129,13 @@ test('sessions store only a hash of the token', { skip }, async () => {
   assert.ok(rows.every((row) => row.token_hash !== token && /^[0-9a-f]{64}$/.test(row.token_hash)));
 });
 
-test('logout ends the session', { skip }, async () => {
+test('logout ends only this session', { skip }, async () => {
   const cookie = cookieOf(await login('adminreparosm', 'TestAdminPassword123', '10.0.0.3'));
+  const other = cookieOf(await login('adminreparosm', 'TestAdminPassword123', '10.0.0.3'));
   assert.ok(await lib.currentAccount(request({}, { cookie })));
   await auth.POST(request({ action: 'logout' }, { cookie }));
   assert.equal(await lib.currentAccount(request({}, { cookie })), null);
+  assert.ok(await lib.currentAccount(request({}, { cookie: other })), 'o outro aparelho segue');
 });
 
 test('expired sessions are rejected', { skip }, async () => {
@@ -139,27 +146,15 @@ test('expired sessions are rejected', { skip }, async () => {
 
 test('ten failures from one IP lock that user and IP only', { skip }, async () => {
   const adminCookie = cookieOf(await login('adminreparosm', 'TestAdminPassword123', '10.0.0.5'));
-  await accounts.POST(
-    request(
-      { username: 'lockme', name: 'Lock', password: 'Lockpassword123' },
-      { cookie: adminCookie },
-    ),
-  );
+  await createStore(adminCookie, 'lockme', 'Lockpassword123');
   for (let i = 0; i < 10; i++) assert.equal((await login('lockme', 'bad', '10.9.9.9')).status, 401);
   assert.equal((await login('lockme', 'Lockpassword123', '10.9.9.9')).status, 429);
   assert.equal((await login('lockme', 'Lockpassword123', '10.8.8.8')).status, 200);
 });
 
-test('suspended accounts cannot sign in and lose their sessions', { skip }, async () => {
+test('suspended shops cannot sign in and lose their sessions', { skip }, async () => {
   const adminCookie = cookieOf(await login('adminreparosm', 'TestAdminPassword123', '10.0.0.6'));
-  const created = await (
-    await accounts.POST(
-      request(
-        { username: 'paused', name: 'Paused', password: 'Pausedpassword123' },
-        { cookie: adminCookie },
-      ),
-    )
-  ).json();
+  const created = await (await createStore(adminCookie, 'paused', 'Pausedpassword123')).json();
   const cookie = cookieOf(await login('paused', 'Pausedpassword123', '10.0.0.6'));
   await accounts.POST(
     request({ id: created.account.id, status: 'suspended' }, { cookie: adminCookie }),
@@ -170,14 +165,7 @@ test('suspended accounts cannot sign in and lose their sessions', { skip }, asyn
 
 test('deleting an account cascades to all of its data', { skip }, async () => {
   const adminCookie = cookieOf(await login('adminreparosm', 'TestAdminPassword123', '10.0.0.7'));
-  const created = await (
-    await accounts.POST(
-      request(
-        { username: 'gone', name: 'Gone', password: 'Gonepassword123' },
-        { cookie: adminCookie },
-      ),
-    )
-  ).json();
+  const created = await (await createStore(adminCookie, 'gone', 'Gonepassword123')).json();
   const id = created.account.id;
   await login('gone', 'Gonepassword123', '10.0.0.7');
   await auth.POST(request({ action: 'forgot-password', username: 'gone' }));
@@ -193,7 +181,7 @@ test('deleting an account cascades to all of its data', { skip }, async () => {
     }),
   );
   assert.deepEqual(await response.json(), { ok: true });
-  for (const table of ['sessions', 'password_requests', 'orders', 'clients'])
+  for (const table of ['users', 'sessions', 'password_requests', 'orders', 'clients'])
     assert.equal(
       (await db.migrationQuery(`SELECT 1 FROM ${table} WHERE account_id = $1`, [id])).length,
       0,

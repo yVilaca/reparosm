@@ -1,10 +1,13 @@
 import DataToolsRoute, { type ExportCounts } from '@/components/data-tools-route';
 import { filmCatalog } from '@/lib/film-catalog';
 import { tenantQuery } from '@/lib/db';
-import { requireServerAccount } from '@/lib/server-auth';
+import { requireOwner } from '@/lib/server-auth';
 
+// ponytail: só o Dono vê esta tela, mas a exportação lê pelas mesmas rotas que o
+// Funcionário usa no dia a dia (ordens, clientes, caixa…), que seguem abertas a ele.
+// Restringir a leitura em massa pediria rotas próprias de exportação.
 export default async function DataPage() {
-  const account = await requireServerAccount();
+  const account = await requireOwner();
   const [counts] = await tenantQuery<ExportCounts>(
     account.id,
     `SELECT

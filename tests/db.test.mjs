@@ -41,6 +41,7 @@ test('migrations leave one table per entity and no records table', { skip }, asy
     'shops',
     'stock_movements',
     'tutorials',
+    'users',
     'whatsapp_configs',
   ]);
 });
@@ -353,20 +354,27 @@ test('P1 auth controls force RLS and require matching scoped capabilities', { sk
               ('p1-auth-admin', 'p1-auth-admin', 'Admin', 'admin', 'active', 'test')`,
   );
   await db.migrationQuery(
-    `INSERT INTO sessions (token_hash, account_id, expires_at)
-       VALUES ($1, 'p1-auth-a', now() + interval '1 hour'),
-              ($2, 'p1-auth-b', now() + interval '1 hour')`,
+    `INSERT INTO users (id, account_id, username, name, role, password_hash)
+       VALUES ('user-p1-auth-a', 'p1-auth-a', 'p1-auth-a', 'A', 'owner', 'user-hash-a'),
+              ('user-p1-auth-a2', 'p1-auth-a', 'p1-auth-a2', 'A2', 'staff', 'user-hash-a2'),
+              ('user-p1-auth-b', 'p1-auth-b', 'p1-auth-b', 'B', 'owner', 'user-hash-b')`,
+  );
+  await db.migrationQuery(
+    `INSERT INTO sessions (token_hash, account_id, user_id, expires_at)
+       VALUES ($1, 'p1-auth-a', 'user-p1-auth-a', now() + interval '1 hour'),
+              ($2, 'p1-auth-b', 'user-p1-auth-b', now() + interval '1 hour')`,
     [tokenHashA, tokenHashB],
   );
   await db.migrationQuery(
-    `INSERT INTO password_requests (account_id, status) VALUES ('p1-auth-a', 'pending')`,
+    `INSERT INTO password_requests (user_id, account_id, status)
+       VALUES ('user-p1-auth-a', 'p1-auth-a', 'pending')`,
   );
   await db.migrationQuery(
     `INSERT INTO login_failures (username, ip)
        VALUES ('p1-auth-a', '10.2.0.1'), ('p1-auth-a', '10.2.0.2'), ('p1-auth-b', '10.2.0.1')`,
   );
 
-  const tables = ['accounts', 'sessions', 'password_requests', 'login_failures'];
+  const tables = ['accounts', 'sessions', 'password_requests', 'login_failures', 'users'];
   const secured = await db.query(
     `SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity
        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -397,8 +405,55 @@ test('P1 auth controls force RLS and require matching scoped capabilities', { sk
     { code: '42501' },
   );
   await assert.rejects(
-    db.query(`INSERT INTO password_requests (account_id, status) VALUES ('p1-auth-b', 'pending')`),
+    db.query(
+      `INSERT INTO password_requests (user_id, account_id, status)
+         VALUES ('user-p1-auth-b', 'p1-auth-b', 'pending')`,
+    ),
     { code: '42501' },
+  );
+  await assert.rejects(
+    db.query(
+      `INSERT INTO users (id, account_id, username, name, role, password_hash)
+         VALUES ('user-p1-unscoped', 'p1-auth-a', 'p1-unscoped', 'X', 'owner', 'x')`,
+    ),
+    { code: '42501' },
+  );
+
+  // Usuários: login vê só o próprio; a loja vê os dela; a senha só sai pela função.
+  assert.deepEqual(await db.authQuery('p1-auth-a2', 'SELECT id FROM users ORDER BY id'), [
+    { id: 'user-p1-auth-a2' },
+  ]);
+  assert.deepEqual(
+    await db.authQuery('p1-auth-a2', 'SELECT id FROM accounts ORDER BY id'),
+    [{ id: 'p1-auth-a' }],
+    'o login de um funcionário lê a loja dele',
+  );
+  assert.deepEqual(await db.tenantQuery('p1-auth-a', 'SELECT id FROM users ORDER BY id'), [
+    { id: 'user-p1-auth-a' },
+    { id: 'user-p1-auth-a2' },
+  ]);
+  await assert.rejects(
+    db.authQuery('p1-auth-a', 'SELECT password_hash FROM users WHERE id = $1', ['user-p1-auth-a']),
+    { code: '42501' },
+  );
+  await assert.rejects(
+    db.tenantQuery('p1-auth-a', "UPDATE users SET account_id = 'p1-auth-b' WHERE id = $1", [
+      'user-p1-auth-a2',
+    ]),
+    { code: '42501' },
+  );
+  assert.deepEqual(
+    await db.authQuery('p1-auth-a', 'SELECT user_password_hash($1) AS hash', ['user-p1-auth-a']),
+    [{ hash: 'user-hash-a' }],
+  );
+  assert.deepEqual(
+    await db.authQuery('p1-auth-a', 'SELECT user_password_hash($1) AS hash', ['user-p1-auth-a2']),
+    [{ hash: null }],
+  );
+  assert.deepEqual(
+    await db.tenantQuery('p1-auth-a', 'SELECT user_password_hash($1) AS hash', ['user-p1-auth-a2']),
+    [{ hash: null }],
+    'a loja (Equipe) não lê senha de ninguém',
   );
   await assert.rejects(
     db.query(`INSERT INTO login_failures (username, ip) VALUES ('p1-auth-a', '10.3.0.1')`),
@@ -427,9 +482,14 @@ test('P1 auth controls force RLS and require matching scoped capabilities', { sk
     const [session] = await run('SELECT account_id FROM sessions WHERE token_hash = $1', [
       tokenHashA,
     ]);
-    await db.setSessionAccountContext(run, session.account_id);
+    assert.equal(await db.setSessionAccountContext(run, session.account_id), 'user-p1-auth-a');
     const [credential] = await run('SELECT account_password_hash($1) AS hash', ['p1-auth-a']);
     assert.equal(credential.hash, null);
+    // A própria sessão confere a senha atual do usuário dela, e só dele.
+    const [own] = await run('SELECT user_password_hash($1) AS hash', ['user-p1-auth-a']);
+    assert.equal(own.hash, 'user-hash-a');
+    const [colleague] = await run('SELECT user_password_hash($1) AS hash', ['user-p1-auth-a2']);
+    assert.equal(colleague.hash, null);
     return run('SELECT id FROM accounts ORDER BY id');
   });
   assert.deepEqual(sessionAccount, [{ id: 'p1-auth-a' }]);

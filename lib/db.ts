@@ -96,16 +96,22 @@ export const sessionTransaction: ScopedTransaction = (tokenHash, fn) => {
   return runAsRuntime(fn, ['app.session_token_hash', tokenHash]);
 };
 
-/** Sets the account scope only after checking it against the active session row. */
+/**
+ * Sets the account and user scope only after checking them against the active
+ * session row. Returns the session's user.
+ */
 export async function setSessionAccountContext(run: Query, accountId: string) {
-  const [session] = await run<{ account_id: string }>(
-    `SELECT set_config('app.session_account_id', account_id, true) AS account_id FROM sessions
+  const [session] = await run<{ account_id: string; user_id: string }>(
+    `SELECT set_config('app.session_account_id', account_id, true) AS account_id,
+            set_config('app.session_user_id', user_id, true) AS user_id
+     FROM sessions
      WHERE token_hash = NULLIF(current_setting('app.session_token_hash', true), '')
        AND account_id = $1
        AND expires_at > now()`,
     [requiredContext(accountId, 'accountId')],
   );
   if (!session || session.account_id !== accountId) throw new Error('session account mismatch.');
+  return session.user_id;
 }
 
 /** Runs lockout queries with access to one exact username/IP pair. */
@@ -132,12 +138,8 @@ export async function loginFailureQuery<R extends Row = Row>(
   return loginFailureTransaction(username, ip, (run) => run<R>(text, params));
 }
 
-/** Runs a query with a server-verified, currently active administrator identity. */
-export async function adminQuery<R extends Row = Row>(
-  actor: AdminActor,
-  text: string,
-  params: unknown[] = [],
-): Promise<R[]> {
+/** Runs related queries with a server-verified, currently active administrator identity. */
+export async function adminTransaction<T>(actor: AdminActor, fn: (query: Query) => Promise<T>) {
   if (actor?.role !== 'admin') throw new Error('admin actor required.');
   const id = requiredContext(actor.id, 'admin id');
   return runAsRuntime(
@@ -147,10 +149,19 @@ export async function adminQuery<R extends Row = Row>(
         [id],
       );
       if (!admin) throw new Error('admin actor required.');
-      return run<R>(text, params);
+      return fn(run);
     },
     ['app.admin_account_id', id],
   );
+}
+
+/** Runs a query with a server-verified, currently active administrator identity. */
+export async function adminQuery<R extends Row = Row>(
+  actor: AdminActor,
+  text: string,
+  params: unknown[] = [],
+): Promise<R[]> {
+  return adminTransaction(actor, (run) => run<R>(text, params));
 }
 
 export const tenantQuery: TenantQuery = async <R extends Row>(

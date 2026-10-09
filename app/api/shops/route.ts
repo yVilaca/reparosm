@@ -1,3 +1,3 @@
 import { resourceRoute } from '@/lib/resource-route';
 
-export const { GET, POST, DELETE } = resourceRoute('shop');
+export const { GET, POST, DELETE } = resourceRoute('shop', { ownerWrites: true });
