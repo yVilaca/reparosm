@@ -7,6 +7,7 @@ import { ArrowDownLeft, ArrowUpRight, Plus, Search } from 'lucide-react';
 import { cn } from 'cn';
 import { openWhatsapp } from '@/components/dashboard-actions';
 import { useFeedback } from '@/components/feedback';
+import FinanceTabs from '@/components/finance-tabs';
 import OrderPaymentDialog from '@/components/order-payment-dialog';
 import PayableFormDialog from '@/components/payable-form-dialog';
 import PayablePayDialog, {
@@ -44,6 +45,7 @@ import { recurrenceLabels } from '@/lib/payable-recurrence';
 import { dueLabel, matchesPayable } from '@/lib/payable-schedule';
 import { todayInSaoPaulo } from '@/lib/warranty';
 import { isCashDateRange, summarizeCash } from '@/lib/finance';
+import { RECEIVE_PAY_PATH } from '@/lib/finance-paths';
 import { Label } from '@/components/ui/label';
 import type { OrderPayment } from '@/lib/types';
 import type { PayableRecord } from '@/lib/repos/payables';
@@ -52,7 +54,7 @@ export type Direction = 'receive' | 'pay';
 type Filter = 'all' | Direction;
 type Tab = 'open' | 'done';
 
-export const RECEIVE_PAY_PATH = '/receber-e-pagar';
+export { RECEIVE_PAY_PATH };
 
 const groupTitles: Record<AgendaGroup, string> = {
   overdue: 'Atrasados',
@@ -379,10 +381,11 @@ export default function ReceivePayRoute({
   return (
     <>
       <PageHeader
-        title="Receber e pagar"
+        title="Financeiro"
         description="Quem te deve, o que você deve e quando."
         action={newBill}
       />
+      <FinanceTabs className="mb-5" current="receive-pay" />
 
       <form
         className="mb-4 flex flex-wrap items-end gap-3"

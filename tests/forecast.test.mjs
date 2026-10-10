@@ -60,6 +60,54 @@ test('a lumpy bill does not repeat every week: rent is counted once', () => {
   assert.equal(forecast.openDaysLeft, 22);
   assert.equal(forecast.perOpenDayToMatchPrevious, 454.55);
   assert.equal(forecast.confidence, 'ok');
+  assert.equal(forecast.perOpenDay, 300, 'margem de um dia aberto, sem contas');
+  // Semanas iguais: os cenários coincidem com o provável.
+  assert.deepEqual(forecast.scenarios, { weeks: 8, conservative: 6180, optimistic: 6180 });
+});
+
+test('the daily series goes from the real profit to the projected one', () => {
+  const forecast = forecastMonth({
+    asOfDate: '2026-10-07',
+    days: steadyShop('2026-08-12', '2026-10-07', { '2026-10-03': { billExpense: 1800 } }),
+    firstActivity: '2026-08-12',
+    pendingBills: [{ amount: 120, dueDate: '2026-10-20' }],
+    ready: { income: 0, margin: 0 },
+  });
+  const point = (day) => forecast.series.find((item) => item.day === day);
+  assert.equal(forecast.series.length, 31);
+  assert.deepEqual(point('2026-10-02'), { day: '2026-10-02', actual: 600, projected: null });
+  // Dia 3: venda de R$ 300 de margem e o aluguel de R$ 1.800.
+  assert.deepEqual(point('2026-10-03'), { day: '2026-10-03', actual: -900, projected: null });
+  // Hoje: as duas linhas se encontram.
+  assert.deepEqual(point('2026-10-07'), { day: '2026-10-07', actual: 0, projected: 0 });
+  assert.deepEqual(point('2026-10-08'), { day: '2026-10-08', actual: null, projected: 300 });
+  // A conta de R$ 120 sai no vencimento, numa terça de R$ 300 de margem.
+  assert.equal(point('2026-10-20').projected - point('2026-10-19').projected, 180);
+  assert.equal(forecast.series.at(-1).projected, forecast.likely.profit);
+});
+
+test('scenarios repeat the weakest and the strongest weeks in the days left', () => {
+  // Duas semanas pela metade e duas 50% acima: a semana média não muda.
+  const extra = {};
+  for (const [from, to, factor] of [
+    ['2026-08-12', '2026-08-25', 0.5],
+    ['2026-08-26', '2026-09-08', 1.5],
+  ])
+    for (let day = from; day <= to; day = addDays(day, 1))
+      if (weekday(day) !== 0) extra[day] = { income: 500 * factor, cost: 200 * factor };
+  const forecast = forecastMonth({
+    asOfDate: '2026-10-07',
+    days: steadyShop('2026-08-12', '2026-10-07', extra),
+    firstActivity: '2026-08-12',
+    pendingBills: [],
+    ready: { income: 0, margin: 0 },
+  });
+  assert.equal(forecast.likely.profit, 1800 + 6300);
+  assert.deepEqual(forecast.scenarios, {
+    weeks: 8,
+    conservative: 1800 + 6300 * 0.5,
+    optimistic: 1800 + 6300 * 1.5,
+  });
 });
 
 test('bills due by month end count once each, with recurring and overdue ones', () => {
@@ -109,6 +157,7 @@ test('a new shop uses the days it has and says the estimate is weak', () => {
   });
   assert.equal(forecast.historyDays, 4);
   assert.equal(forecast.confidence, 'low');
+  assert.equal(forecast.scenarios, null, 'menos de 4 semanas completas');
   // Quinta e sexta ainda não apareceram: usam a média geral (3 dias abertos em 4).
   assert.ok(forecast.estimated.income > 0);
 
@@ -142,4 +191,9 @@ test('ready orders set the floor; the likely profit never falls below it', () =>
   assert.equal(forecast.likely.profit, 900);
   assert.equal(forecast.likely.income, 2000);
   assert.equal(forecast.basis, 'ready');
+  // A projeção recebe as OS prontas no dia seguinte e paga a conta no vencimento.
+  assert.deepEqual(
+    forecast.series.slice(-4).map((point) => point.projected),
+    [0, 1200, 900, 900],
+  );
 });

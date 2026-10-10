@@ -40,6 +40,9 @@ export type ForecastInput = {
 
 export type Confidence = 'none' | 'low' | 'ok';
 
+/** Lucro acumulado no mês até o fim do dia: realizado até hoje, projeção de hoje em diante. */
+export type ForecastPoint = { day: string; actual: number | null; projected: number | null };
+
 export type MonthForecast = {
   month: string;
   /** Dias que faltam depois de hoje. */
@@ -59,6 +62,14 @@ export type MonthForecast = {
   previous: { month: string; income: number; margin: number; profit: number };
   /** Quanto falta faturar por dia de loja aberta para igualar o mês passado. */
   perOpenDayToMatchPrevious: number;
+  /** Lucro de um dia típico de loja aberta (margem menos gastos avulsos), sem as contas. */
+  perOpenDay: number;
+  series: ForecastPoint[];
+  /**
+   * Lucro do mês se os dias que faltam seguirem as 2 semanas mais fracas ou as 2
+   * mais fortes do histórico. Só com 4 semanas completas de movimento.
+   */
+  scenarios: { weeks: number; conservative: number; optimistic: number } | null;
   /** Dias de histórico usados no ritmo (até 56). */
   historyDays: number;
   confidence: Confidence;
@@ -93,18 +104,22 @@ function range(from: string, to: string) {
   return days;
 }
 
-/** Contas pendentes que caem até `end`, com as próximas ocorrências das recorrentes. */
-export function billsUntil(bills: PendingBill[], end: string) {
-  let total = 0;
+/** Vencimentos das contas pendentes até `end`, com as próximas ocorrências das recorrentes. */
+function billDates(bills: PendingBill[], end: string) {
+  const dates: { date: string; amount: number }[] = [];
   for (const bill of bills) {
     let due: string | null = bill.dueDate;
     // Cada conta conta até o fim do mês; atrasadas também (ainda vão sair do caixa).
     for (let guard = 0; due && due <= end && guard < 60; guard++) {
-      total += bill.amount;
+      dates.push({ date: due, amount: bill.amount });
       due = bill.recurrence ? nextPayableDueDate(due, bill.recurrence, bill.recurrenceDay) : null;
     }
   }
-  return cents(total);
+  return dates;
+}
+
+export function billsUntil(bills: PendingBill[], end: string) {
+  return cents(billDates(bills, end).reduce((total, bill) => total + bill.amount, 0));
 }
 
 type Profile = { income: number; margin: number; looseExpense: number };
@@ -174,6 +189,7 @@ export function forecastMonth(input: ForecastInput): MonthForecast {
     margin: todayIncomeGap * todayRate,
     looseExpense: Math.max(0, typicalToday.looseExpense - (doneToday?.looseExpense ?? 0)),
   };
+  const restOfToday = estimated.margin - estimated.looseExpense;
   const rest = today < end ? range(addDays(today, 1), end) : [];
   for (const day of rest) {
     const typical = profile[weekday(day)];
@@ -182,6 +198,7 @@ export function forecastMonth(input: ForecastInput): MonthForecast {
     estimated.looseExpense += typical.looseExpense;
   }
 
+  const dueDates = billDates(input.pendingBills, end);
   const bills = billsUntil(input.pendingBills, end);
   const floorProfit = realized.profit + input.ready.margin - bills;
   const paceProfit = realized.profit + estimated.margin - estimated.looseExpense - bills;
@@ -208,6 +225,68 @@ export function forecastMonth(input: ForecastInput): MonthForecast {
   const openDaysLeft = historyDays ? openDays : remaining.length;
   const missing = previous.income - realized.income;
 
+  const open = profile.filter((slot) => slot.income > 0);
+  const perOpenDay = open.length
+    ? open.reduce((sum, slot) => sum + slot.margin - slot.looseExpense, 0) / open.length
+    : 0;
+
+  // Lucro acumulado dia a dia. A linha da projeção sai do ponto de hoje; o resto
+  // de hoje e as contas atrasadas entram no dia seguinte (ou hoje, no último dia).
+  const pace = paceProfit >= floorProfit;
+  const dueOn = new Map<string, number>();
+  for (const bill of dueDates) {
+    const date = bill.date < today ? today : bill.date;
+    dueOn.set(date, (dueOn.get(date) ?? 0) + bill.amount);
+  }
+  const series: ForecastPoint[] = [];
+  let actual = 0;
+  for (const day of range(start, today)) {
+    const row = byDay.get(day);
+    if (row) actual += row.income - row.cost - row.looseExpense - row.billExpense;
+    series.push({ day, actual: cents(actual), projected: null });
+  }
+  let carry = (pace ? restOfToday : input.ready.margin) - (dueOn.get(today) ?? 0);
+  let projected = realized.profit;
+  if (!rest.length) projected += carry;
+  series[series.length - 1].projected = cents(projected);
+  for (const day of rest) {
+    const typical = profile[weekday(day)];
+    projected += carry - (dueOn.get(day) ?? 0);
+    if (pace) projected += typical.margin - typical.looseExpense;
+    carry = 0;
+    series.push({ day, actual: null, projected: cents(projected) });
+  }
+
+  // Cenários: semanas completas até ontem, comparadas com a semana média.
+  const weeks: number[] = [];
+  for (let to = historyTo; historyDays && addDays(to, -6) >= historyFrom; to = addDays(to, -7)) {
+    weeks.push(
+      range(addDays(to, -6), to).reduce((sum, day) => {
+        const row = byDay.get(day);
+        return sum + (row ? row.income - row.cost : 0);
+      }, 0),
+    );
+  }
+  const averageWeek = weeks.reduce((sum, week) => sum + week, 0) / (weeks.length || 1);
+  const sorted = [...weeks].sort((a, b) => a - b);
+  const scenario = (pair: number[]) => {
+    const ratio = (pair[0] + pair[1]) / 2 / averageWeek;
+    return cents(
+      Math.max(
+        floorProfit,
+        realized.profit + estimated.margin * ratio - estimated.looseExpense - bills,
+      ),
+    );
+  };
+  const scenarios =
+    weeks.length >= 4 && averageWeek > 0
+      ? {
+          weeks: weeks.length,
+          conservative: scenario(sorted.slice(0, 2)),
+          optimistic: scenario(sorted.slice(-2)),
+        }
+      : null;
+
   return {
     month: today.slice(0, 7),
     daysLeft: rest.length,
@@ -229,7 +308,7 @@ export function forecastMonth(input: ForecastInput): MonthForecast {
       margin: cents(likely.margin),
       profit: cents(likely.profit),
     },
-    basis: paceProfit >= floorProfit ? 'pace' : 'ready',
+    basis: pace ? 'pace' : 'ready',
     floor: { profit: cents(floorProfit) },
     previous: {
       month: previous.month,
@@ -238,6 +317,9 @@ export function forecastMonth(input: ForecastInput): MonthForecast {
       profit: cents(previous.profit),
     },
     perOpenDayToMatchPrevious: missing > 0 && openDaysLeft > 0 ? cents(missing / openDaysLeft) : 0,
+    perOpenDay: cents(perOpenDay),
+    series,
+    scenarios,
     historyDays,
     confidence: historyDays === 0 ? 'none' : historyDays < 21 ? 'low' : 'ok',
   };
