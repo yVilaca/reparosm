@@ -9,8 +9,8 @@ before(async () => {
   if (skip) return;
   db = await createTestDatabase();
   await db.migrationQuery(
-    `INSERT INTO accounts (id, username, name, role, status, password_hash)
-     VALUES ('account-hist', 'hist', 'Hist', 'merchant', 'active', 'x')`,
+    `INSERT INTO accounts (id, username, name, role, status)
+     VALUES ('account-hist', 'hist', 'Hist', 'merchant', 'active')`,
   );
   await db.migrationQuery(
     `INSERT INTO orders (id, account_id, code, customer, device, total)
@@ -59,8 +59,8 @@ test(
   { skip },
   async () => {
     await db.migrationQuery(`UPDATE orders SET cost = 140 WHERE id = 'order-hist'`);
-    await db.migrationQuery(`INSERT INTO accounts (id,username,name,role,status,password_hash)
-    VALUES ('hist-other','hist-other','Other','merchant','active','x')`);
+    await db.migrationQuery(`INSERT INTO accounts (id,username,name,role,status)
+    VALUES ('hist-other','hist-other','Other','merchant','active')`);
     await db.migrationQuery(`INSERT INTO orders (id,account_id,code,customer,device,total,cost)
     VALUES ('hist-partial','account-hist','OS-10','Ana','Moto',120,60)`);
     await db.migrationQuery(`INSERT INTO cash_entries (id,account_id,kind,description,value,cost,date,order_id,created_at) VALUES

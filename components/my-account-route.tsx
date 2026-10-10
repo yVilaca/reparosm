@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { KeyRound, LogOut, MonitorSmartphone } from 'lucide-react';
+import { KeyRound, LogOut, MailCheck, MonitorSmartphone } from 'lucide-react';
 import { useFeedback } from '@/components/feedback';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,15 +15,20 @@ import { passwordRule, postJson } from '@/components/user-access';
 import { deviceLabel, roleLabel, whenLabel } from '@/lib/user-labels';
 import type { StoreSession, StoreUser } from '@/lib/types';
 
-/** Minha conta: nome, senha e aparelhos conectados de quem está usando. */
+/** Minha conta: nome, e-mail, senha e aparelhos conectados de quem está usando. */
 export default function MyAccountRoute({
   storeName,
   initialUser,
   initialSessions,
+  initialPendingEmail,
+  emailEnabled,
 }: {
   storeName: string;
   initialUser: StoreUser;
   initialSessions: StoreSession[];
+  /** E-mail novo esperando a confirmação pelo link. */
+  initialPendingEmail: { email: string; expiresAt: string } | null;
+  emailEnabled: boolean;
 }) {
   const { notify, confirm } = useFeedback();
   const [user, setUser] = useState(initialUser);
@@ -31,14 +36,44 @@ export default function MyAccountRoute({
   const [savingName, setSavingName] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
+  const [pending, setPending] = useState(initialPendingEmail);
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [emailError, setEmailError] = useState('');
   const others = sessions.filter((session) => !session.current);
 
   const reload = async () => {
     const response = await fetch('/api/me', { cache: 'no-store' });
     if (!response.ok) return;
-    const result = (await response.json()) as { user: StoreUser; sessions: StoreSession[] };
+    const result = (await response.json()) as {
+      user: StoreUser;
+      sessions: StoreSession[];
+      pendingEmail: { email: string; expiresAt: string } | null;
+    };
     setUser(result.user);
     setSessions(result.sessions);
+    setPending(result.pendingEmail);
+  };
+
+  // O e-mail novo só vale depois do clique no link que chega nele.
+  const changeEmail = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    setSavingEmail(true);
+    setEmailError('');
+    try {
+      const result = await postJson<{ pendingEmail: { email: string; expiresAt: string } }>(
+        '/api/me',
+        { action: 'email', email: form.get('email'), currentPassword: form.get('currentPassword') },
+      );
+      formElement.reset();
+      setPending(result.pendingEmail);
+      notify('Mandamos um link de confirmação para o e-mail novo.', 'success');
+    } catch (cause) {
+      setEmailError(cause instanceof Error ? cause.message : 'Não foi possível trocar o e-mail.');
+    } finally {
+      setSavingEmail(false);
+    }
   };
 
   const saveName = async (event: FormEvent<HTMLFormElement>) => {
@@ -148,6 +183,82 @@ export default function MyAccountRoute({
                 </Button>
               </div>
             </form>
+          </CardContent>
+        </Card>
+
+        <Card id="email">
+          <CardHeader>
+            <CardTitle>E-mail</CardTitle>
+            <CardDescription>
+              Com e-mail, você entra com ele e recupera a senha sozinho quando precisar.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              {user.email ? (
+                <>
+                  <span className="font-medium break-all">{user.email}</span>
+                  <Badge variant={user.emailVerified ? 'success' : 'neutral'}>
+                    {user.emailVerified ? 'Confirmado' : 'Não confirmado'}
+                  </Badge>
+                </>
+              ) : (
+                <span className="text-muted-foreground">Nenhum e-mail cadastrado.</span>
+              )}
+            </div>
+            {pending && (
+              <p className="flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-sm">
+                <MailCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
+                <span>
+                  Falta confirmar <strong className="break-all">{pending.email}</strong>: abra o
+                  e-mail e clique em Confirmar. O link vale até {whenLabel(pending.expiresAt)}.
+                </span>
+              </p>
+            )}
+            {emailEnabled ? (
+              <form className="grid gap-4" onSubmit={changeEmail}>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="me-email">{user.email ? 'Novo e-mail' : 'E-mail'}</Label>
+                    <Input
+                      autoComplete="email"
+                      id="me-email"
+                      inputMode="email"
+                      name="email"
+                      required
+                      type="email"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="me-email-password">Sua senha</Label>
+                    <Input
+                      autoComplete="current-password"
+                      id="me-email-password"
+                      name="currentPassword"
+                      required
+                      type="password"
+                    />
+                  </div>
+                </div>
+                {emailError && (
+                  <p className="text-sm text-destructive" role="alert">
+                    {emailError}
+                  </p>
+                )}
+                <div>
+                  <Button disabled={savingEmail} type="submit" variant="outline">
+                    {savingEmail ? 'Enviando…' : 'Enviar confirmação'}
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                O envio de e-mail ainda não está ligado. Por enquanto,{' '}
+                {user.role === 'owner'
+                  ? 'peça ao suporte ReparoSM para cadastrar o seu e-mail.'
+                  : 'peça ao dono da loja para cadastrar o seu e-mail em Equipe.'}
+              </p>
+            )}
           </CardContent>
         </Card>
 

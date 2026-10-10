@@ -8,29 +8,43 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { ListGroup, ListRow } from '@/components/ui/list-group';
 import RowMenu from '@/components/ui/row-menu';
-import { Avatar, PasswordDialog, PersonDialog } from '@/components/user-access';
+import {
+  Avatar,
+  CopyLinkDialog,
+  DeliveryDialog,
+  EmailDialog,
+  PersonDialog,
+  type NewPerson,
+} from '@/components/user-access';
 import { lastAccessLabel, roleLabel } from '@/lib/user-labels';
-import type { TeamMember, UserRole, UserStatus } from '@/lib/types';
+import type { LinkDelivery, TeamMember, UserRole, UserStatus } from '@/lib/types';
 
 /** O que a lista faz com cada pessoa; Equipe e Lojas falam com rotas diferentes. */
 export type TeamApi = {
-  create: (person: {
-    name: string;
-    username: string;
-    password: string;
-    role: UserRole;
-  }) => Promise<void>;
+  create: (person: NewPerson) => Promise<LinkDelivery | null>;
   update: (id: string, changes: { role?: UserRole; status?: UserStatus }) => Promise<void>;
-  resetPassword: (id: string, password: string, identityConfirmed: boolean) => Promise<void>;
+  setEmail: (id: string, email: string) => Promise<void>;
+  /** Manda o link (convite ou nova senha) para o e-mail cadastrado. */
+  sendLink: (id: string) => Promise<LinkDelivery>;
+  /** Gera um link para copiar; o administrador confirma a identidade antes. */
+  copyLink: (id: string, identityConfirmed: boolean) => Promise<LinkDelivery>;
   disconnect: (id: string) => Promise<void>;
 };
 
 const devices = (count: number) =>
   count === 1 ? 'Conectado em 1 aparelho' : `Conectado em ${count} aparelhos`;
 
+/** O aviso da linha: o que falta para a pessoa entrar, ou que pediu senha nova. */
+function noteOf(member: TeamMember): { note?: string; warn?: boolean } {
+  if (member.status !== 'active') return {};
+  if (member.passwordRequested) return { note: 'Pediu senha nova', warn: true };
+  if (member.mustChangePassword) return { note: 'Senha provisória', warn: true };
+  return {};
+}
+
 /**
- * Pessoas de uma loja, com acesso e sem acesso. Cada linha mostra papel, se
- * está conectada e quando entrou; as ações ficam no menu "…".
+ * Pessoas de uma loja, com acesso e sem acesso. Cada linha mostra papel, e-mail,
+ * se está conectada e quando entrou; as ações ficam no menu "…".
  */
 export default function TeamList({
   members,
@@ -45,7 +59,7 @@ export default function TeamList({
   /** Quem está usando: não se desativa nem se rebaixa por aqui. */
   selfId?: string;
   api: TeamApi;
-  /** Administrador confirma a identidade antes de definir senha. */
+  /** Administrador confirma a identidade antes de gerar link para copiar. */
   confirmIdentity?: boolean;
   addLabel?: string;
   storeName: string;
@@ -53,7 +67,9 @@ export default function TeamList({
 }) {
   const { notify, confirm } = useFeedback();
   const [adding, setAdding] = useState(false);
-  const [resetting, setResetting] = useState<TeamMember | null>(null);
+  const [copying, setCopying] = useState<TeamMember | null>(null);
+  const [emailing, setEmailing] = useState<TeamMember | null>(null);
+  const [delivered, setDelivered] = useState<{ delivery: LinkDelivery; name: string } | null>(null);
   const active = members.filter((member) => member.status === 'active');
   const disabled = members.filter((member) => member.status !== 'active');
 
@@ -64,6 +80,16 @@ export default function TeamList({
       await onChanged();
     } catch (cause) {
       notify(cause instanceof Error ? cause.message : 'Não foi possível salvar.', 'error');
+    }
+  };
+
+  const sendLink = async (member: TeamMember) => {
+    try {
+      const delivery = await api.sendLink(member.id);
+      setDelivered({ delivery, name: member.name });
+      await onChanged();
+    } catch (cause) {
+      notify(cause instanceof Error ? cause.message : 'Não foi possível enviar.', 'error');
     }
   };
 
@@ -89,6 +115,8 @@ export default function TeamList({
   const row = (member: TeamMember) => {
     const self = member.id === selfId;
     const off = member.status !== 'active';
+    const ready = member.access === 'ready';
+    const { note, warn } = noteOf(member);
     return (
       <ListRow
         actions={
@@ -102,8 +130,16 @@ export default function TeamList({
                 </DropdownMenuItem>
               ) : (
                 <>
-                  <DropdownMenuItem onSelect={() => setResetting(member)}>
-                    Definir senha provisória
+                  {member.email && (
+                    <DropdownMenuItem onSelect={() => void sendLink(member)}>
+                      {ready ? 'Enviar link de nova senha' : 'Reenviar convite'}
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onSelect={() => setCopying(member)}>
+                    {ready ? 'Copiar link de nova senha' : 'Copiar link do convite'}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setEmailing(member)}>
+                    {member.email ? 'Alterar e-mail' : 'Cadastrar e-mail'}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() =>
@@ -136,21 +172,19 @@ export default function TeamList({
             </RowMenu>
           )
         }
-        details={`${member.username} · ${roleLabel(member.role)}`}
+        details={[member.email || member.username, roleLabel(member.role)].join(' · ')}
         key={member.id}
-        leading={<Avatar muted={off} name={member.name} />}
-        note={
-          member.passwordRequested
-            ? 'Pediu senha nova'
-            : member.mustChangePassword && !off
-              ? 'Senha provisória'
-              : undefined
-        }
-        noteTone={member.passwordRequested || member.mustChangePassword ? 'warning' : undefined}
+        leading={<Avatar muted={off || !ready} name={member.name} />}
+        note={note}
+        noteTone={warn ? 'warning' : undefined}
         title={member.name}
         value={
           off ? (
             <span className="font-normal text-muted-foreground">Sem acesso</span>
+          ) : member.access === 'invited' ? (
+            <span className="font-normal text-muted-foreground">Convite pendente</span>
+          ) : member.access === 'invite-expired' ? (
+            <span className="font-medium text-amber-700 dark:text-amber-300">Convite vencido</span>
           ) : member.sessions > 0 ? (
             <span className="font-medium text-emerald-700 dark:text-emerald-300">
               {devices(member.sessions)}
@@ -187,27 +221,45 @@ export default function TeamList({
       {adding && (
         <PersonDialog
           close={() => setAdding(false)}
-          description={`Cria um acesso para ${storeName}. Passe o usuário e a senha provisória para a pessoa.`}
+          description={`Cria um acesso para ${storeName}. A pessoa recebe um link para criar a própria senha.`}
           submit={async (person) => {
-            await api.create(person);
+            const delivery = await api.create(person);
             setAdding(false);
             notify(`${person.name} foi cadastrado.`, 'success');
+            if (delivery) setDelivered({ delivery, name: person.name });
             await onChanged();
           }}
           title="Adicionar pessoa"
         />
       )}
-      {resetting && (
-        <PasswordDialog
-          close={() => setResetting(null)}
+      {copying && (
+        <CopyLinkDialog
+          close={() => {
+            setCopying(null);
+            void onChanged();
+          }}
           confirmIdentity={confirmIdentity}
-          submit={async (password, identityConfirmed) => {
-            await api.resetPassword(resetting.id, password, identityConfirmed);
-            setResetting(null);
-            notify(`Senha provisória definida. Passe para ${resetting.name}.`, 'success');
+          generate={(identityConfirmed) => api.copyLink(copying.id, identityConfirmed)}
+          person={{ ...copying, storeName }}
+        />
+      )}
+      {emailing && (
+        <EmailDialog
+          close={() => setEmailing(null)}
+          person={emailing}
+          submit={async (email) => {
+            await api.setEmail(emailing.id, email);
+            setEmailing(null);
+            notify(email ? 'E-mail salvo.' : 'E-mail removido.', 'success');
             await onChanged();
           }}
-          user={resetting}
+        />
+      )}
+      {delivered && (
+        <DeliveryDialog
+          close={() => setDelivered(null)}
+          delivery={delivered.delivery}
+          person={{ name: delivered.name, storeName }}
         />
       )}
     </div>

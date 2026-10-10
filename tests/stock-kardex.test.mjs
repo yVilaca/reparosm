@@ -9,7 +9,7 @@ before(async () => {
   db = await createTestDatabase();
   for (const id of [A, B])
     await db.migrationQuery(
-      "INSERT INTO accounts(id,username,name,role,status,password_hash) VALUES($1,$1,$1,'merchant','active','unused')",
+      "INSERT INTO accounts(id,username,name,role,status) VALUES($1,$1,$1,'merchant','active')",
       [id],
     );
   quickSales = await import('../lib/repos/quick-sales.ts');

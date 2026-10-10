@@ -1,5 +1,6 @@
 import TeamRoute from '@/components/team-route';
 import { tenantTransaction } from '@/lib/db';
+import { emailConfigured } from '@/lib/email';
 import { listPasswordRequests, listUsers } from '@/lib/repos/users';
 import { requireOwner } from '@/lib/server-auth';
 
@@ -11,6 +12,7 @@ export default async function TeamPage() {
   }));
   return (
     <TeamRoute
+      emailEnabled={emailConfigured()}
       initialRequests={requests}
       initialUsers={users}
       selfId={account.user.id}

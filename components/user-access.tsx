@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type FormEvent, type ReactNode } from 'react';
+import { Check, Copy, MessageCircle } from 'lucide-react';
 import { cn } from 'cn';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,8 +13,8 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { StoreUser, UserRole } from '@/lib/types';
-import { initials, roleHint, roleLabel } from '@/lib/user-labels';
+import type { LinkDelivery, UserRole } from '@/lib/types';
+import { initials, roleHint, roleLabel, whenLabel } from '@/lib/user-labels';
 
 /** Peças de acesso usadas em Minha conta, Equipe e Lojas. */
 
@@ -86,27 +87,39 @@ export function RolePicker({
   );
 }
 
+/** Sugestão de usuário a partir do e-mail: "marcos.oliveira@x.com" → "marcos.oliveira". */
+const usernameFromEmail = (email: string) =>
+  email
+    .split('@')[0]
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9._-]/g, '')
+    .slice(0, 30);
+
+export type NewPerson = { name: string; email: string; username: string; role: UserRole };
+
 /**
- * Cadastro de uma pessoa: nome, usuário, senha provisória e papel. Quem cadastra
- * passa o usuário e a senha para a pessoa; ela cria a própria senha ao entrar.
+ * Cadastro de uma pessoa: nome, e-mail, usuário e papel. Ninguém define a senha
+ * de outra pessoa: ela recebe um link e cria a dela.
  */
 export function PersonDialog({
   title,
   description,
+  emailRequired = false,
   submit,
   close,
 }: {
   title: string;
   description: ReactNode;
-  submit: (person: {
-    name: string;
-    username: string;
-    password: string;
-    role: UserRole;
-  }) => Promise<void>;
+  emailRequired?: boolean;
+  submit: (person: NewPerson) => Promise<void>;
   close: () => void;
 }) {
   const [role, setRole] = useState<UserRole>('staff');
+  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
+  const [usernameTouched, setUsernameTouched] = useState(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const save = async (event: FormEvent<HTMLFormElement>) => {
@@ -115,12 +128,7 @@ export function PersonDialog({
     setSaving(true);
     setError('');
     try {
-      await submit({
-        name: String(form.get('name') || ''),
-        username: String(form.get('username') || ''),
-        password: String(form.get('password') || ''),
-        role,
-      });
+      await submit({ name: String(form.get('name') || ''), email, username, role });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível salvar.');
       setSaving(false);
@@ -138,35 +146,50 @@ export function PersonDialog({
             <Label htmlFor="person-name">Nome</Label>
             <Input autoComplete="off" id="person-name" name="name" required minLength={2} />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="person-username">Usuário de acesso</Label>
-              <Input
-                autoCapitalize="none"
-                autoComplete="off"
-                id="person-username"
-                minLength={3}
-                name="username"
-                pattern="[A-Za-z0-9._\-]+"
-                required
-                title="Letras, números, ponto, hífen ou sublinhado"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="person-password">Senha provisória</Label>
-              <Input
-                autoComplete="new-password"
-                id="person-password"
-                minLength={10}
-                name="password"
-                required
-                type="password"
-              />
-            </div>
+          <div className="grid gap-2">
+            <Label htmlFor="person-email">
+              E-mail{' '}
+              {!emailRequired && (
+                <span className="font-normal text-muted-foreground">(opcional)</span>
+              )}
+            </Label>
+            <Input
+              autoComplete="off"
+              id="person-email"
+              inputMode="email"
+              onChange={(event) => {
+                setEmail(event.target.value);
+                if (!usernameTouched) setUsername(usernameFromEmail(event.target.value));
+              }}
+              required={emailRequired}
+              type="email"
+              value={email}
+            />
+            <p className="text-xs text-muted-foreground">
+              O convite chega por e-mail e a pessoa recupera a senha sozinha. Sem e-mail, você copia
+              o link e manda pelo WhatsApp.
+            </p>
           </div>
-          <p className="-mt-2 text-xs text-muted-foreground">
-            {passwordRule} No primeiro acesso, a pessoa cria a própria senha.
-          </p>
+          <div className="grid gap-2">
+            <Label htmlFor="person-username">Usuário de acesso</Label>
+            <Input
+              autoCapitalize="none"
+              autoComplete="off"
+              id="person-username"
+              minLength={3}
+              onChange={(event) => {
+                setUsername(event.target.value);
+                setUsernameTouched(true);
+              }}
+              pattern="[A-Za-z0-9._\-]+"
+              required
+              title="Letras, números, ponto, hífen ou sublinhado"
+              value={username}
+            />
+            <p className="text-xs text-muted-foreground">
+              A pessoa entra com o usuário ou com o e-mail.
+            </p>
+          </div>
           <RolePicker onChange={setRole} value={role} />
           {error && (
             <p className="text-sm text-destructive" role="alert">
@@ -178,7 +201,7 @@ export function PersonDialog({
               Cancelar
             </Button>
             <Button disabled={saving} type="submit">
-              {saving ? 'Cadastrando…' : 'Cadastrar'}
+              {saving ? 'Cadastrando…' : 'Cadastrar e convidar'}
             </Button>
           </div>
         </form>
@@ -187,74 +210,140 @@ export function PersonDialog({
   );
 }
 
-/**
- * Senha provisória para alguém que esqueceu a dele. Desconecta a pessoa; no
- * próximo acesso ela cria a própria senha.
- */
-export function PasswordDialog({
-  user,
-  confirmIdentity = false,
-  submit,
-  close,
+const reasonText: Record<Exclude<LinkDelivery, { sent: true }>['reason'], string> = {
+  copy: 'Link novo gerado. O anterior parou de valer.',
+  'no-email': 'A pessoa não tem e-mail cadastrado.',
+  'not-configured': 'O envio de e-mail ainda não está configurado no sistema.',
+  failed: 'O e-mail não pôde ser enviado agora.',
+};
+
+/** O link pronto: copiar ou mandar pelo WhatsApp, com o aviso de segurança. */
+function LinkBox({
+  delivery,
+  person,
 }: {
-  user: Pick<StoreUser, 'name' | 'username'>;
-  /** Administrador: confirmar a identidade pelo contato já conhecido. */
-  confirmIdentity?: boolean;
-  submit: (password: string, identityConfirmed: boolean) => Promise<void>;
-  close: () => void;
+  delivery: Extract<LinkDelivery, { sent: false }>;
+  person: { name: string; storeName?: string };
 }) {
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
-  const save = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    if (form.get('password') !== form.get('confirm')) {
-      setError('As senhas não conferem.');
-      return;
-    }
-    setSaving(true);
-    setError('');
+  const [copied, setCopied] = useState(false);
+  const message = `Olá, ${person.name.split(' ')[0]}! Este é o seu link para criar a senha e entrar no ReparoSM${person.storeName ? ` (${person.storeName})` : ''}: ${delivery.url}`;
+  const copy = async () => {
     try {
-      await submit(String(form.get('password')), form.get('identity') === 'on');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Não foi possível salvar.');
-      setSaving(false);
+      await navigator.clipboard.writeText(delivery.url);
+      setCopied(true);
+    } catch {
+      (document.getElementById('access-link-url') as HTMLInputElement | null)?.select();
     }
   };
   return (
+    <div className="grid gap-3">
+      <p className="text-sm text-muted-foreground">
+        {reasonText[delivery.reason]} Mande este link só para {person.name}: quem tiver o link cria
+        a senha. Ele vale até {whenLabel(delivery.expiresAt)} e só uma vez.
+      </p>
+      <div className="flex gap-2">
+        <Input
+          aria-label="Link de acesso"
+          className="font-mono text-xs"
+          id="access-link-url"
+          onFocus={(event) => event.currentTarget.select()}
+          readOnly
+          value={delivery.url}
+        />
+        <Button onClick={() => void copy()} type="button" variant="outline">
+          {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+          {copied ? 'Copiado' : 'Copiar'}
+        </Button>
+      </div>
+      <Button asChild variant="outline">
+        <a
+          href={`https://wa.me/?text=${encodeURIComponent(message)}`}
+          rel="noreferrer"
+          target="_blank"
+        >
+          <MessageCircle aria-hidden="true" />
+          Mandar pelo WhatsApp
+        </a>
+      </Button>
+    </div>
+  );
+}
+
+/** Resultado de um convite ou link: enviado por e-mail, ou pronto para copiar. */
+export function DeliveryDialog({
+  delivery,
+  person,
+  close,
+}: {
+  delivery: LinkDelivery;
+  person: { name: string; storeName?: string };
+  close: () => void;
+}) {
+  return (
+    <Dialog open onOpenChange={(open) => !open && close()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>
+            {delivery.sent ? 'Link enviado' : `Link de acesso de ${person.name}`}
+          </DialogTitle>
+          <DialogDescription>
+            {delivery.sent
+              ? `Mandamos o link para ${delivery.to}. Se não chegar em alguns minutos, peça para olhar o spam ou gere um link para copiar.`
+              : 'A pessoa abre o link, cria a senha e já entra.'}
+          </DialogDescription>
+        </DialogHeader>
+        {!delivery.sent && <LinkBox delivery={delivery} person={person} />}
+        <div className="flex justify-end border-t pt-4">
+          <Button onClick={close}>Pronto</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Gerar um link para copiar (o anterior para de valer). O administrador confirma
+ * antes que fala com a pessoa certa.
+ */
+export function CopyLinkDialog({
+  person,
+  confirmIdentity = false,
+  generate,
+  close,
+}: {
+  person: { name: string; username: string; storeName?: string };
+  confirmIdentity?: boolean;
+  generate: (identityConfirmed: boolean) => Promise<LinkDelivery>;
+  close: () => void;
+}) {
+  const [delivery, setDelivery] = useState<LinkDelivery | null>(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const identity = new FormData(event.currentTarget).get('identity') === 'on';
+    setBusy(true);
+    setError('');
+    try {
+      setDelivery(await generate(identity));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Não foi possível gerar o link.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (delivery) return <DeliveryDialog close={close} delivery={delivery} person={person} />;
+  return (
     <Dialog open onOpenChange={(open) => !open && close()}>
       <DialogContent className="max-w-md p-0">
-        <form className="grid gap-5 p-6" onSubmit={save}>
+        <form className="grid gap-5 p-6" onSubmit={submit}>
           <DialogHeader>
-            <DialogTitle>Senha provisória de {user.name}</DialogTitle>
+            <DialogTitle>Link de acesso de {person.name}</DialogTitle>
             <DialogDescription>
-              Usuário {user.username}. A pessoa sai dos aparelhos conectados e cria a própria senha
-              no próximo acesso.
+              Usuário {person.username}. Gera um link novo para a pessoa criar a senha; o anterior
+              para de valer. Use quando o e-mail não chegou ou não existe.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-2">
-            <Label htmlFor="temp-password">Senha provisória</Label>
-            <Input
-              autoComplete="new-password"
-              id="temp-password"
-              minLength={10}
-              name="password"
-              required
-              type="password"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="temp-password-confirm">Repita a senha</Label>
-            <Input
-              autoComplete="new-password"
-              id="temp-password-confirm"
-              minLength={10}
-              name="confirm"
-              required
-              type="password"
-            />
-            <p className="text-xs text-muted-foreground">{passwordRule}</p>
-          </div>
           {confirmIdentity && (
             <label className="flex items-start gap-2 text-sm">
               <input className="mt-0.5 size-4 shrink-0" name="identity" required type="checkbox" />
@@ -267,11 +356,76 @@ export function PasswordDialog({
             </p>
           )}
           <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
+            <Button disabled={busy} onClick={close} type="button" variant="outline">
+              Cancelar
+            </Button>
+            <Button disabled={busy} type="submit">
+              {busy ? 'Gerando…' : 'Gerar link'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Cadastrar ou corrigir o e-mail de alguém da equipe. */
+export function EmailDialog({
+  person,
+  submit,
+  close,
+}: {
+  person: { name: string; email?: string };
+  submit: (email: string) => Promise<void>;
+  close: () => void;
+}) {
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const save = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      await submit(String(new FormData(event.currentTarget).get('email') || ''));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Não foi possível salvar.');
+      setSaving(false);
+    }
+  };
+  return (
+    <Dialog open onOpenChange={(open) => !open && close()}>
+      <DialogContent className="max-w-md p-0">
+        <form className="grid gap-5 p-6" onSubmit={save}>
+          <DialogHeader>
+            <DialogTitle>E-mail de {person.name}</DialogTitle>
+            <DialogDescription>
+              Com e-mail, a pessoa entra com ele e recupera a senha sozinha. Ele fica confirmado
+              quando ela usar um link recebido nele.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Label htmlFor="person-new-email">E-mail</Label>
+            <Input
+              autoComplete="off"
+              defaultValue={person.email || ''}
+              id="person-new-email"
+              inputMode="email"
+              name="email"
+              type="email"
+            />
+            <p className="text-xs text-muted-foreground">Deixe em branco para tirar o e-mail.</p>
+          </div>
+          {error && (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
             <Button disabled={saving} onClick={close} type="button" variant="outline">
               Cancelar
             </Button>
             <Button disabled={saving} type="submit">
-              {saving ? 'Salvando…' : 'Definir senha'}
+              {saving ? 'Salvando…' : 'Salvar e-mail'}
             </Button>
           </div>
         </form>

@@ -9,10 +9,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { PublicAccount } from '@/lib/types';
 
-export default function Login({ onLogin }: { onLogin: (account: PublicAccount) => void }) {
+export default function Login({
+  onLogin,
+  startForgot = false,
+}: {
+  onLogin: (account: PublicAccount) => void;
+  /** Abre já em "Esqueci minha senha" (ex.: vindo de um link vencido). */
+  startForgot?: boolean;
+}) {
   const [error, setError] = useState(''),
     [loading, setLoading] = useState(false),
-    [forgot, setForgot] = useState(false),
+    [forgot, setForgot] = useState(startForgot),
     [notice, setNotice] = useState(''),
     [showPassword, setShowPassword] = useState(false);
 
@@ -66,22 +73,23 @@ export default function Login({ onLogin }: { onLogin: (account: PublicAccount) =
               </h2>
               <p className="text-sm text-muted-foreground">
                 {forgot
-                  ? 'Informe seu usuário para solicitar uma nova senha ao administrador.'
-                  : 'Cada loja possui uma conta e dados separados.'}
+                  ? 'Informe seu usuário ou e-mail. Mandamos um link para você criar uma nova senha.'
+                  : 'Cada pessoa entra com o próprio usuário ou e-mail.'}
               </p>
             </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="login-username">Usuário</Label>
+              <Label htmlFor="login-username">Usuário ou e-mail</Label>
               <Input
                 id="login-username"
                 name="username"
                 required
                 minLength={3}
-                maxLength={80}
+                maxLength={254}
+                autoCapitalize="none"
                 autoComplete="username"
-                placeholder="Digite seu usuário"
+                placeholder="Seu usuário ou e-mail"
                 autoFocus
                 aria-invalid={Boolean(error)}
                 aria-describedby={error ? 'login-error' : undefined}
@@ -126,7 +134,7 @@ export default function Login({ onLogin }: { onLogin: (account: PublicAccount) =
               </p>
             )}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Aguarde...' : forgot ? 'Solicitar ao administrador' : 'Entrar no sistema'}
+              {loading ? 'Aguarde...' : forgot ? 'Mandar o link' : 'Entrar no sistema'}
             </Button>
             <button
               type="button"
@@ -142,7 +150,7 @@ export default function Login({ onLogin }: { onLogin: (account: PublicAccount) =
             </button>
             <small className="text-xs text-muted-foreground">
               {forgot
-                ? 'Sua senha só será alterada pelo administrador após confirmar sua identidade.'
+                ? 'O link vale por 1 hora e só uma vez. Sem e-mail cadastrado, o pedido vai para o dono da loja.'
                 : 'A sessão expira automaticamente após 12 horas.'}
             </small>
           </CardContent>

@@ -45,15 +45,17 @@ senha). Isso causa três problemas:
 
   A loja sempre mantém pelo menos um Dono ativo.
 
-- **Senha provisória.** Senha definida pelo dono (para funcionário) ou pelo
-  administrador (para qualquer usuário) é provisória: no próximo acesso a pessoa
-  cai em Minha conta para criar a sua. Redefinir a senha desconecta a pessoa.
+- **Ninguém define a senha de ninguém.** A senha provisória da primeira versão
+  foi trocada por links de uso único (convite e nova senha): veja
+  [acesso por e-mail](2026-10-09-acesso-por-email-design.md). Quem ainda tem
+  senha provisória antiga continua sendo levado a Minha conta para criar a sua.
 - **Trocar a própria senha** pede a senha atual e desconecta os outros aparelhos
   do usuário.
 - **Desativar um usuário** desconecta ele na hora; suspender ou cancelar a loja
   desconecta todos.
-- **Esqueci minha senha.** O pedido de um funcionário aparece para o Dono em
-  Equipe; o de um Dono aparece para o administrador em Lojas.
+- **Esqueci minha senha.** Quem tem e-mail recebe o link na hora. Sem e-mail, o
+  pedido de um funcionário aparece para o Dono em Equipe; o de um Dono, para o
+  administrador em Lojas.
 
 ## Telas
 

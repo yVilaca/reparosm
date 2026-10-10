@@ -45,10 +45,16 @@ import {
 } from '@/components/ui/select';
 import StatCard, { StatGroup } from '@/components/ui/stat-card';
 import { toneText, type Tone } from '@/components/ui/tone';
-import { Avatar, PasswordDialog, passwordRule, postJson } from '@/components/user-access';
+import { Avatar, CopyLinkDialog, DeliveryDialog, postJson } from '@/components/user-access';
 import { lastAccessLabel, whenLabel } from '@/lib/user-labels';
 import type { AdminStore } from '@/lib/repos/accounts';
-import type { AccountStatus, PasswordRequest, TeamMember } from '@/lib/types';
+import type {
+  AccountStatus,
+  LinkDelivery,
+  PasswordRequest,
+  StoreUser,
+  TeamMember,
+} from '@/lib/types';
 
 const PLANS = ['Mensal', 'Trimestral', 'Anual', 'Cortesia'] as const;
 const SOON_DAYS = 7;
@@ -133,7 +139,12 @@ export default function AccountsRoute({
   const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
   const [viewingId, setViewingId] = useState<string | null>(null);
-  const [resetting, setResetting] = useState<PasswordRequest | null>(null);
+  const [linking, setLinking] = useState<PasswordRequest | null>(null);
+  const [delivered, setDelivered] = useState<{
+    delivery: LinkDelivery;
+    name: string;
+    storeName: string;
+  } | null>(null);
 
   const load = async () => {
     const response = await fetch('/api/accounts', { cache: 'no-store' });
@@ -295,12 +306,12 @@ export default function AccountsRoute({
             {requests.map((request) => (
               <ListRow
                 actions={
-                  <Button onClick={() => setResetting(request)} size="sm">
+                  <Button onClick={() => setLinking(request)} size="sm">
                     <KeyRound aria-hidden="true" />
-                    Definir senha provisória
+                    Gerar link de nova senha
                   </Button>
                 }
-                details={`${request.storeName} · ${request.username} · pediu ${whenLabel(request.createdAt)}`}
+                details={`${request.storeName} · ${request.username} · sem e-mail · pediu ${whenLabel(request.createdAt)}`}
                 key={request.id}
                 leading={<Avatar name={request.name} />}
                 title={request.name}
@@ -358,15 +369,25 @@ export default function AccountsRoute({
                     {menu(store)}
                   </>
                 }
-                details={`${store.ownerName || 'Sem dono'} · ${store.ownerUsername || '—'} · ${people(store.users)}`}
+                details={`${store.ownerName || 'Sem dono'} · ${store.ownerEmail || store.ownerUsername || '—'} · ${people(store.users)}`}
                 key={store.id}
                 leading={<IconChip icon={Store} tone={storeTone(store)} />}
                 note={
-                  store.status === 'active'
-                    ? lastAccessLabel(store.lastLoginAt)
-                    : statusLabel[store.status]
+                  store.status !== 'active'
+                    ? statusLabel[store.status]
+                    : store.ownerAccess === 'invited'
+                      ? 'Convite pendente, o dono ainda não entrou'
+                      : store.ownerAccess === 'invite-expired'
+                        ? 'Convite do dono venceu'
+                        : lastAccessLabel(store.lastLoginAt)
                 }
-                noteTone={store.status === 'active' ? undefined : 'neutral'}
+                noteTone={
+                  store.status !== 'active'
+                    ? 'neutral'
+                    : store.ownerAccess === 'invite-expired'
+                      ? 'warning'
+                      : undefined
+                }
                 onOpen={() => setViewingId(store.id)}
                 openLabel={`Abrir ${store.name}`}
                 title={store.name}
@@ -400,7 +421,7 @@ export default function AccountsRoute({
           description={
             stores.length
               ? 'Nenhuma loja com esse filtro ou busca.'
-              : 'Cadastre a primeira assistência com o dono e uma senha provisória.'
+              : 'Cadastre a primeira assistência: o dono recebe um convite para criar a senha.'
           }
           title={stores.length ? 'Nada por aqui' : 'Nenhuma loja ainda'}
         />
@@ -409,12 +430,10 @@ export default function AccountsRoute({
       {creating && (
         <NewStoreDialog
           close={() => setCreating(false)}
-          created={async (name) => {
+          created={async (result) => {
             setCreating(false);
-            notify(
-              `${name} foi criada. Passe o usuário e a senha provisória para o dono.`,
-              'success',
-            );
+            notify(`${result.storeName} foi criada.`, 'success');
+            setDelivered(result);
             await load();
           }}
         />
@@ -430,22 +449,30 @@ export default function AccountsRoute({
           store={viewing}
         />
       )}
-      {resetting && (
-        <PasswordDialog
-          close={() => setResetting(null)}
-          confirmIdentity
-          submit={async (password, identityConfirmed) => {
-            await postJson('/api/accounts', {
-              action: 'reset-password',
-              userId: resetting.userId,
-              password,
-              identityConfirmed,
-            });
-            setResetting(null);
-            notify(`Senha provisória definida. Passe para ${resetting.name}.`, 'success');
-            await load();
+      {linking && (
+        <CopyLinkDialog
+          close={() => {
+            setLinking(null);
+            void load();
           }}
-          user={resetting}
+          confirmIdentity
+          generate={async (identityConfirmed) =>
+            (
+              await postJson<{ invite: LinkDelivery }>('/api/accounts', {
+                action: 'copy-link',
+                userId: linking.userId,
+                identityConfirmed,
+              })
+            ).invite
+          }
+          person={linking}
+        />
+      )}
+      {delivered && (
+        <DeliveryDialog
+          close={() => setDelivered(null)}
+          delivery={delivered.delivery}
+          person={{ name: delivered.name, storeName: delivered.storeName }}
         />
       )}
     </>
@@ -491,25 +518,27 @@ function StoreRecord({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.id]);
 
+  const admin = <T,>(body: object) => postJson<T>('/api/accounts', body);
   const api: TeamApi = {
     create: async (person) =>
-      void (await postJson('/api/accounts', { action: 'add-user', id: store.id, ...person })),
+      (
+        await admin<{ invite: LinkDelivery | null }>({
+          action: 'add-user',
+          id: store.id,
+          ...person,
+        })
+      ).invite,
     update: async (userId, changes) =>
-      void (await postJson('/api/accounts', {
-        action: 'update-user',
-        id: store.id,
-        userId,
-        ...changes,
-      })),
-    resetPassword: async (userId, password, identityConfirmed) =>
-      void (await postJson('/api/accounts', {
-        action: 'reset-password',
-        userId,
-        password,
-        identityConfirmed,
-      })),
+      void (await admin({ action: 'update-user', id: store.id, userId, ...changes })),
+    setEmail: async (userId, email) =>
+      void (await admin<{ user: StoreUser }>({ action: 'set-email', id: store.id, userId, email })),
+    sendLink: async (userId) =>
+      (await admin<{ invite: LinkDelivery }>({ action: 'send-link', userId })).invite,
+    copyLink: async (userId, identityConfirmed) =>
+      (await admin<{ invite: LinkDelivery }>({ action: 'copy-link', userId, identityConfirmed }))
+        .invite,
     disconnect: async (userId) =>
-      void (await postJson('/api/accounts', { action: 'disconnect-user', id: store.id, userId })),
+      void (await admin({ action: 'disconnect-user', id: store.id, userId })),
   };
 
   return (
@@ -535,7 +564,7 @@ function StoreRecord({
       }
       className="max-w-3xl"
       close={close}
-      description={`Dono: ${store.ownerName || '—'} (${store.ownerUsername || '—'})`}
+      description={`Dono: ${store.ownerName || '—'} (${store.ownerEmail || store.ownerUsername || '—'})`}
       editLabel="Editar assinatura"
       primary={
         store.plan !== 'Cortesia' && (
@@ -693,7 +722,7 @@ function NewStoreDialog({
   created,
 }: {
   close: () => void;
-  created: (name: string) => Promise<void>;
+  created: (result: { delivery: LinkDelivery; name: string; storeName: string }) => Promise<void>;
 }) {
   const [plan, setPlan] = useState('Mensal');
   const [error, setError] = useState('');
@@ -704,15 +733,19 @@ function NewStoreDialog({
     setSaving(true);
     setError('');
     try {
-      await postJson('/api/accounts', {
+      const result = await postJson<{ invite: LinkDelivery }>('/api/accounts', {
         name: form.get('name'),
         ownerName: form.get('ownerName'),
+        ownerEmail: form.get('ownerEmail'),
         username: form.get('username'),
-        password: form.get('password'),
         plan,
         dueDate: plan === 'Cortesia' ? '' : form.get('dueDate'),
       });
-      await created(String(form.get('name')));
+      await created({
+        delivery: result.invite,
+        name: String(form.get('ownerName')),
+        storeName: String(form.get('name')),
+      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível criar a loja.');
       setSaving(false);
@@ -725,8 +758,8 @@ function NewStoreDialog({
           <DialogHeader>
             <DialogTitle>Nova loja</DialogTitle>
             <DialogDescription>
-              Cria o ambiente da assistência e o acesso do dono, com senha provisória. Depois o dono
-              cadastra a equipe dele.
+              Cria o ambiente da assistência e manda ao dono um convite para criar a senha e entrar.
+              Depois o dono cadastra a equipe dele.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
@@ -739,31 +772,33 @@ function NewStoreDialog({
               <Input id="new-store-owner" minLength={2} name="ownerName" required />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="new-store-username">Usuário do dono</Label>
+              <Label htmlFor="new-store-email">E-mail do dono</Label>
               <Input
-                autoCapitalize="none"
                 autoComplete="off"
-                id="new-store-username"
-                minLength={3}
-                name="username"
-                pattern="[A-Za-z0-9._\-]+"
+                id="new-store-email"
+                inputMode="email"
+                name="ownerEmail"
                 required
-                title="Letras, números, ponto, hífen ou sublinhado"
+                type="email"
               />
             </div>
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="new-store-password">Senha provisória</Label>
+            <Label htmlFor="new-store-username">
+              Usuário do dono <span className="font-normal text-muted-foreground">(opcional)</span>
+            </Label>
             <Input
-              autoComplete="new-password"
-              id="new-store-password"
-              minLength={10}
-              name="password"
-              required
-              type="password"
+              autoCapitalize="none"
+              autoComplete="off"
+              id="new-store-username"
+              minLength={3}
+              name="username"
+              pattern="[A-Za-z0-9._\-]+"
+              title="Letras, números, ponto, hífen ou sublinhado"
             />
             <p className="text-xs text-muted-foreground">
-              {passwordRule} No primeiro acesso, o dono cria a própria senha.
+              Em branco, criamos a partir do e-mail. O dono pode entrar com o usuário ou com o
+              e-mail.
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -797,7 +832,7 @@ function NewStoreDialog({
               Cancelar
             </Button>
             <Button disabled={saving} type="submit">
-              {saving ? 'Criando…' : 'Criar loja'}
+              {saving ? 'Criando…' : 'Criar loja e convidar o dono'}
             </Button>
           </div>
         </form>

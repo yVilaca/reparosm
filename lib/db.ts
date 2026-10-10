@@ -90,6 +90,27 @@ export async function authQuery<R extends Row = Row>(
   return authTransaction(username, (run) => run<R>(text, params));
 }
 
+/** Runs a lookup by e-mail with access to the one user that has it (login, forgot password). */
+export const authEmailTransaction: ScopedTransaction = (email, fn) =>
+  runAsRuntime(fn, ['app.auth_email', requiredContext(email, 'email')]);
+
+/**
+ * Switches the current transaction to one user's login scope, after the caller
+ * derived that username from a validated row (e.g. an access link).
+ */
+export async function setAuthUsernameContext(run: Query, username: string) {
+  await run('SELECT set_config($1, $2, true)', [
+    'app.auth_username',
+    requiredContext(username, 'username'),
+  ]);
+}
+
+/** Runs access-link queries with access to exactly one SHA-256 token hash. */
+export const accessLinkTransaction: ScopedTransaction = (tokenHash, fn) => {
+  if (!/^[0-9a-f]{64}$/.test(tokenHash)) throw new Error('access link hash inválido.');
+  return runAsRuntime(fn, ['app.access_link_hash', tokenHash]);
+};
+
 /** Runs session lookups with access to one SHA-256 token hash. */
 export const sessionTransaction: ScopedTransaction = (tokenHash, fn) => {
   if (!/^[0-9a-f]{64}$/.test(tokenHash)) throw new Error('session token hash inválido.');

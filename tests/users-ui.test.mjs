@@ -95,10 +95,10 @@ test('stores are listed by urgency, with renewal only where it matters', () => {
   assert.match(html, /Dono vencendo · vencendo · 3 pessoas/);
   assert.equal((html.match(/>Renovar</g) || []).length, 2, 'só a vencida e a que vence em breve');
   assert.match(html, /Donos que pediram senha nova/);
-  assert.match(html, /Loja vencida · vencida · pediu hoje/);
+  assert.match(html, /Loja vencida · vencida · sem e-mail · pediu hoje/);
 });
 
-test('the team shows roles, who is you, provisional passwords and password requests', () => {
+test('the team shows roles, who is you, invites, provisional passwords and password requests', () => {
   const member = (id, overrides = {}) => ({
     id: `user-${id}`,
     accountId: 'account-demo',
@@ -106,7 +106,9 @@ test('the team shows roles, who is you, provisional passwords and password reque
     name: `Pessoa ${id}`,
     role: 'staff',
     status: 'active',
+    emailVerified: false,
     mustChangePassword: false,
+    access: 'ready',
     createdAt: '2026-10-01T12:00:00.000Z',
     updatedAt: '2026-10-01T12:00:00.000Z',
     sessions: 0,
@@ -116,8 +118,11 @@ test('the team shows roles, who is you, provisional passwords and password reque
   const html = render(TeamRoute, {
     storeName: 'Cell Prime',
     selfId: 'user-dono',
+    emailEnabled: false,
     initialUsers: [
-      member('dono', { role: 'owner', sessions: 2 }),
+      member('dono', { role: 'owner', sessions: 2, email: 'dono@loja.test', emailVerified: true }),
+      member('convidada', { access: 'invited', email: 'convidada@loja.test' }),
+      member('atrasada', { access: 'invite-expired' }),
       member('nova', { mustChangePassword: true, sessions: 1 }),
       member('esqueceu', { passwordRequested: true }),
       member('saiu', { status: 'disabled' }),
@@ -135,7 +140,11 @@ test('the team shows roles, who is you, provisional passwords and password reque
     ],
   });
   assert.match(html, /Pediram senha nova/);
-  assert.match(html, /dono · Dono/);
+  assert.match(html, /dono@loja.test · Dono/, 'mostra o e-mail quando existe');
+  assert.match(html, /Convite pendente/);
+  assert.match(html, /Convite vencido/);
+  assert.match(html, /envio de e-mail ainda não está ligado/);
+  assert.match(html, /Gerar link de nova senha/);
   assert.match(html, /nova · Funcionário/);
   assert.match(html, />Você</);
   assert.match(html, /Conectado em 2 aparelhos/);

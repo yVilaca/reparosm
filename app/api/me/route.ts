@@ -1,4 +1,11 @@
 import {
+  normalizeEmail,
+  notifyPasswordChanged,
+  pendingEmail,
+  requestEmailChange,
+} from '@/lib/access';
+import { emailConfigured } from '@/lib/email';
+import {
   currentAccount,
   passwordHash,
   passwordProblem,
@@ -15,7 +22,7 @@ import {
 } from '@/lib/repos/sessions';
 import type { DataObject } from '@/lib/types';
 
-/** Minha conta: cada pessoa cuida do próprio nome, senha e aparelhos. */
+/** Minha conta: cada pessoa cuida do próprio nome, e-mail, senha e aparelhos. */
 
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -26,7 +33,12 @@ export async function GET(request: Request) {
   const account = await currentAccount(request);
   const token = sessionToken(request);
   if (!account || !token) return json({ error: 'Não autenticado' }, 401);
-  return json({ user: account.user, sessions: (await listOwnSessions(token)) ?? [] });
+  return json({
+    user: account.user,
+    sessions: (await listOwnSessions(token)) ?? [],
+    pendingEmail: await pendingEmail(token),
+    emailEnabled: emailConfigured(),
+  });
 }
 
 export async function POST(request: Request) {
@@ -64,7 +76,32 @@ export async function POST(request: Request) {
     );
     if (result === 'wrong-password') return json({ error: 'A senha atual não confere.' }, 400);
     if (result !== 'ok') return json({ error: 'Não autenticado' }, 401);
+    await notifyPasswordChanged({ ...account.user, storeName: account.name });
     return json({ ok: true });
+  }
+
+  if (body.action === 'email') {
+    const email = normalizeEmail(body.email);
+    if (!email) return json({ error: 'Informe um e-mail válido.' }, 400);
+    const current = String(body.currentPassword || '');
+    const result = await requestEmailChange(token, {
+      email,
+      passwordMatches: async (username, hash) =>
+        (await verifyPassword(username, current, hash)).valid,
+    });
+    const errors: Partial<Record<typeof result, [string, number]>> = {
+      'wrong-password': ['A senha atual não confere.', 400],
+      'same-email': ['Este já é o seu e-mail.', 400],
+      'too-many': ['Muitos pedidos seguidos. Espere alguns minutos e tente de novo.', 429],
+      'not-sent': [
+        'Não foi possível enviar o e-mail de confirmação agora. Tente mais tarde ou peça ao dono da loja para cadastrar o e-mail.',
+        503,
+      ],
+      invalid: ['Não autenticado', 401],
+    };
+    const error = errors[result];
+    if (error) return json({ error: error[0] }, error[1]);
+    return json({ ok: true, pendingEmail: await pendingEmail(token) });
   }
 
   if (body.action === 'end-session') {

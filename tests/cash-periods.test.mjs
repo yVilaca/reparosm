@@ -16,8 +16,8 @@ before(async () => {
   if (skip) return;
   db = await createTestDatabase();
   await db.migrationQuery(
-    `INSERT INTO accounts (id, username, name, role, status, password_hash)
-     VALUES ('account-cash', 'cash', 'Cash', 'merchant', 'active', 'x')`,
+    `INSERT INTO accounts (id, username, name, role, status)
+     VALUES ('account-cash', 'cash', 'Cash', 'merchant', 'active')`,
   );
   await entry('cash-1', 'in', 420, '2026-03-31', 'Pix');
   await entry('cash-2', 'in', 300, '2026-03-31', 'Cartão de débito');

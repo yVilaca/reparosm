@@ -17,8 +17,8 @@ before(async () => {
   const { sessionCookie } = await import('./support/session.mjs');
   for (const username of ['resource-owner', 'resource-other']) {
     await db.migrationQuery(
-      `INSERT INTO accounts (id, username, name, role, status, password_hash)
-       VALUES ($1, $2, $2, 'merchant', 'active', 'unused')`,
+      `INSERT INTO accounts (id, username, name, role, status)
+       VALUES ($1, $2, $2, 'merchant', 'active')`,
       [`account-${username}`, username],
     );
   }

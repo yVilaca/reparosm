@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { passwordHash } from '../lib/security.ts';
+import { linkToken, openLink } from './support/access.mjs';
 import { createTestDatabase, skipWithoutDatabase } from './support/db.mjs';
 
 // Várias pessoas por loja: cada uma com login próprio, ao mesmo tempo.
@@ -41,47 +42,43 @@ const login = (username, password) =>
   call(auth.POST, '/api/auth', { body: { action: 'login', username, password } });
 const signedIn = async (cookie) =>
   lib.currentAccount(new Request('https://test.local/', { headers: { cookie } }));
+const emailOf = (username) => `${username}@lojas.test`;
 
 let admin;
-/** Loja nova pelo administrador, com o Dono já tendo criado a própria senha. */
+/** Loja nova pelo administrador; o Dono cria a senha pelo convite e já entra. */
 async function store(username) {
   admin ??= cookieOf(await login('adminreparosm', 'TestAdminPassword123'));
   const response = await call(accounts.POST, '/api/accounts', {
     cookie: admin,
-    body: { username, name: `Loja ${username}`, ownerName: 'Dono', password: 'Provisoria123' },
+    body: { username, name: `Loja ${username}`, ownerName: 'Dono', ownerEmail: emailOf(username) },
   });
   assert.equal(response.status, 201);
-  const owner = cookieOf(await login(username, 'Provisoria123'));
-  await call(me.POST, '/api/me', {
-    cookie: owner,
-    body: { action: 'password', currentPassword: 'Provisoria123', password: 'Donosenha123' },
-  });
-  return { id: (await response.json()).account.id, owner };
+  const { cookie } = await openLink(linkToken(emailOf(username)), 'Donosenha123');
+  return { id: (await response.json()).account.id, owner: cookie };
 }
-async function addStaff(owner, username, extra = {}) {
+/** O Dono cadastra alguém; com e-mail (padrão), o convite vai por e-mail. */
+async function addStaff(owner, username, { email = emailOf(username), ...extra } = {}) {
   const response = await call(team.POST, '/api/team', {
     cookie: owner,
-    body: {
-      action: 'create',
-      name: `Pessoa ${username}`,
-      username,
-      password: 'Provisoria123',
-      ...extra,
-    },
+    body: { action: 'create', name: `Pessoa ${username}`, username, email, ...extra },
   });
   assert.equal(response.status, 201, await response.clone().text());
-  return (await response.json()).user;
+  return response.json();
 }
+/** A pessoa abre o convite, cria a senha e entra. */
+const accept = async (source, password = 'Staffsenha123') =>
+  (await openLink(linkToken(source), password)).cookie;
 
 test(
   'two people of the same shop, and one person on two devices, stay signed in together',
   { skip },
   async () => {
     const shop = await store('balcao');
-    await addStaff(shop.owner, 'bancada');
-    const staff = cookieOf(await login('bancada', 'Provisoria123'));
+    const { invite } = await addStaff(shop.owner, 'bancada');
+    assert.deepEqual(invite, { sent: true, to: 'bancada@lojas.test' });
+    const staff = await accept(emailOf('bancada'));
     const ownerAgain = cookieOf(await login('balcao', 'Donosenha123'));
-    const staffAgain = cookieOf(await login('bancada', 'Provisoria123'));
+    const staffAgain = cookieOf(await login('bancada@lojas.test', 'Staffsenha123'));
 
     for (const cookie of [shop.owner, staff, ownerAgain, staffAgain]) {
       const account = await signedIn(cookie);
@@ -91,14 +88,15 @@ test(
     const person = await signedIn(staff);
     assert.equal(person.user.username, 'bancada');
     assert.equal(person.user.role, 'staff');
-    assert.equal(person.user.mustChangePassword, true);
+    assert.equal(person.user.mustChangePassword, false, 'ninguém define senha de ninguém');
+    assert.equal(person.user.emailVerified, true, 'o convite por e-mail confirma o e-mail');
   },
 );
 
 test('only the owner manages the team and the shop profile', { skip }, async () => {
   const shop = await store('donoloja');
   await addStaff(shop.owner, 'ajudante');
-  const staff = cookieOf(await login('ajudante', 'Provisoria123'));
+  const staff = await accept(emailOf('ajudante'));
 
   assert.equal((await call(team.GET, '/api/team', { cookie: staff })).status, 403);
   assert.equal(
@@ -117,24 +115,30 @@ test('only the owner manages the team and the shop profile', { skip }, async () 
 
   const list = await (await call(team.GET, '/api/team', { cookie: shop.owner })).json();
   assert.deepEqual(
-    list.users.map((user) => [user.username, user.role]),
+    list.users.map((user) => [user.username, user.role, user.access]),
     [
-      ['donoloja', 'owner'],
-      ['ajudante', 'staff'],
+      ['donoloja', 'owner', 'ready'],
+      ['ajudante', 'staff', 'ready'],
     ],
   );
   assert.equal(list.users[1].sessions, 1, 'mostra os aparelhos conectados');
 });
 
-test('a username is unique across every shop', { skip }, async () => {
+test('usernames and e-mails are unique across every shop', { skip }, async () => {
   const one = await store('lojaum');
   const two = await store('lojadois');
   await addStaff(one.owner, 'mesmonome');
-  const response = await call(team.POST, '/api/team', {
+  let response = await call(team.POST, '/api/team', {
     cookie: two.owner,
-    body: { action: 'create', name: 'Outro', username: 'mesmonome', password: 'Provisoria123' },
+    body: { action: 'create', name: 'Outro', username: 'mesmonome' },
   });
   assert.equal(response.status, 409);
+  response = await call(team.POST, '/api/team', {
+    cookie: two.owner,
+    body: { action: 'create', name: 'Outro', username: 'outronome', email: emailOf('mesmonome') },
+  });
+  assert.equal(response.status, 409);
+  assert.match((await response.json()).error, /e-mail já está em uso/);
   const other = await (await call(team.GET, '/api/team', { cookie: two.owner })).json();
   assert.ok(
     !other.users.some((user) => user.username === 'mesmonome'),
@@ -143,13 +147,13 @@ test('a username is unique across every shop', { skip }, async () => {
 });
 
 test(
-  'a provisional password must be replaced; changing it signs out the other devices',
+  'changing the own password checks the current one and signs out the other devices',
   { skip },
   async () => {
     const shop = await store('senhaloja');
     await addStaff(shop.owner, 'novato');
-    const first = cookieOf(await login('novato', 'Provisoria123'));
-    const second = cookieOf(await login('novato', 'Provisoria123'));
+    const first = await accept(emailOf('novato'));
+    const second = cookieOf(await login('novato', 'Staffsenha123'));
 
     let response = await call(me.POST, '/api/me', {
       cookie: second,
@@ -158,15 +162,13 @@ test(
     assert.equal(response.status, 400);
     response = await call(me.POST, '/api/me', {
       cookie: second,
-      body: { action: 'password', currentPassword: 'Provisoria123', password: 'Minhasenha123' },
+      body: { action: 'password', currentPassword: 'Staffsenha123', password: 'Minhasenha123' },
     });
     assert.equal(response.status, 200);
 
     assert.equal(await signedIn(first), null, 'o outro aparelho saiu');
-    const current = await signedIn(second);
-    assert.ok(current, 'este aparelho continua');
-    assert.equal(current.user.mustChangePassword, false);
-    assert.equal((await login('novato', 'Provisoria123')).status, 401);
+    assert.ok(await signedIn(second), 'este aparelho continua');
+    assert.equal((await login('novato', 'Staffsenha123')).status, 401);
     assert.equal((await login('novato', 'Minhasenha123')).status, 200);
   },
 );
@@ -194,14 +196,19 @@ test(
   { skip },
   async () => {
     const shop = await store('desligar');
-    const user = await addStaff(shop.owner, 'saiu');
-    const staff = cookieOf(await login('saiu', 'Provisoria123'));
+    const { user } = await addStaff(shop.owner, 'saiu');
+    const staff = await accept(emailOf('saiu'));
 
     const update = (cookie, body) =>
       call(team.POST, '/api/team', { cookie, body: { action: 'update', ...body } });
     assert.equal((await update(shop.owner, { id: user.id, status: 'disabled' })).status, 200);
     assert.equal(await signedIn(staff), null);
-    assert.equal((await login('saiu', 'Provisoria123')).status, 403);
+    assert.equal((await login('saiu', 'Staffsenha123')).status, 403);
+    const blocked = await call(team.POST, '/api/team', {
+      cookie: shop.owner,
+      body: { action: 'copy-link', id: user.id },
+    });
+    assert.equal(blocked.status, 404, 'quem está sem acesso não recebe link');
 
     const self = (await signedIn(shop.owner)).user.id;
     assert.equal((await update(shop.owner, { id: self, status: 'disabled' })).status, 400);
@@ -210,17 +217,21 @@ test(
     assert.match((await demote.json()).error, /pelo menos um Dono ativo/);
 
     assert.equal((await update(shop.owner, { id: user.id, status: 'active' })).status, 200);
-    assert.equal((await login('saiu', 'Provisoria123')).status, 200);
+    assert.equal((await login('saiu', 'Staffsenha123')).status, 200);
   },
 );
 
 test(
-  'a staff password request goes to the owner; an owner request goes to the administrator',
+  'without e-mail, a staff request goes to the owner and an owner request to the administrator',
   { skip },
   async () => {
     const shop = await store('pedidos');
-    const user = await addStaff(shop.owner, 'esqueceu');
-    const staff = cookieOf(await login('esqueceu', 'Provisoria123'));
+    // Funcionário sem e-mail: o Dono copia o link do convite e manda pelo WhatsApp.
+    const { user, invite } = await addStaff(shop.owner, 'esqueceu', { email: '' });
+    assert.equal(invite.sent, false);
+    assert.equal(invite.reason, 'no-email');
+    const staff = await accept(invite.url);
+    await db.migrationQuery(`UPDATE users SET email = NULL WHERE username = 'pedidos'`);
     for (const username of ['esqueceu', 'pedidos'])
       await call(auth.POST, '/api/auth', { body: { action: 'forgot-password', username } });
 
@@ -235,16 +246,18 @@ test(
       ['pedidos'],
     );
 
-    const reset = await call(team.POST, '/api/team', {
+    const copied = await call(team.POST, '/api/team', {
       cookie: shop.owner,
-      body: { action: 'reset-password', id: user.id, password: 'Outrasenha123' },
+      body: { action: 'copy-link', id: user.id },
     });
-    assert.equal(reset.status, 200);
+    const { invite: link } = await copied.json();
+    const { response } = await openLink(linkToken(link.url), 'Outrasenha123');
+    assert.equal(response.status, 200);
     assert.equal(await signedIn(staff), null, 'senha nova desconecta a pessoa');
     const after = await (await call(team.GET, '/api/team', { cookie: shop.owner })).json();
     assert.equal(after.requests.length, 0);
     const relogin = await login('esqueceu', 'Outrasenha123');
-    assert.equal((await relogin.json()).account.user.mustChangePassword, true);
+    assert.equal((await relogin.json()).account.user.emailVerified, false);
   },
 );
 
@@ -269,6 +282,8 @@ test('the administrator sees each shop with its owner, people and renewal', { sk
   const { stores } = await (await call(accounts.GET, '/api/accounts', { cookie: admin })).json();
   const row = stores.find((item) => item.id === shop.id);
   assert.equal(row.ownerUsername, 'assinatura');
+  assert.equal(row.ownerEmail, 'assinatura@lojas.test');
+  assert.equal(row.ownerAccess, 'ready');
   assert.equal(row.users, 2);
   assert.ok(row.lastLoginAt);
   assert.ok(
@@ -279,7 +294,10 @@ test('the administrator sees each shop with its owner, people and renewal', { sk
   const detail = await (
     await call(accounts.GET, `/api/accounts?id=${shop.id}`, { cookie: admin })
   ).json();
-  assert.deepEqual(detail.users.map((user) => user.username).sort(), ['assinatura', 'colega']);
+  assert.deepEqual(detail.users.map((user) => [user.username, user.access]).sort(), [
+    ['assinatura', 'ready'],
+    ['colega', 'invited'],
+  ]);
 
   await call(accounts.POST, '/api/accounts', {
     cookie: admin,
