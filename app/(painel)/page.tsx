@@ -4,6 +4,8 @@ import * as cash from '@/lib/repos/cash';
 
 import * as dashboard from '@/lib/repos/dashboard';
 
+import { monthForecast } from '@/lib/repos/forecast';
+
 import { requireServerAccount } from '@/lib/server-auth';
 
 import { todayInSaoPaulo } from '@/lib/warranty';
@@ -13,7 +15,7 @@ export default async function DashboardPage() {
 
   const asOfDate = todayInSaoPaulo();
 
-  const [actions, bench, today, orderTotals, trend] = await Promise.all([
+  const [actions, bench, today, orderTotals, trend, forecast] = await Promise.all([
     dashboard.actions(account.id, asOfDate),
 
     dashboard.bench(account.id),
@@ -22,6 +24,7 @@ export default async function DashboardPage() {
 
     cash.orderFinancialTotals(account.id),
     cash.trend(account.id, asOfDate),
+    monthForecast(account.id, asOfDate),
   ]);
 
   return (
@@ -31,6 +34,8 @@ export default async function DashboardPage() {
       asOfDate={asOfDate}
 
       bench={bench}
+
+      forecast={forecast}
 
       orderTotals={orderTotals}
 

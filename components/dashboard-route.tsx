@@ -20,6 +20,8 @@ import { toneText as statusText, type Tone as StatusTone } from '@/components/ui
 import { emptySegment, stageFill } from '@/components/ui/stage-track';
 
 import { ReceiveAction, WhatsappAction } from '@/components/dashboard-actions';
+import ForecastCard from '@/components/forecast-card';
+import type { MonthForecast } from '@/lib/forecast';
 
 import { Button } from '@/components/ui/button';
 
@@ -354,6 +356,7 @@ export default function DashboardRoute({
   today,
   orderTotals,
   trend,
+  forecast,
 }: {
   asOfDate: string;
   actions: DashboardAction[];
@@ -361,6 +364,8 @@ export default function DashboardRoute({
   today: CashTotals & { methods: MethodTotal[] };
   orderTotals: OrderFinancialTotals;
   trend: MonthlyCashTotals[];
+  /** Opcional: sem ela o bloco da previsão não aparece. */
+  forecast?: MonthForecast;
 }) {
   const inService = bench.reduce((sum, item) => sum + item.orders, 0);
   const workshop = actions.filter((action) => action.kind === 'stalled' || action.kind === 'quote');
@@ -414,6 +419,7 @@ export default function DashboardRoute({
           valueTone={orderTotals.netReceivable < 0 ? 'danger' : undefined}
         />
       </StatGroup>
+      {forecast && <ForecastCard forecast={forecast} />}
       <div className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <CashTrend trend={trend} />
         <aside aria-labelledby="cash-title" className="rounded-xl border bg-card p-4 sm:p-5">

@@ -27,7 +27,7 @@ export type MonthlyCashTotals = CashTotals & {
  * São Paulo em que o lançamento foi criado. Sem o COALESCE um lançamento sem
  * data sumiria de todos os períodos e continuaria somando no total geral.
  */
-const COMPETENCE = `COALESCE(c.date, (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date)`;
+export const COMPETENCE = `COALESCE(c.date, (c.created_at AT TIME ZONE 'America/Sao_Paulo')::date)`;
 export const RECEIPT_COST = `CASE WHEN c.kind <> 'in' THEN 0
   WHEN c.order_id IS NULL THEN COALESCE(c.cost, 0)
   WHEN o.total > 0 THEN o.cost * LEAST(c.value / o.total, 1)
