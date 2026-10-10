@@ -2,9 +2,10 @@ import { nextPayableDueDate, type PayableRecurrence } from '@/lib/payable-recurr
 
 /**
  * Previsão do mês: onde o lucro deve fechar se o resto do mês seguir o ritmo da
- * loja. Soma o que já aconteceu no caixa, estima os dias que faltam pela média
- * de cada dia da semana nas últimas 8 semanas e desconta pelo valor exato as
- * contas a pagar que vencem até o fim do mês. Tudo em regime de caixa, com as
+ * loja. Soma o que já aconteceu no caixa, estima as vendas dos dias que faltam
+ * pela média de cada dia da semana nas últimas 8 semanas, os gastos avulsos pela
+ * média por dia (sem os dias atípicos) e desconta pelo valor exato as contas a
+ * pagar que vencem até o fim do mês. Tudo em regime de caixa, com as
  * mesmas definições do Início: faturamento (entradas), margem (faturamento
  * menos o custo das peças) e lucro (margem menos as saídas).
  */
@@ -16,7 +17,10 @@ export type DayTotals = {
   cost: number;
   /** Saídas sem conta a pagar (gastos do dia a dia): entram pelo ritmo. */
   looseExpense: number;
-  /** Saídas que pagaram uma conta cadastrada: já previstas pelo valor exato. */
+  /**
+   * Saídas que pagaram uma conta cadastrada: já previstas pelo valor exato.
+   * Compras (peças, materiais) não entram: o custo das peças já sai de cada OS.
+   */
   billExpense: number;
 };
 
@@ -122,15 +126,15 @@ export function billsUntil(bills: PendingBill[], end: string) {
   return cents(billDates(bills, end).reduce((total, bill) => total + bill.amount, 0));
 }
 
-type Profile = { income: number; margin: number; looseExpense: number };
+type Profile = { income: number; margin: number };
 
 /**
- * Média de cada dia da semana na janela de histórico. Dia da semana que ainda
- * não apareceu (loja nova) usa a média geral por dia.
+ * Média de vendas de cada dia da semana na janela de histórico. Dia da semana
+ * que ainda não apareceu (loja nova) usa a média geral por dia.
  */
 function weekdayProfile(byDay: Map<string, DayTotals>, from: string, to: string) {
-  const sums = Array.from({ length: 7 }, () => ({ income: 0, margin: 0, loose: 0, count: 0 }));
-  const all = { income: 0, margin: 0, loose: 0, count: 0 };
+  const sums = Array.from({ length: 7 }, () => ({ income: 0, margin: 0, count: 0 }));
+  const all = { income: 0, margin: 0, count: 0 };
   for (const day of from <= to ? range(from, to) : []) {
     const row = byDay.get(day);
     const slot = sums[weekday(day)];
@@ -138,17 +142,12 @@ function weekdayProfile(byDay: Map<string, DayTotals>, from: string, to: string)
       target.count += 1;
       target.income += row?.income ?? 0;
       target.margin += (row?.income ?? 0) - (row?.cost ?? 0);
-      target.loose += row?.looseExpense ?? 0;
     }
   }
   const average = (sum: typeof all): Profile =>
     sum.count
-      ? {
-          income: sum.income / sum.count,
-          margin: sum.margin / sum.count,
-          looseExpense: sum.loose / sum.count,
-        }
-      : { income: 0, margin: 0, looseExpense: 0 };
+      ? { income: sum.income / sum.count, margin: sum.margin / sum.count }
+      : { income: 0, margin: 0 };
   return sums.map((slot) => average(slot.count ? slot : all));
 }
 
@@ -178,6 +177,19 @@ export function forecastMonth(input: ForecastInput): MonthForecast {
   const historyDays =
     input.firstActivity && historyFrom <= historyTo ? range(historyFrom, historyTo).length : 0;
   const profile = weekdayProfile(byDay, historyFrom, historyTo);
+  const history = historyDays ? range(historyFrom, historyTo) : [];
+
+  // Gastos avulsos de costume: média por dia, sem os dias atípicos (saídas
+  // avulsas maiores que as vendas de um dia típico, como um equipamento ou um
+  // empréstimo). Não seguem o dia da semana: um gasto num sábado não se repete
+  // em todos os sábados.
+  const sales = history.map((day) => byDay.get(day)?.income ?? 0).filter((value) => value > 0);
+  const typicalSales = sales.reduce((sum, value) => sum + value, 0) / (sales.length || 1);
+  const habitual = history.reduce((sum, day) => {
+    const loose = byDay.get(day)?.looseExpense ?? 0;
+    return loose > typicalSales ? sum : sum + loose;
+  }, 0);
+  const loosePerDay = history.length ? habitual / history.length : 0;
 
   // Hoje conta só o que ainda falta para chegar no dia típico.
   const typicalToday = profile[weekday(today)];
@@ -187,7 +199,7 @@ export function forecastMonth(input: ForecastInput): MonthForecast {
   const estimated = {
     income: todayIncomeGap,
     margin: todayIncomeGap * todayRate,
-    looseExpense: Math.max(0, typicalToday.looseExpense - (doneToday?.looseExpense ?? 0)),
+    looseExpense: Math.max(0, loosePerDay - (doneToday?.looseExpense ?? 0)),
   };
   const restOfToday = estimated.margin - estimated.looseExpense;
   const rest = today < end ? range(addDays(today, 1), end) : [];
@@ -195,7 +207,7 @@ export function forecastMonth(input: ForecastInput): MonthForecast {
     const typical = profile[weekday(day)];
     estimated.income += typical.income;
     estimated.margin += typical.margin;
-    estimated.looseExpense += typical.looseExpense;
+    estimated.looseExpense += loosePerDay;
   }
 
   const dueDates = billDates(input.pendingBills, end);
@@ -227,7 +239,7 @@ export function forecastMonth(input: ForecastInput): MonthForecast {
 
   const open = profile.filter((slot) => slot.income > 0);
   const perOpenDay = open.length
-    ? open.reduce((sum, slot) => sum + slot.margin - slot.looseExpense, 0) / open.length
+    ? open.reduce((sum, slot) => sum + slot.margin, 0) / open.length - loosePerDay
     : 0;
 
   // Lucro acumulado dia a dia. A linha da projeção sai do ponto de hoje; o resto
@@ -252,7 +264,7 @@ export function forecastMonth(input: ForecastInput): MonthForecast {
   for (const day of rest) {
     const typical = profile[weekday(day)];
     projected += carry - (dueOn.get(day) ?? 0);
-    if (pace) projected += typical.margin - typical.looseExpense;
+    if (pace) projected += typical.margin - loosePerDay;
     carry = 0;
     series.push({ day, actual: null, projected: cents(projected) });
   }

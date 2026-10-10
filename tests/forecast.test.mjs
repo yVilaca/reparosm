@@ -126,6 +126,28 @@ test('bills due by month end count once each, with recurring and overdue ones', 
   );
 });
 
+test('loose expenses repeat as a daily average, without the atypical days', () => {
+  // R$ 30 de gastos em cada dia aberto e, num sábado, R$ 1.000 de uma vez (mais
+  // que as vendas de um dia típico): esse dia não entra na média e não se repete.
+  const extra = {};
+  for (let day = '2026-08-12'; day <= '2026-10-07'; day = addDays(day, 1))
+    if (weekday(day) !== 0) extra[day] = { looseExpense: 30 };
+  extra['2026-09-19'] = { looseExpense: 1030 };
+  const forecast = forecastMonth({
+    asOfDate: '2026-10-07',
+    days: steadyShop('2026-08-12', '2026-10-07', extra),
+    firstActivity: '2026-08-12',
+    pendingBills: [],
+    ready: { income: 0, margin: 0 },
+  });
+  // 56 dias de histórico, 47 dias comuns com R$ 30; hoje já gastou mais que a média.
+  const perDay = (47 * 30) / 56;
+  assert.equal(forecast.estimated.looseExpense, Math.round(24 * perDay * 100) / 100);
+  assert.equal(forecast.perOpenDay, Math.round((300 - perDay) * 100) / 100);
+  // No realizado, os gastos de outubro entram todos.
+  assert.equal(forecast.realized.expense, 6 * 30);
+});
+
 test('today counts only what is still missing to reach a typical day', () => {
   const history = steadyShop('2026-08-12', '2026-10-06');
   const run = (todayIncome) =>

@@ -36,6 +36,7 @@ before(async () => {
   await cash('out-coffee', 'out', 15, '2026-10-05');
   await cash('out-rent', 'out', 1800, '2026-10-03');
   await cash('in-other', 'in', 9999, '2026-10-05', { account: 'account-forecast-other' });
+  await cash('out-parts', 'out', 500, '2026-10-04');
   // O aluguel foi pago por uma conta cadastrada; a internet e o contador ainda não.
   await db.migrationQuery(
     `INSERT INTO payables (id, account_id, description, amount, due_date, status, paid_at,
@@ -49,7 +50,17 @@ before(async () => {
                            series_id, recurrence, recurrence_day)
      VALUES ('bill-net', $1, 'Internet', 120, '2026-10-20', 'pending', 'fixed', 'serie-net',
              'monthly', 20),
-            ('bill-later', $1, 'Contador', 300, '2026-11-05', 'pending', 'other', NULL, NULL, NULL)`,
+            ('bill-later', $1, 'Contador', 300, '2026-11-05', 'pending', 'other', NULL, NULL, NULL),
+            ('bill-parts-next', $1, 'Telas', 300, '2026-10-25', 'pending', 'purchase', NULL, NULL,
+             NULL)`,
+    [A],
+  );
+  // Compra de peças paga: o custo das peças já sai de cada OS, não é gasto do mês.
+  await db.migrationQuery(
+    `INSERT INTO payables (id, account_id, description, amount, due_date, status, source, paid_at,
+                           paid_on, paid_amount, cash_entry_id)
+     VALUES ('bill-parts', $1, 'Baterias', 500, '2026-10-04', 'paid', 'purchase', now(),
+             '2026-10-04', 500, 'out-parts')`,
     [A],
   );
 });
@@ -65,6 +76,8 @@ test(
     assert.deepEqual(input.days, [
       { day: '2026-09-10', income: 500, cost: 0, looseExpense: 0, billExpense: 0 },
       { day: '2026-10-03', income: 0, cost: 0, looseExpense: 0, billExpense: 1800 },
+      // A compra de peças paga não conta como saída.
+      { day: '2026-10-04', income: 0, cost: 0, looseExpense: 0, billExpense: 0 },
       // Recebimento da OS: custo proporcional (metade de R$ 100); venda avulsa: R$ 30.
       { day: '2026-10-05', income: 280, cost: 80, looseExpense: 15, billExpense: 0 },
     ]);

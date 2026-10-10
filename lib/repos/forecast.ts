@@ -33,10 +33,12 @@ export async function forecastInput(
          COALESCE(SUM(c.value) FILTER (
            WHERE c.kind NOT IN ('in', 'payment') AND p.id IS NULL), 0) AS loose_expense,
          COALESCE(SUM(c.value) FILTER (
-           WHERE c.kind NOT IN ('in', 'payment') AND p.id IS NOT NULL), 0) AS bill_expense
+           WHERE c.kind NOT IN ('in', 'payment') AND p.id IS NOT NULL
+             AND p.source IS DISTINCT FROM 'purchase'), 0) AS bill_expense
        FROM cash_entries c
        LEFT JOIN orders o ON o.account_id = c.account_id AND o.id = c.order_id
        -- Saída que pagou uma conta cadastrada: a conta já entra pelo valor exato.
+       -- Compra (peças, materiais) não é gasto do mês: o custo sai de cada OS.
        LEFT JOIN payables p ON p.account_id = c.account_id AND p.cash_entry_id = c.id
        WHERE c.account_id = $1 AND ${COMPETENCE} BETWEEN $2::date AND $3::date
        GROUP BY 1 ORDER BY 1`,
@@ -46,7 +48,7 @@ export async function forecastInput(
       `SELECT min(${COMPETENCE})::text AS day FROM cash_entries c WHERE c.account_id = $1`,
       [accountId],
     );
-    // Contas pendentes que vencem até o fim do mês, inclusive atrasadas.
+    // Contas pendentes que vencem até o fim do mês, inclusive atrasadas (sem compras).
     const bills = await run<{
       amount: string;
       due_date: string;
@@ -56,6 +58,7 @@ export async function forecastInput(
       `SELECT amount, due_date::text AS due_date, recurrence, recurrence_day
        FROM payables
        WHERE account_id = $1 AND status = 'pending' AND due_date IS NOT NULL
+         AND source IS DISTINCT FROM 'purchase'
          AND due_date <= (date_trunc('month', $2::date) + interval '1 month - 1 day')::date`,
       [accountId, asOfDate],
     );

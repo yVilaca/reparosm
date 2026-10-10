@@ -27,7 +27,7 @@ const isEmpty = (forecast: MonthForecast) =>
 
 /** Explicação do cálculo: a mesma que vai para quem pediu a funcionalidade. */
 export const forecastExplanation =
-  'A previsão soma o que já entrou e saiu no caixa neste mês com o que a loja costuma fazer nos dias que faltam, calculado pela média de cada dia da semana nas últimas 8 semanas (assim uma segunda fraca não pesa como um sábado cheio), já descontados o custo das peças e os gastos avulsos de costume. As contas a pagar cadastradas que vencem até o fim do mês, inclusive as recorrentes e as atrasadas, entram pelo valor exato, uma vez cada. O mínimo considera só o que já aconteceu e as OS prontas esperando pagamento, sem nenhuma venda nova. Os cenários conservador e otimista aplicam aos dias que faltam o ritmo das 2 semanas mais fracas e das 2 mais fortes do período. Com menos de 3 semanas de movimento, a estimativa aparece como fraca.';
+  'A previsão soma o que já entrou e saiu no caixa neste mês com o que a loja costuma fazer nos dias que faltam. As vendas seguem a média de cada dia da semana nas últimas 8 semanas, já sem o custo das peças; os gastos avulsos seguem a média por dia, sem os dias fora do comum (como a compra de um equipamento). As contas a pagar que vencem até o fim do mês, inclusive recorrentes e atrasadas, entram pelo valor exato; compras de peças não contam como gasto, porque o custo já sai de cada OS. O mínimo considera só o que já aconteceu e as OS prontas, sem vendas novas, e os cenários usam o ritmo das 2 semanas mais fracas e das 2 mais fortes. Com menos de 3 semanas de movimento, a estimativa aparece como fraca.';
 
 function Line({
   label,
@@ -56,11 +56,11 @@ function Line({
       <dd
         className={cn(
           'shrink-0 tabular-nums',
-          sign === '−' && 'text-rose-700 dark:text-rose-300',
+          sign === '−' && value !== 0 && 'text-rose-700 dark:text-rose-300',
           strong && value < 0 && toneText.danger,
         )}
       >
-        {sign && `${sign} `}
+        {sign && value !== 0 && `${sign} `}
         {formatMoney(Math.abs(value))}
       </dd>
     </div>
@@ -421,10 +421,15 @@ export default function ProfitForecast({ forecast }: { forecast: MonthForecast }
                     sign="+"
                     value={forecast.realized.margin}
                   />
-                  <Line label="Saídas já feitas" sign="−" value={forecast.realized.expense} />
+                  <Line
+                    hint="Sem as compras de peças e materiais"
+                    label="Saídas já feitas"
+                    sign="−"
+                    value={forecast.realized.expense}
+                  />
                   {forecast.basis === 'pace' ? (
                     <Line
-                      hint="Média de cada dia da semana, menos os gastos avulsos"
+                      hint="Média de cada dia da semana, menos os gastos avulsos de costume"
                       label={
                         forecast.daysLeft
                           ? `Ritmo dos ${forecast.daysLeft} dias que faltam`
@@ -449,6 +454,14 @@ export default function ProfitForecast({ forecast }: { forecast: MonthForecast }
                   />
                   <Line label="Lucro projetado" sign="" strong value={forecast.likely.profit} />
                 </dl>
+                {!forecast.realized.expense &&
+                  !forecast.bills &&
+                  !forecast.estimated.looseExpense && (
+                    <p className="mt-3 rounded-lg bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-200">
+                      Nenhuma despesa lançada neste mês. Aluguel, energia e outras contas só entram
+                      no cálculo depois de cadastradas em Receber e pagar.
+                    </p>
+                  )}
               </section>
 
               <section aria-labelledby="profit-scenarios-title">

@@ -68,6 +68,7 @@ test('the projected profit tab shows the numbers, the chart, the breakdown and t
   assert.match(html, /Otimista Ritmo das 2 semanas mais fortes R\$\s*7\.980,00/);
   assert.ok(html.includes(forecastExplanation));
   assert.doesNotMatch(html, /Estimativa ainda fraca/);
+  assert.doesNotMatch(html, /Nenhuma despesa lançada/);
 });
 
 test('a weak or empty history is said plainly', () => {
@@ -75,6 +76,8 @@ test('a weak or empty history is said plainly', () => {
   assert.match(short, /Estimativa ainda fraca/);
   assert.match(short, /Os cenários conservador e otimista aparecem com 4 semanas de movimento/);
   assert.doesNotMatch(short, /Conservador Ritmo/);
+  // Sem nenhuma despesa lançada, o lucro seria só a margem: a tela avisa.
+  assert.match(short, /Nenhuma despesa lançada neste mês/);
 
   const none = text(render(ProfitForecast, empty));
   assert.match(none, /Ainda não há movimento no caixa para prever o mês/);
