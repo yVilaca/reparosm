@@ -79,6 +79,25 @@ test('a weak or empty history is said plainly', () => {
   // Sem nenhuma despesa lançada, o lucro seria só a margem: a tela avisa.
   assert.match(short, /Nenhuma despesa lançada neste mês/);
 
+  // Loja aberta em 26/09: setembro pela metade não serve de comparação.
+  const partial = text(
+    render(
+      ProfitForecast,
+      forecastMonth({
+        asOfDate: '2026-10-07',
+        days: [
+          { day: '2026-09-26', income: 20, cost: 0, looseExpense: 0, billExpense: 0 },
+          ...days('2026-10-03', '2026-10-07'),
+        ],
+        firstActivity: '2026-09-26',
+        pendingBills: [],
+        ready: { income: 0, margin: 0 },
+      }),
+    ),
+  );
+  assert.match(partial, /Faturamento previsto R\$\s*4\.540,00/);
+  assert.doesNotMatch(partial, /de setembro|Para faturar igual/);
+
   const none = text(render(ProfitForecast, empty));
   assert.match(none, /Ainda não há movimento no caixa para prever o mês/);
   assert.doesNotMatch(none, /Lucro projetado/);

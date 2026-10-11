@@ -27,20 +27,31 @@ export async function forecastInput(
       loose_expense: string;
       bill_expense: string;
     }>(
-      `SELECT ${COMPETENCE}::text AS day,
-         COALESCE(SUM(c.value) FILTER (WHERE c.kind IN ('in', 'payment')), 0) AS income,
-         COALESCE(SUM(ROUND(${RECEIPT_COST}, 2)), 0) AS cost,
-         COALESCE(SUM(c.value) FILTER (
-           WHERE c.kind NOT IN ('in', 'payment') AND p.id IS NULL), 0) AS loose_expense,
-         COALESCE(SUM(c.value) FILTER (
-           WHERE c.kind NOT IN ('in', 'payment') AND p.id IS NOT NULL
-             AND p.source IS DISTINCT FROM 'purchase'), 0) AS bill_expense
-       FROM cash_entries c
-       LEFT JOIN orders o ON o.account_id = c.account_id AND o.id = c.order_id
-       -- Saída que pagou uma conta cadastrada: a conta já entra pelo valor exato.
-       -- Compra (peças, materiais) não é gasto do mês: o custo sai de cada OS.
-       LEFT JOIN payables p ON p.account_id = c.account_id AND p.cash_entry_id = c.id
-       WHERE c.account_id = $1 AND ${COMPETENCE} BETWEEN $2::date AND $3::date
+      `WITH entries AS (
+         SELECT c.kind, c.value, ROUND(${RECEIPT_COST}, 2) AS cost, p.id AS bill_id, p.source,
+           -- Conta paga adiantada conta no mês em que vence (o aluguel de novembro
+           -- pago em outubro é de novembro); paga em dia ou atrasada, no dia pago.
+           CASE WHEN p.due_date IS NOT NULL
+                 AND date_trunc('month', p.due_date) > date_trunc('month', ${COMPETENCE})
+                THEN date_trunc('month', p.due_date)::date
+                ELSE ${COMPETENCE} END AS day
+         FROM cash_entries c
+         LEFT JOIN orders o ON o.account_id = c.account_id AND o.id = c.order_id
+         -- Saída que pagou uma conta cadastrada: a conta já entra pelo valor exato.
+         LEFT JOIN payables p ON p.account_id = c.account_id AND p.cash_entry_id = c.id
+         WHERE c.account_id = $1
+       )
+       SELECT day::text AS day,
+         COALESCE(SUM(value) FILTER (WHERE kind IN ('in', 'payment')), 0) AS income,
+         COALESCE(SUM(cost), 0) AS cost,
+         COALESCE(SUM(value) FILTER (
+           WHERE kind NOT IN ('in', 'payment') AND bill_id IS NULL), 0) AS loose_expense,
+         -- Compra (peças, materiais) não é gasto do mês: o custo sai de cada OS.
+         COALESCE(SUM(value) FILTER (
+           WHERE kind NOT IN ('in', 'payment') AND bill_id IS NOT NULL
+             AND source IS DISTINCT FROM 'purchase'), 0) AS bill_expense
+       FROM entries
+       WHERE day BETWEEN $2::date AND $3::date
        GROUP BY 1 ORDER BY 1`,
       [accountId, from, asOfDate],
     );

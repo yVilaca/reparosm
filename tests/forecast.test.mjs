@@ -55,6 +55,7 @@ test('a lumpy bill does not repeat every week: rent is counted once', () => {
     income: 13000,
     margin: 7800,
     profit: 6000,
+    complete: true,
   });
   // Faltam R$ 10.000 para igualar setembro em 22 dias de loja aberta (hoje + 21).
   assert.equal(forecast.openDaysLeft, 22);
@@ -180,6 +181,9 @@ test('a new shop uses the days it has and says the estimate is weak', () => {
   assert.equal(forecast.historyDays, 4);
   assert.equal(forecast.confidence, 'low');
   assert.equal(forecast.scenarios, null, 'menos de 4 semanas completas');
+  // Setembro não existiu para a loja: nada de comparar com ele.
+  assert.equal(forecast.previous.complete, false);
+  assert.equal(forecast.perOpenDayToMatchPrevious, 0);
   // Quinta e sexta ainda não apareceram: usam a média geral (3 dias abertos em 4).
   assert.ok(forecast.estimated.income > 0);
 

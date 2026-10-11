@@ -37,6 +37,8 @@ before(async () => {
   await cash('out-rent', 'out', 1800, '2026-10-03');
   await cash('in-other', 'in', 9999, '2026-10-05', { account: 'account-forecast-other' });
   await cash('out-parts', 'out', 500, '2026-10-04');
+  await cash('out-rent-nov', 'out', 1800, '2026-10-03');
+  await cash('out-tax', 'out', 90, '2026-09-28');
   // O aluguel foi pago por uma conta cadastrada; a internet e o contador ainda não.
   await db.migrationQuery(
     `INSERT INTO payables (id, account_id, description, amount, due_date, status, paid_at,
@@ -63,6 +65,17 @@ before(async () => {
              '2026-10-04', 500, 'out-parts')`,
     [A],
   );
+  // Pagas adiantadas: o aluguel de novembro (pago em outubro) é de novembro; o
+  // imposto de outubro pago em setembro é de outubro.
+  await db.migrationQuery(
+    `INSERT INTO payables (id, account_id, description, amount, due_date, status, paid_at,
+                           paid_on, paid_amount, cash_entry_id)
+     VALUES ('bill-rent-nov', $1, 'Aluguel', 1800, '2026-11-03', 'paid', now(), '2026-10-03',
+             1800, 'out-rent-nov'),
+            ('bill-tax', $1, 'Imposto', 90, '2026-10-15', 'paid', now(), '2026-09-28', 90,
+             'out-tax')`,
+    [A],
+  );
 });
 after(async () => db?.drop());
 
@@ -75,6 +88,9 @@ test(
     assert.equal(input.firstActivity, '2026-09-10');
     assert.deepEqual(input.days, [
       { day: '2026-09-10', income: 500, cost: 0, looseExpense: 0, billExpense: 0 },
+      // O imposto de outubro pago em 28/09 conta no dia 1º de outubro.
+      { day: '2026-10-01', income: 0, cost: 0, looseExpense: 0, billExpense: 90 },
+      // Só o aluguel de outubro: o de novembro, pago no mesmo dia, fica para novembro.
       { day: '2026-10-03', income: 0, cost: 0, looseExpense: 0, billExpense: 1800 },
       // A compra de peças paga não conta como saída.
       { day: '2026-10-04', income: 0, cost: 0, looseExpense: 0, billExpense: 0 },
@@ -89,8 +105,8 @@ test(
 
     const month = await forecast.monthForecast(A, '2026-10-07');
     assert.equal(month.realized.income, 280);
-    assert.equal(month.realized.expense, 1815);
+    assert.equal(month.realized.expense, 1905);
     assert.equal(month.bills, 120);
-    assert.equal(month.floor.profit, 200 - 1815 + 150 - 120);
+    assert.equal(month.floor.profit, 200 - 1905 + 150 - 120);
   },
 );

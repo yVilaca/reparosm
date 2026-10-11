@@ -63,8 +63,9 @@ export type MonthForecast = {
   basis: 'pace' | 'ready';
   /** Só o que já aconteceu, mais as OS prontas, menos as contas: sem vendas novas. */
   floor: { profit: number };
-  previous: { month: string; income: number; margin: number; profit: number };
-  /** Quanto falta faturar por dia de loja aberta para igualar o mês passado. */
+  /** Mês passado; `complete` quando a loja já tinha movimento desde o dia 1 dele. */
+  previous: { month: string; income: number; margin: number; profit: number; complete: boolean };
+  /** Quanto falta faturar por dia de loja aberta para igualar o mês passado (se completo). */
   perOpenDayToMatchPrevious: number;
   /** Lucro de um dia típico de loja aberta (margem menos gastos avulsos), sem as contas. */
   perOpenDay: number;
@@ -235,7 +236,9 @@ export function forecastMonth(input: ForecastInput): MonthForecast {
   const remaining = [today, ...rest];
   const openDays = remaining.filter((day) => profile[weekday(day)].income > 0).length;
   const openDaysLeft = historyDays ? openDays : remaining.length;
-  const missing = previous.income - realized.income;
+  // Mês passado pela metade (loja nova) não serve de comparação.
+  const complete = !!input.firstActivity && input.firstActivity <= previousStart;
+  const missing = complete ? previous.income - realized.income : 0;
 
   const open = profile.filter((slot) => slot.income > 0);
   const perOpenDay = open.length
@@ -327,6 +330,7 @@ export function forecastMonth(input: ForecastInput): MonthForecast {
       income: cents(previous.income),
       margin: cents(previous.margin),
       profit: cents(previous.profit),
+      complete,
     },
     perOpenDayToMatchPrevious: missing > 0 && openDaysLeft > 0 ? cents(missing / openDaysLeft) : 0,
     perOpenDay: cents(perOpenDay),

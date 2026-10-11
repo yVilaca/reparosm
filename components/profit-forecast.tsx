@@ -20,6 +20,7 @@ const axisMoney = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
   currency: 'BRL',
   notation: 'compact',
+  minimumFractionDigits: 0,
   maximumFractionDigits: 1,
 });
 const isEmpty = (forecast: MonthForecast) =>
@@ -27,7 +28,7 @@ const isEmpty = (forecast: MonthForecast) =>
 
 /** Explicação do cálculo: a mesma que vai para quem pediu a funcionalidade. */
 export const forecastExplanation =
-  'A previsão soma o que já entrou e saiu no caixa neste mês com o que a loja costuma fazer nos dias que faltam. As vendas seguem a média de cada dia da semana nas últimas 8 semanas, já sem o custo das peças; os gastos avulsos seguem a média por dia, sem os dias fora do comum (como a compra de um equipamento). As contas a pagar que vencem até o fim do mês, inclusive recorrentes e atrasadas, entram pelo valor exato; compras de peças não contam como gasto, porque o custo já sai de cada OS. O mínimo considera só o que já aconteceu e as OS prontas, sem vendas novas, e os cenários usam o ritmo das 2 semanas mais fracas e das 2 mais fortes. Com menos de 3 semanas de movimento, a estimativa aparece como fraca.';
+  'A previsão soma o que já entrou e saiu no caixa neste mês com o que a loja costuma fazer nos dias que faltam. As vendas seguem a média de cada dia da semana nas últimas 8 semanas, já sem o custo das peças; os gastos avulsos seguem a média por dia, sem os dias fora do comum (como a compra de um equipamento). As contas a pagar que vencem até o fim do mês, inclusive recorrentes e atrasadas, entram pelo valor exato, e uma conta paga adiantada conta no mês em que vence; compras de peças não contam como gasto, porque o custo já sai de cada OS. O mínimo considera só o que já aconteceu e as OS prontas, sem vendas novas, e os cenários usam o ritmo das 2 semanas mais fracas e das 2 mais fortes. Com menos de 3 semanas de movimento, a estimativa aparece como fraca.';
 
 function Line({
   label,
@@ -304,7 +305,7 @@ export default function ProfitForecast({ forecast }: { forecast: MonthForecast }
   const today = forecast.series.find((point) => point.projected !== null)?.day ?? lastDay;
   const pace = forecast.estimated.margin - forecast.estimated.looseExpense;
   const change =
-    forecast.previous.income > 0
+    forecast.previous.complete && forecast.previous.income > 0
       ? Math.round((forecast.likely.income / forecast.previous.income - 1) * 100)
       : null;
 
@@ -422,7 +423,7 @@ export default function ProfitForecast({ forecast }: { forecast: MonthForecast }
                     value={forecast.realized.margin}
                   />
                   <Line
-                    hint="Sem as compras de peças e materiais"
+                    hint="Sem compras de peças; conta paga adiantada conta no mês em que vence"
                     label="Saídas já feitas"
                     sign="−"
                     value={forecast.realized.expense}
