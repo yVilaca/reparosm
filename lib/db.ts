@@ -78,6 +78,10 @@ export const publicStoreTransaction: ScopedTransaction = (accountId, fn) =>
 export const publicQuoteTransaction: ScopedTransaction = (quoteId, fn) =>
   runAsRuntime(fn, ['app.public_quote_id', requiredContext(quoteId, 'quoteId')]);
 
+/** Abre um link de acompanhamento: enxerga só a linha do link com este hash. */
+export const publicTrackingTransaction: ScopedTransaction = (tokenHash, fn) =>
+  runAsRuntime(fn, ['app.tracking_hash', requiredContext(tokenHash, 'tokenHash')]);
+
 /** Runs authentication queries with access to one normalized username. */
 export const authTransaction: ScopedTransaction = (username, fn) =>
   runAsRuntime(fn, ['app.auth_username', requiredContext(username, 'username')]);
