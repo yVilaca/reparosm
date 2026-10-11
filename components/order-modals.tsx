@@ -7,6 +7,8 @@ import { useFeedback } from '@/components/feedback';
 import StockAlertDialog, { StockCheckStatus } from '@/components/stock-alert-dialog';
 import { useStockCheck } from '@/components/use-stock-check';
 import OrderPhotos from '@/components/order-photos';
+import ServicePicker from '@/components/service-picker';
+import { joinServices, parseServices, type ServiceChoice } from '@/lib/order-services';
 import { Button } from '@/components/ui/button';
 import { MaskedInput } from '@/components/ui/masked-input';
 import {
@@ -60,6 +62,7 @@ export function OrderEditForm({
   const { notify } = useFeedback();
   const [form, setFormState] = useState({ ...item }),
     [selectedItems, setSelectedItemsState] = useState<OrderItem[]>(item.items || []),
+    [services, setServicesState] = useState<ServiceChoice>(() => parseServices(item.service)),
     [moneyText, setMoneyText] = useState({
       labor: String(item.labor ?? ''),
       parts: String(item.parts ?? ''),
@@ -74,6 +77,10 @@ export function OrderEditForm({
   const setSelectedItems: typeof setSelectedItemsState = (next) => {
     controls.markDirty();
     setSelectedItemsState(next);
+  };
+  const setServices = (next: ServiceChoice) => {
+    controls.markDirty();
+    setServicesState(next);
   };
   const stock = useStockCheck(form.status === 'Cancelado' ? [] : selectedItems, item.id);
   const field = (key: keyof OrderRow) => (event: FieldChange) => {
@@ -112,6 +119,7 @@ export function OrderEditForm({
           await save(
             {
               ...form,
+              service: joinServices(services),
               acknowledgeNegativeStock: stockDecision.acknowledgeNegativeStock,
               items: selectedItems,
               parts: partsTotal,
@@ -192,6 +200,9 @@ export function OrderEditForm({
             </fieldset>
             <fieldset className="grid gap-4 sm:grid-cols-2">
               <legend className="mb-4 text-sm font-semibold">Serviço</legend>
+              <div className="sm:col-span-2">
+                <ServicePicker id="order-edit-services" onChange={setServices} value={services} />
+              </div>
               <div className="grid gap-2">
                 <Label htmlFor="order-edit-problem">Problema relatado</Label>
                 <Textarea
@@ -371,6 +382,7 @@ export function OrderCreateModal({
     [photos, setPhotos] = useState<File[]>([]),
     [photoError, setPhotoError] = useState(''),
     [whatsappConsent, setWhatsappConsent] = useState(false),
+    [services, setServices] = useState<ServiceChoice>({ selected: [], other: '' }),
     [form, setForm] = useState({
       customer: '',
       phone: '',
@@ -407,9 +419,14 @@ export function OrderCreateModal({
     );
   const next = () => {
     const valid =
-      step === 1 ? form.customer.trim() : step === 2 ? form.device.trim() : form.problem.trim();
+      step === 1 ? form.customer.trim() : step === 2 ? form.device.trim() : joinServices(services);
     if (!valid) {
-      notify('Preencha os campos obrigatórios antes de continuar.', 'error');
+      notify(
+        step === 3
+          ? 'Escolha pelo menos um serviço ou descreva em "Outro serviço".'
+          : 'Preencha os campos obrigatórios antes de continuar.',
+        'error',
+      );
       return;
     }
     setStep((value) => Math.min(4, value + 1));
@@ -427,6 +444,7 @@ export function OrderCreateModal({
               // The server assigns the real, unique code; this placeholder is discarded.
               code: '',
               ...form,
+              service: joinServices(services),
               ...stockDecision,
               whatsappConsent,
               pattern,
@@ -683,17 +701,25 @@ export function OrderCreateModal({
           )}
 
           {step === 3 && (
-            <section aria-label="Diagnóstico da ordem" className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="order-create-problem">Problema relatado *</Label>
+            <section aria-label="Diagnóstico da ordem" className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <ServicePicker
+                  id="order-create-services"
+                  onChange={setServices}
+                  required
+                  value={services}
+                />
+              </div>
+              <div className="grid content-start gap-2">
+                <Label htmlFor="order-create-problem">Problema relatado</Label>
                 <Textarea
                   id="order-create-problem"
                   onChange={field('problem')}
-                  required
+                  placeholder="O que o cliente contou. Sai no comprovante de entrada."
                   value={form.problem}
                 />
               </div>
-              <div className="grid gap-2">
+              <div className="grid content-start gap-2">
                 <Label htmlFor="order-create-notes">Observações do diagnóstico</Label>
                 <Textarea
                   id="order-create-notes"
