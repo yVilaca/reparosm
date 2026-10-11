@@ -91,7 +91,7 @@ const validateOrder = (value: unknown): ValidationResult<Order> => {
     !data ||
     !validateStrings(
       data,
-      ['code', 'customer', 'phone', 'device', 'problem', 'notes'],
+      ['code', 'customer', 'phone', 'device', 'problem', 'service', 'notes'],
       ['customer', 'device'],
     )
   )
