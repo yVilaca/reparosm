@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 import { hasValidWhatsapp, whatsappUrl } from '@/lib/format';
+import { firstName, trackingState } from '@/lib/order-tracking';
 import { orderPrintUrl, type PrintLayout } from '@/lib/print';
 import type { OrderRow } from '@/components/order-modals';
 export default function OrderActions({
@@ -51,22 +52,39 @@ export default function OrderActions({
       notify('Cadastre um WhatsApp válido nesta ordem.', 'error');
       return;
     }
-    const message = `Olá, ${order.customer}! Atualização da ${order.code}: seu ${order.device} está na etapa “${order.stage || 'Recebido'}”.`;
-    window.open(whatsappUrl(phone, message), '_blank', 'noopener,noreferrer');
-    void fetch('/api/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        data: {
-          customer: order.customer,
-          phone,
-          kind: 'Atualização da OS',
-          message,
-          status: 'Aberto no WhatsApp',
-          sentAt: new Date().toISOString(),
-        },
-      }),
-    });
+    // Abre a janela já no clique (senão o navegador bloqueia) e preenche quando o
+    // link de acompanhamento chega. Sem link, a mensagem vai sem ele.
+    const popup = window.open('about:blank', '_blank');
+    void (async () => {
+      const name = firstName(order.customer);
+      let message = `Olá${name ? `, ${name}` : ''}! Atualização da ${order.code} (${order.device}): ${trackingState(order.stage, order.status).title}.`;
+      try {
+        const response = await fetch(`/api/orders/${encodeURIComponent(order.id)}/tracking`, {
+          method: 'POST',
+        });
+        const result = (await response.json()) as { url?: string };
+        if (response.ok && result.url) message += ` Acompanhe por aqui: ${result.url}`;
+      } catch {}
+      const url = whatsappUrl(phone, message);
+      if (popup) {
+        popup.opener = null;
+        popup.location.href = url;
+      } else window.open(url, '_blank', 'noopener,noreferrer');
+      void fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: {
+            customer: order.customer,
+            phone,
+            kind: 'Atualização da OS',
+            message,
+            status: 'Aberto no WhatsApp',
+            sentAt: new Date().toISOString(),
+          },
+        }),
+      });
+    })();
   };
   const remove = async (order: OrderRow) => {
     if (!(await confirm(`Excluir definitivamente a ordem ${order.code}?`))) return;

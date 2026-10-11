@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Printer } from 'lucide-react';
 import OrderPhotos from '@/components/order-photos';
+import OrderTrackingPanel from '@/components/order-tracking-panel';
 import {
   OrderEditForm,
   type OrderRow,
@@ -168,6 +169,7 @@ export function OrderDetails({ order }: { order: OrderRow }) {
             {order.quoteCode && <Detail label="Orçamento de origem">{order.quoteCode}</Detail>}
           </dl>
         </section>
+        <OrderTrackingPanel order={order} />
         <section aria-label="Valores e recebimento" className="grid gap-3 border-t pt-4">
           <h3 className="font-semibold">Valores e recebimento</h3>
           <dl className="grid gap-3 tabular-nums">
