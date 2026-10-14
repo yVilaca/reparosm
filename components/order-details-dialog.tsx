@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Printer } from 'lucide-react';
 import OrderPhotos from '@/components/order-photos';
+import OrderChecklistPanel from '@/components/order-checklist-panel';
 import OrderTrackingPanel from '@/components/order-tracking-panel';
 import {
   OrderEditForm,
@@ -114,6 +115,7 @@ export function OrderDetails({ order }: { order: OrderRow }) {
             </Detail>
           </dl>
         </section>
+        <OrderChecklistPanel orderId={order.id} />
         <section aria-label="Atendimento" className="grid gap-3">
           <h3 className="font-semibold">Atendimento</h3>
           <dl className="grid gap-4">
