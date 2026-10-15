@@ -141,3 +141,47 @@ test('subject and challenge capabilities reveal one matching row', { skip }, asy
     [{ token_hash: '3'.repeat(64) }],
   );
 });
+
+test(
+  'TOTP steps and recovery codes can be consumed only once under concurrency',
+  { skip },
+  async () => {
+    const repository = await import('../lib/repos/auth-security.ts');
+    const { hashRecoveryCode } = await import('../lib/totp.ts');
+    const codeHash = await hashRecoveryCode('ABCD-EFGH');
+    await db.migrationQuery(
+      `INSERT INTO accounts (id, username, name, role, status)
+     VALUES ('auth-once', 'auth-once', 'One use', 'merchant', 'active');
+     INSERT INTO users (id, account_id, username, name, role, password_hash)
+     VALUES ('user-auth-once', 'auth-once', 'auth-once', 'One use', 'owner', 'hash');
+     INSERT INTO user_authenticators (
+       account_id, user_id, secret_ciphertext, enabled_at
+     ) VALUES ('auth-once', 'user-auth-once', 'v1.a.a', now())`,
+    );
+    await db.migrationQuery(
+      `INSERT INTO recovery_codes (account_id, user_id, code_hash)
+     VALUES ('auth-once', 'user-auth-once', $1)`,
+      [codeHash],
+    );
+
+    const steps = await Promise.all([
+      db.tenantTransaction('auth-once', (run) =>
+        repository.useTotpStep('user-auth-once', 100, run),
+      ),
+      db.tenantTransaction('auth-once', (run) =>
+        repository.useTotpStep('user-auth-once', 100, run),
+      ),
+    ]);
+    const codes = await Promise.all([
+      db.tenantTransaction('auth-once', (run) =>
+        repository.consumeRecoveryCode('user-auth-once', codeHash, run),
+      ),
+      db.tenantTransaction('auth-once', (run) =>
+        repository.consumeRecoveryCode('user-auth-once', codeHash, run),
+      ),
+    ]);
+
+    assert.deepEqual(steps.sort(), [false, true]);
+    assert.deepEqual(codes.sort(), [false, true]);
+  },
+);

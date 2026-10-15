@@ -225,3 +225,25 @@ export async function consumeChallenge(tokenHash: string, run: Query) {
       } satisfies StoredAuthChallenge)
     : null;
 }
+
+export async function useTotpStep(userId: string, step: number, run: Query) {
+  const rows = await run(
+    `UPDATE user_authenticators
+     SET last_used_step = $2, updated_at = now()
+     WHERE user_id = $1 AND enabled_at IS NOT NULL
+       AND (last_used_step IS NULL OR last_used_step < $2)
+     RETURNING user_id`,
+    [userId, step],
+  );
+  return rows.length === 1;
+}
+
+export async function consumeRecoveryCode(userId: string, codeHash: string, run: Query) {
+  const rows = await run(
+    `UPDATE recovery_codes SET used_at = now()
+     WHERE user_id = $1 AND code_hash = $2 AND used_at IS NULL
+     RETURNING id`,
+    [userId, codeHash],
+  );
+  return rows.length === 1;
+}
