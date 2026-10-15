@@ -92,6 +92,12 @@ test('a link stores only its hash, opens without being used and works once', { s
 
   const first = await openLink(token);
   assert.equal(first.response.status, 200);
+  assert.deepEqual(await first.response.json(), {
+    ok: true,
+    purpose: 'invite',
+    step: 'complete',
+    signedIn: true,
+  });
   assert.ok(first.cookie);
   const again = await openLink(token);
   assert.equal(again.response.status, 409);
@@ -216,12 +222,42 @@ test(
     const preview = await inspect(token);
     assert.equal(preview.purpose, 'email');
     assert.equal(preview.email, 'novo@trocamail.test');
+    const [identity] = await db.migrationQuery(
+      "INSERT INTO user_identities (account_id, user_id, provider, provider_subject, email_at_link) SELECT account_id, id, 'google', 'google-trocamail', email FROM users WHERE username = 'trocamail' RETURNING user_id",
+    );
+    await db.migrationQuery(
+      "INSERT INTO user_authenticators (account_id, user_id, secret_ciphertext, enabled_at) SELECT account_id, id, 'preserve-me', now() FROM users WHERE username = 'trocamail'",
+    );
     const confirmed = await access.POST(accessRequest({ action: 'consume', token }));
     assert.equal(confirmed.status, 200);
     assert.equal((await confirmed.json()).signedIn, false, 'confirmar e-mail não abre sessão');
     const user = (await signedIn(cookie)).user;
     assert.equal(user.email, 'novo@trocamail.test');
     assert.equal(user.emailVerified, true);
+    assert.equal(
+      Number(
+        (
+          await db.migrationQuery(
+            'SELECT count(*) AS count FROM user_identities WHERE user_id = $1',
+            [identity.user_id],
+          )
+        )[0].count,
+      ),
+      1,
+      'confirmar e-mail preserva o login Google',
+    );
+    assert.equal(
+      Number(
+        (
+          await db.migrationQuery(
+            'SELECT count(*) AS count FROM user_authenticators WHERE user_id = $1',
+            [identity.user_id],
+          )
+        )[0].count,
+      ),
+      1,
+      'confirmar e-mail preserva o autenticador',
+    );
     assert.equal((await login('novo@trocamail.test', 'Donosenha123')).status, 200);
     assert.equal((await login('trocamail@lojas.test', 'Donosenha123')).status, 401);
   },

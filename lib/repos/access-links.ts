@@ -1,13 +1,9 @@
-import {
-  accessLinkTransaction,
-  setAuthUsernameContext,
-  setTenantContext,
-  type Query,
-} from '@/lib/db';
+import { finishPrimaryAuth, type PrimaryAuthResult } from '@/lib/auth-flow';
+import { accessLinkTransaction, setTenantContext, type Query } from '@/lib/db';
 import { env } from '@/lib/env';
-import { insertSession, type Device } from '@/lib/repos/sessions';
-import { toUser, userColumns, type UserRow } from '@/lib/repos/users';
-import type { StoreUser } from '@/lib/types';
+import { authContext } from '@/lib/repos/auth-security';
+import type { Device } from '@/lib/repos/sessions';
+import type { AuthUserContext, StoreUser } from '@/lib/types';
 
 /**
  * Links de acesso de uso único: convite (criar a senha), nova senha (esqueci) e
@@ -138,16 +134,15 @@ const problemOf = (row: LinkRow | undefined): LinkProblem =>
 async function owner(run: Query, link: Pick<LinkRow, 'user_id' | 'account_id'>) {
   // O contexto da loja vem da linha do link, já conferida pelo hash do token.
   await setTenantContext(run, link.account_id);
-  const [user] = await run<UserRow>(`SELECT ${userColumns} FROM users u WHERE u.id = $1`, [
-    link.user_id,
-  ]);
-  const [store] = await run<{ name: string; status: string; role: string }>(
-    'SELECT name, status, role FROM accounts WHERE id = $1',
-    [link.account_id],
-  );
-  if (!user || !store || user.status !== 'active' || store.status !== 'active') return null;
-  if (store.role !== 'merchant') return null;
-  return { user: toUser(user), storeName: store.name };
+  const context = await authContext(link.account_id, link.user_id, run);
+  if (
+    !context ||
+    context.user.status !== 'active' ||
+    context.account.status !== 'active' ||
+    context.account.role !== 'merchant'
+  )
+    return null;
+  return context;
 }
 
 export type LinkPreview =
@@ -181,7 +176,7 @@ export async function inspectLink(token: string): Promise<LinkPreview> {
       purpose: row.purpose,
       name: found.user.name,
       username: found.user.username,
-      storeName: found.storeName,
+      storeName: found.account.name,
       email: row.purpose === 'email' ? (row.email ?? undefined) : found.user.email,
     };
   });
@@ -200,24 +195,33 @@ export type LinkUse =
       purpose: LinkPurpose;
       user: StoreUser;
       storeName: string;
-      /** Sessão nova (convite e nova senha já entram logados). */
-      sessionToken?: string;
+      auth?: PrimaryAuthResult;
     }
   | { status: LinkProblem | 'email-taken' };
+
+type AuthenticatedLinkUse = Extract<LinkUse, { status: 'ok' }> & {
+  authUser: AuthUserContext;
+};
 
 /**
  * Usa o link, tudo na mesma transação: marca como usado só se ainda valia,
  * grava a senha (ou o e-mail), desconecta os aparelhos antigos, apaga os outros
- * links pendentes e, para senha, já abre a sessão deste aparelho.
+ * links pendentes e, para senha, continua pelo fluxo normal de autenticação.
  */
 export async function consumeLink(
   token: string,
-  use: { hashPassword?: (username: string) => Promise<string>; device: Device },
+  use: {
+    hashPassword?: (username: string) => Promise<string>;
+    device: Device;
+    browserToken?: string;
+  },
 ): Promise<LinkUse> {
   const tokenHash = await tokenHashOrNull(token);
   if (!tokenHash) return { status: 'invalid' };
   try {
-    return await accessLinkTransaction(tokenHash, async (run) => {
+    const result = await accessLinkTransaction(
+      tokenHash,
+      async (run): Promise<LinkUse | AuthenticatedLinkUse> => {
       const [row] = await run<LinkRow>(
         `UPDATE access_links SET used_at = now()
          WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
@@ -254,7 +258,7 @@ export async function consumeLink(
           status: 'ok',
           purpose: row.purpose,
           user: { ...user, email: row.email ?? undefined, emailVerified: true },
-          storeName: found.storeName,
+          storeName: found.account.name,
         };
       }
 
@@ -269,6 +273,8 @@ export async function consumeLink(
         [user.id, await use.hashPassword(user.username), verifies],
       );
       await run('DELETE FROM sessions WHERE user_id = $1', [user.id]);
+      if (row.purpose === 'reset')
+        await run('UPDATE auth_devices SET trusted_until = NULL WHERE user_id = $1', [user.id]);
       await run(
         `UPDATE access_links SET expires_at = least(expires_at, now())
          WHERE user_id = $1 AND purpose <> 'email' AND used_at IS NULL`,
@@ -279,17 +285,32 @@ export async function consumeLink(
          WHERE user_id = $1 AND status = 'pending'`,
         [user.id],
       );
-      // Entra logado: a sessão nasce no login da própria pessoa.
-      await setAuthUsernameContext(run, user.username);
-      const sessionToken = await insertSession(run, user, use.device);
+      const updatedUser = {
+        ...user,
+        mustChangePassword: false,
+        emailVerified: user.emailVerified || verifies,
+      };
       return {
         status: 'ok',
         purpose: row.purpose,
-        user: { ...user, mustChangePassword: false, emailVerified: user.emailVerified || verifies },
-        storeName: found.storeName,
-        sessionToken,
+        user: updatedUser,
+        storeName: found.account.name,
+        authUser: { account: found.account, user: updatedUser },
       };
-    });
+      },
+    );
+    if (result.status !== 'ok' || !('authUser' in result)) return result;
+    const { authUser, ...link } = result;
+    return {
+      ...link,
+      auth: await finishPrimaryAuth({
+        user: authUser,
+        method: 'password',
+        browserToken: use.browserToken,
+        userAgent: use.device.userAgent,
+        ip: use.device.ip,
+      }),
+    };
   } catch (error) {
     if (error instanceof LinkRefused) return { status: error.reason };
     throw error;

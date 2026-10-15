@@ -229,6 +229,44 @@ test('MFA limits failures and recovery codes never trust a device', { skip }, as
 });
 
 test(
+  'password reset revokes trust and requires existing TOTP before sign-in',
+  { skip },
+  async () => {
+    const adminCookie = cookieOf(await login('adminreparosm', 'TestAdminPassword123', '10.0.1.7'));
+    await createStore(adminCookie, 'mfa-reset', 'OldPassword123');
+    const user = await enableTotp('mfa-reset');
+
+    const primary = await login('mfa-reset', 'OldPassword123', '10.0.1.8');
+    const oldBrowser = cookieNamed(primary, 'reparosm_browser');
+    const challengeCookie = [oldBrowser, cookieNamed(primary, 'reparosm_mfa')].join('; ');
+    const completed = await mfa.POST(
+      mfaRequest({ kind: 'totp', code: user.code(), trustDevice: true }, challengeCookie, '10.0.1.8'),
+    );
+    assert.equal(completed.status, 200);
+
+    await auth.POST(request({ action: 'forgot-password', username: 'mfa-reset' }));
+    const { response: reset } = await openLink(
+      linkToken('mfa-reset@lojas.test'),
+      'NewPassword123',
+    );
+    assert.equal(reset.status, 200);
+    assert.deepEqual(await reset.json(), { ok: true, purpose: 'reset', step: 'mfa' });
+    const [device] = await db.migrationQuery(
+      'SELECT trusted_until FROM auth_devices WHERE user_id = $1',
+      [user.id],
+    );
+    assert.equal(device.trusted_until, null);
+    const [sessions] = await db.migrationQuery(
+      'SELECT count(*) AS count FROM sessions WHERE user_id = $1',
+      [user.id],
+    );
+    assert.equal(Number(sessions.count), 0);
+    assert.ok(cookieNamed(reset, 'reparosm_browser'));
+    assert.ok(cookieNamed(reset, 'reparosm_mfa'));
+  },
+);
+
+test(
   'recovery flow: admin, owner, invite, forgotten password and request queue',
   { skip },
   async () => {

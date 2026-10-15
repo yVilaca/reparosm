@@ -1,5 +1,13 @@
 import { notifyPasswordChanged } from '@/lib/access';
-import { clientIp, passwordHash, passwordProblem, sameOrigin, sessionCookie } from '@/lib/auth';
+import {
+  browserCookie,
+  browserToken,
+  clientIp,
+  passwordHash,
+  passwordProblem,
+  sameOrigin,
+  sessionCookie,
+} from '@/lib/auth';
 import { consumeLink, inspectLink } from '@/lib/repos/access-links';
 import type { DataObject } from '@/lib/types';
 
@@ -58,24 +66,35 @@ export async function POST(request: Request) {
     hashPassword:
       password === undefined ? undefined : (username) => passwordHash(username, password),
     device: { userAgent: request.headers.get('user-agent') || '', ip: clientIp(request) },
+    browserToken: browserToken(request),
   });
   if (result.status !== 'ok')
     return json({ status: result.status, error: problems[result.status] }, { status: 409 });
 
   if (result.purpose === 'reset')
     await notifyPasswordChanged({ ...result.user, storeName: result.storeName });
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'Cache-Control': 'no-store',
-  };
-  if (result.sessionToken)
-    headers['Set-Cookie'] = sessionCookie(
-      result.sessionToken,
-      undefined,
-      new URL(request.url).protocol === 'https:',
-    );
-  return new Response(
-    JSON.stringify({ ok: true, purpose: result.purpose, signedIn: Boolean(result.sessionToken) }),
-    { headers },
+  if (!result.auth)
+    return json({ ok: true, purpose: result.purpose, signedIn: false });
+
+  const secure = new URL(request.url).protocol === 'https:';
+  const response = json(
+    result.auth.step === 'mfa'
+      ? { ok: true, purpose: result.purpose, step: 'mfa' }
+      : { ok: true, purpose: result.purpose, step: 'complete', signedIn: true },
   );
+  if (result.auth.step === 'complete')
+    response.headers.append(
+      'Set-Cookie',
+      sessionCookie(result.auth.sessionToken, undefined, secure),
+    );
+  response.headers.append(
+    'Set-Cookie',
+    browserCookie(result.auth.browserToken, undefined, secure),
+  );
+  if (result.auth.step === 'mfa')
+    response.headers.append(
+      'Set-Cookie',
+      `reparosm_mfa=${result.auth.challengeToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600${secure ? '; Secure' : ''}`,
+    );
+  return response;
 }

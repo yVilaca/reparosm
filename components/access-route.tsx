@@ -75,6 +75,10 @@ export default function AccessRoute() {
         setSaving(false);
         return;
       }
+      if (result.step === 'mfa') {
+        window.location.replace('/login?etapa=verificacao');
+        return;
+      }
       if (result.signedIn) {
         // Navegação completa: o painel já abre com a sessão nova.
         window.location.replace('/');
