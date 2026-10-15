@@ -1,0 +1,47 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+
+const render = (Component, props = {}) => renderToStaticMarkup(createElement(Component, props));
+
+test('the auth shell keeps ReparoSM identity across login, access and MFA', async () => {
+  const { default: AuthShell } = await import('../components/auth-shell.tsx');
+  const { default: Login } = await import('../components/login.tsx');
+  const { default: AccessRoute } = await import('../components/access-route.tsx');
+  const shell = render(AuthShell, {
+    eyebrow: 'Acesso seguro',
+    title: 'Entre na sua assistência',
+    description: 'Cada pessoa usa seu próprio acesso.',
+    children: createElement('p', null, 'Conteúdo'),
+  });
+  const login = render(Login, { googleEnabled: true, onLogin() {} });
+  const mfa = render(Login, { initialMode: 'mfa', onLogin() {} });
+  const access = render(AccessRoute);
+
+  for (const html of [shell, login, mfa, access]) assert.match(html, /ReparoSM/);
+  assert.match(login, /Continuar com Google/);
+  assert.match(mfa, /Confiar neste dispositivo por 30 dias/);
+  assert.match(mfa, /código de recuperação/i);
+  assert.match(access, /Abrindo o link/);
+  assert.match(shell, /Da bancada ao caixa/);
+});
+
+test('auth forms preserve labels, autocomplete and accessible errors', async () => {
+  const { default: Login } = await import('../components/login.tsx');
+  const login = render(Login, {
+    googleEnabled: false,
+    initialError: 'Não foi possível entrar com Google.',
+    onLogin() {},
+  });
+  const mfa = render(Login, { initialMode: 'mfa', onLogin() {} });
+
+  assert.match(login, /<label[^>]*for="login-username"/);
+  assert.match(login, /auto[Cc]omplete="username"/);
+  assert.match(login, /auto[Cc]omplete="current-password"/);
+  assert.match(login, /role="alert"/);
+  assert.doesNotMatch(login, /Continuar com Google/);
+  assert.match(mfa, /auto[Cc]omplete="one-time-code"/);
+  assert.match(mfa, /inputMode="numeric"|inputmode="numeric"/);
+  assert.doesNotMatch(mfa, /QR|qrcode/i);
+});

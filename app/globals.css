@@ -148,3 +148,40 @@
     @apply font-sans accent-primary;
   }
 }
+
+/* Linhas de bancada e pontos de medição: textura da marca sem imagem genérica. */
+.auth-blueprint {
+  isolation: isolate;
+  background-image:
+    radial-gradient(circle at 16% 22%, rgb(108 76 241 / 0.28), transparent 24rem),
+    linear-gradient(rgb(255 255 255 / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.035) 1px, transparent 1px);
+  background-size:
+    auto,
+    32px 32px,
+    32px 32px;
+}
+
+.auth-blueprint::after {
+  position: absolute;
+  inset: 8% -25% auto auto;
+  z-index: -1;
+  width: 28rem;
+  height: 28rem;
+  border: 1px solid rgb(143 120 247 / 0.22);
+  border-radius: 999px;
+  box-shadow:
+    0 0 0 4rem rgb(143 120 247 / 0.045),
+    0 0 0 9rem rgb(143 120 247 / 0.025);
+  content: '';
+}
+
+.auth-logo {
+  aspect-ratio: 756 / 153;
+  background: url('/brand/reparosm-logo.png') center / contain no-repeat;
+}
+
+.auth-logo-on-dark,
+.dark .auth-logo {
+  background-image: url('/brand/reparosm-logo-dark.png');
+}
