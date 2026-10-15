@@ -13,6 +13,7 @@ import {
   PenLine,
   Power,
   PowerOff,
+  Printer,
   QrCode as QrIcon,
   Smartphone,
   Trash2,
@@ -420,6 +421,16 @@ export default function ChecklistBench({
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Button asChild variant="outline">
+            <Link
+              href={`/ordens/${encodeURIComponent(order.id)}/checklist/imprimir`}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              <Printer aria-hidden="true" />
+              Imprimir para assinatura
+            </Link>
+          </Button>
           <span
             aria-live="polite"
             className={cn(
