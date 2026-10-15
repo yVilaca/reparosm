@@ -7,6 +7,7 @@ import {
 } from '@/lib/db';
 import { accountColumns, toAccount } from '@/lib/repos/accounts';
 import { iso, type Timestamp } from '@/lib/repos/rows';
+import { withOwnSession } from '@/lib/repos/sessions';
 import { toUser, userColumns, type UserRow } from '@/lib/repos/users';
 import type { AuthDevice, AuthMethod, AuthUserContext } from '@/lib/types';
 
@@ -379,7 +380,7 @@ export async function lockChallenge(tokenHash: string, run: Query) {
     : null;
 }
 
-export async function useTotpStep(userId: string, step: number, run: Query) {
+export async function consumeTotpStep(userId: string, step: number, run: Query) {
   const rows = await run(
     `UPDATE user_authenticators
      SET last_used_step = $2, updated_at = now()
@@ -399,4 +400,87 @@ export async function consumeRecoveryCode(userId: string, codeHash: string, run:
     [userId, codeHash],
   );
   return rows.length === 1;
+}
+
+/** Estado de segurança do próprio usuário, sem segredos nem hashes. */
+export async function ownSecuritySummary(token: string) {
+  return withOwnSession(token, async (run, { userId }) => {
+    const secondFactor = await authenticator(userId, run);
+    const [identity] = await run<{ email_at_link: string; created_at: Timestamp }>(
+      `SELECT email_at_link, created_at FROM user_identities
+       WHERE user_id = $1 AND provider = 'google'`,
+      [userId],
+    );
+    const [{ count }] = await run<{ count: string | number }>(
+      'SELECT count(*) AS count FROM recovery_codes WHERE user_id = $1 AND used_at IS NULL',
+      [userId],
+    );
+    return {
+      totpEnabled: Boolean(secondFactor?.enabledAt),
+      googleIdentity: identity
+        ? { email: identity.email_at_link, linkedAt: iso(identity.created_at) }
+        : null,
+      recoveryCodesRemaining: Number(count),
+    };
+  });
+}
+
+/** Credenciais necessárias para confirmar uma alteração sensível. */
+export async function ownSecurityCredentials(userId: string, run: Query) {
+  const [user] = await run<{ username: string; password_hash: string | null }>(
+    `SELECT username, public.user_password_hash(id) AS password_hash
+     FROM users WHERE id = $1`,
+    [userId],
+  );
+  return user
+    ? {
+        username: user.username,
+        passwordHash: user.password_hash ?? '',
+        authenticator: await authenticator(userId, run),
+      }
+    : null;
+}
+
+export async function replaceRecoveryCodes(userId: string, codeHashes: string[], run: Query) {
+  const [user] = await run<{ account_id: string }>('SELECT account_id FROM users WHERE id = $1', [
+    userId,
+  ]);
+  if (!user) return false;
+  await run('DELETE FROM recovery_codes WHERE user_id = $1', [userId]);
+  await run(
+    `INSERT INTO recovery_codes (account_id, user_id, code_hash)
+     SELECT $2, $1, codes.code_hash FROM unnest($3::text[]) AS codes(code_hash)`,
+    [userId, user.account_id, codeHashes],
+  );
+  return true;
+}
+
+/** Remove o segundo fator, suas confianças e todas as sessões menos a atual. */
+export async function disableOwnAuthenticator(
+  userId: string,
+  currentTokenHash: string,
+  run: Query,
+) {
+  await run('DELETE FROM recovery_codes WHERE user_id = $1', [userId]);
+  const removed = await run('DELETE FROM user_authenticators WHERE user_id = $1 RETURNING user_id', [
+    userId,
+  ]);
+  await run('DELETE FROM auth_challenges WHERE user_id = $1', [userId]);
+  await run(
+    'UPDATE auth_devices SET trusted_until = NULL, updated_at = now() WHERE user_id = $1',
+    [userId],
+  );
+  await run('DELETE FROM sessions WHERE user_id = $1 AND token_hash <> $2', [
+    userId,
+    currentTokenHash,
+  ]);
+  return removed.length === 1;
+}
+
+export async function unlinkOwnGoogle(userId: string, run: Query) {
+  const removed = await run(
+    "DELETE FROM user_identities WHERE user_id = $1 AND provider = 'google' RETURNING id",
+    [userId],
+  );
+  return removed.length === 1;
 }

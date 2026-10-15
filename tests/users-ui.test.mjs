@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import AccountsRoute from '../components/accounts-route.tsx';
+import AccountSecurity from '../components/account-security.tsx';
 import { FeedbackProvider } from '../components/feedback.tsx';
 import MyAccountRoute from '../components/my-account-route.tsx';
 import TeamRoute from '../components/team-route.tsx';
@@ -45,7 +46,7 @@ test('says when in São Paulo time: today, yesterday or the date', () => {
   assert.equal(lastAccessLabel(undefined, now), 'Ainda não entrou');
 });
 
-test('Minha conta presents grouped sessions, last activity and device trust', () => {
+test('Minha conta presents security, grouped devices and trust', () => {
   const now = new Date();
   const html = render(MyAccountRoute, {
     storeName: 'Cell Prime',
@@ -63,8 +64,11 @@ test('Minha conta presents grouped sessions, last activity and device trust', ()
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     },
-    initialSessions: [
-      {
+    initialSecurity: {
+      totpEnabled: false,
+      googleIdentity: { email: 'ana@google.test', linkedAt: now.toISOString() },
+      recoveryCodesRemaining: 0,
+      devices: [{
         id: 'device-ana',
         userAgent: 'Mozilla/5.0 (Windows NT 10.0) Chrome/130.0',
         ip: '10.7.0.xxx',
@@ -74,8 +78,8 @@ test('Minha conta presents grouped sessions, last activity and device trust', ()
         trustedUntil: new Date(now.getTime() + 86_400_000).toISOString(),
         sessions: 2,
         current: true,
-      },
-    ],
+      }],
+    },
   });
 
   assert.match(html, /Chrome no Windows/);
@@ -84,6 +88,36 @@ test('Minha conta presents grouped sessions, last activity and device trust', ()
   assert.match(html, /Visto hoje às/);
   assert.match(html, /IP 10\.7\.0\.xxx/);
   assert.match(html, /Confiável até/);
+  assert.match(html, /Ative o autenticador/);
+  assert.match(html, /ana@google\.test/);
+});
+
+test('account security keeps Google, authenticator and devices in clear sections', () => {
+  const now = new Date().toISOString();
+  const html = render(AccountSecurity, {
+    initialSecurity: {
+      totpEnabled: true,
+      googleIdentity: { email: 'ana@google.test', linkedAt: now },
+      recoveryCodesRemaining: 6,
+      devices: [
+        {
+          id: 'device-current',
+          userAgent: 'Mozilla/5.0 (Windows NT 10.0) Chrome/130.0',
+          ip: '10.7.0.xxx',
+          createdAt: now,
+          lastSeenAt: now,
+          expiresAt: now,
+          sessions: 1,
+          current: true,
+        },
+      ],
+    },
+  });
+  assert.match(html, /Login com Google/);
+  assert.match(html, /Autenticador/);
+  assert.match(html, /6 códigos disponíveis/);
+  assert.match(html, /Aparelhos/);
+  assert.match(html, /Este aparelho/);
 });
 
 test('browser identity cookie is HttpOnly, Lax and lasts 30 days', async () => {

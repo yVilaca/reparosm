@@ -223,6 +223,35 @@ export async function listOwnDevices(token: string) {
         current: row.current,
       });
     }
+    const remembered = await run<{
+      id: string;
+      user_agent: string;
+      last_ip: string;
+      last_seen_at: Timestamp;
+      trusted_until: Timestamp;
+      created_at: Timestamp;
+    }>(
+      `SELECT d.id, d.user_agent, d.last_ip, d.last_seen_at, d.trusted_until, d.created_at
+       FROM auth_devices AS d
+       WHERE d.user_id = $1 AND d.trusted_until > now()
+         AND NOT EXISTS (
+           SELECT 1 FROM sessions AS s
+           WHERE s.device_id = d.id AND s.expires_at > now()
+         )`,
+      [userId],
+    );
+    for (const row of remembered)
+      devices.set(row.id, {
+        id: row.id,
+        userAgent: row.user_agent,
+        ip: abbreviatedIp(row.last_ip),
+        createdAt: iso(row.created_at),
+        lastSeenAt: iso(row.last_seen_at),
+        expiresAt: iso(row.trusted_until),
+        trustedUntil: iso(row.trusted_until),
+        sessions: 0,
+        current: false,
+      });
     return [...devices.values()].sort(
       (left, right) =>
         Number(right.current) - Number(left.current) ||
@@ -241,15 +270,12 @@ export async function revokeOwnDevice(token: string, deviceId: string) {
        WHERE user_id = $1 AND device_id = $2`,
       [userId, deviceId, tokenHash],
     );
-    if (linked.length) {
-      const deleted = await run(
-        'DELETE FROM auth_devices WHERE id = $1 AND user_id = $2 RETURNING id',
-        [deviceId, userId],
-      );
-      return deleted.length
-        ? { ended: linked.length, current: linked.some((row) => row.current) }
-        : null;
-    }
+    const deleted = await run(
+      'DELETE FROM auth_devices WHERE id = $1 AND user_id = $2 RETURNING id',
+      [deviceId, userId],
+    );
+    if (deleted.length)
+      return { ended: linked.length, current: linked.some((row) => row.current) };
     const legacy = await run<{ current: boolean }>(
       `DELETE FROM sessions
        WHERE id = $1 AND user_id = $2 AND device_id IS NULL

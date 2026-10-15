@@ -115,7 +115,7 @@ export interface AuthSecurityState {
   totpEnabled: boolean;
   googleIdentity: { email: string; linkedAt: string } | null;
   recoveryCodesRemaining: number;
-  devices: AuthDevice[];
+  devices: StoreSession[];
 }
 
 export interface MfaResetRequest {

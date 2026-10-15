@@ -6,16 +6,18 @@ import { createTestDatabase, skipWithoutDatabase } from './support/db.mjs';
 
 // Várias pessoas por loja: cada uma com login próprio, ao mesmo tempo.
 const skip = skipWithoutDatabase;
-let db, auth, accounts, team, me, shops, lib, authSecurity, sessionRepo;
+let db, auth, accounts, team, me, security, shops, lib, authSecurity, sessionRepo;
 
 before(async () => {
   if (skip) return;
   db = await createTestDatabase();
   process.env.ADMIN_PASSWORD_HASH = await passwordHash('adminreparosm', 'TestAdminPassword123');
+  process.env.AUTH_ENCRYPTION_KEY = '11'.repeat(32);
   auth = await import('../app/api/auth/route.ts');
   accounts = await import('../app/api/accounts/route.ts');
   team = await import('../app/api/team/route.ts');
   me = await import('../app/api/me/route.ts');
+  security = await import('../app/api/me/security/route.ts');
   shops = await import('../app/api/shops/route.ts');
   lib = await import('../lib/auth.ts');
   authSecurity = await import('../lib/repos/auth-security.ts');
@@ -207,18 +209,18 @@ test('the same browser is trusted separately for each user', { skip }, async () 
   const seen = { userAgent: 'Shared Chrome', ip: '10.10.0.20' };
 
   const ownerDevice = await db.authTransaction(owner.user.username, (run) =>
-    authSecurity.deviceForLogin(owner.user, browser, seen, run),
+    authSecurity.deviceForLogin({ account: owner, user: owner.user }, browser, seen, run),
   );
   await db.authTransaction(staff.user.username, (run) =>
-    authSecurity.deviceForLogin(staff.user, browser, seen, run),
+    authSecurity.deviceForLogin({ account: staff, user: staff.user }, browser, seen, run),
   );
   await db.tenantTransaction(shop.id, (run) => authSecurity.trustDevice(ownerDevice.id, 30, run));
 
   const trustedOwner = await db.authTransaction(owner.user.username, (run) =>
-    authSecurity.deviceForLogin(owner.user, browser, seen, run),
+    authSecurity.deviceForLogin({ account: owner, user: owner.user }, browser, seen, run),
   );
   const untrustedStaff = await db.authTransaction(staff.user.username, (run) =>
-    authSecurity.deviceForLogin(staff.user, browser, seen, run),
+    authSecurity.deviceForLogin({ account: staff, user: staff.user }, browser, seen, run),
   );
   assert.equal(authSecurity.isTrusted(trustedOwner), true);
   assert.equal(authSecurity.isTrusted(untrustedStaff), false);
@@ -229,7 +231,12 @@ test('revoking a device ends all its sessions and trust', { skip }, async () => 
   const account = await signedIn(shop.owner);
   const deviceInfo = { userAgent: 'Chrome grouped', ip: '10.20.30.40' };
   const device = await db.authTransaction(account.user.username, (run) =>
-    authSecurity.deviceForLogin(account.user, 'b'.repeat(43), deviceInfo, run),
+    authSecurity.deviceForLogin(
+      { account, user: account.user },
+      'b'.repeat(43),
+      deviceInfo,
+      run,
+    ),
   );
   await db.tenantTransaction(shop.id, (run) => authSecurity.trustDevice(device.id, 30, run));
   const first = await sessionRepo.createSession(
@@ -260,6 +267,157 @@ test('revoking a device ends all its sessions and trust', { skip }, async () => 
     device.id,
   ]);
   assert.equal(saved, undefined);
+});
+
+test('a trusted device stays visible and removable after its session expires', { skip }, async () => {
+  const shop = await store('aparelho-confiavel');
+  const account = await signedIn(shop.owner);
+  const device = await db.authTransaction(account.user.username, (run) =>
+    authSecurity.deviceForLogin(
+      { account, user: account.user },
+      'y'.repeat(43),
+      { userAgent: 'Chrome sem sessão', ip: '10.20.30.60' },
+      run,
+    ),
+  );
+  await db.tenantTransaction(shop.id, (run) => authSecurity.trustDevice(device.id, 30, run));
+
+  const listed = await sessionRepo.listOwnDevices(shop.owner.replace('reparosm_session=', ''));
+  const trusted = listed.find((item) => item.id === device.id);
+  assert.equal(trusted.sessions, 0);
+  assert.ok(trusted.trustedUntil);
+  assert.deepEqual(await sessionRepo.revokeOwnDevice(shop.owner.replace('reparosm_session=', ''), device.id), {
+    ended: 0,
+    current: false,
+  });
+  const [removed] = await db.migrationQuery('SELECT id FROM auth_devices WHERE id = $1', [device.id]);
+  assert.equal(removed, undefined);
+});
+
+test('TOTP is enabled only after password and first valid code', { skip }, async () => {
+  const shop = await store('seguranca');
+  const account = await signedIn(shop.owner);
+  const securityCall = (body) =>
+    call(body ? security.POST : security.GET, '/api/me/security', {
+      cookie: shop.owner,
+      body,
+    });
+
+  assert.equal((await (await securityCall()).json()).totpEnabled, false);
+  assert.equal(
+    (
+      await securityCall({
+        action: 'start-totp',
+        currentPassword: 'senha-incorreta',
+      })
+    ).status,
+    400,
+  );
+  const started = await securityCall({
+    action: 'start-totp',
+    currentPassword: 'Donosenha123',
+  });
+  assert.equal(started.status, 200);
+  const enrollment = await started.json();
+  assert.match(enrollment.secret, /^[A-Z2-7]+$/);
+  assert.match(enrollment.uri, /^otpauth:\/\/totp\//);
+  const { TOTP } = await import('otpauth');
+  const code = () =>
+    new TOTP({ algorithm: 'SHA1', digits: 6, period: 30, secret: enrollment.secret }).generate();
+  const confirmed = await securityCall({ action: 'confirm-totp', code: code() });
+  assert.equal(confirmed.status, 200);
+  const firstCodes = (await confirmed.json()).recoveryCodes;
+  assert.equal(firstCodes.length, 8);
+
+  let state = await (await securityCall()).json();
+  assert.equal(state.totpEnabled, true);
+  assert.equal(state.recoveryCodesRemaining, 8);
+  assert.doesNotMatch(JSON.stringify(state), /secret|code_hash|secret_ciphertext/i);
+
+  await db.migrationQuery(
+    `INSERT INTO user_identities (
+       account_id, user_id, provider, provider_subject, email_at_link
+     ) VALUES ($1, $2, 'google', 'google-seguranca', 'seguranca@lojas.test')`,
+    [account.id, account.user.id],
+  );
+  const regenerated = await securityCall({
+    action: 'regenerate-codes',
+    currentPassword: 'Donosenha123',
+    kind: 'recovery',
+    code: firstCodes[0],
+  });
+  assert.equal(regenerated.status, 200);
+  const nextCodes = (await regenerated.json()).recoveryCodes;
+  assert.equal(nextCodes.length, 8);
+  assert.notDeepEqual(nextCodes, firstCodes);
+  assert.equal(
+    (
+      await securityCall({
+        action: 'unlink-google',
+        currentPassword: 'Donosenha123',
+        kind: 'recovery',
+        code: firstCodes[1],
+      })
+    ).status,
+    400,
+    'regenerar invalida o conjunto anterior',
+  );
+  assert.equal(
+    (
+      await securityCall({
+        action: 'unlink-google',
+        currentPassword: 'Donosenha123',
+        kind: 'recovery',
+        code: nextCodes[0],
+      })
+    ).status,
+    200,
+  );
+  state = await (await securityCall()).json();
+  assert.equal(state.googleIdentity, null);
+  assert.equal((await (await login('seguranca', 'Donosenha123')).json()).step, 'mfa');
+
+  const otherDevice = await db.authTransaction(account.user.username, (run) =>
+    authSecurity.deviceForLogin(
+      { account, user: account.user },
+      'z'.repeat(43),
+      { userAgent: 'Outro Chrome', ip: '10.20.30.50' },
+      run,
+    ),
+  );
+  await db.tenantTransaction(shop.id, (run) => authSecurity.trustDevice(otherDevice.id, 30, run));
+  const otherSession = await sessionRepo.createSession(
+    account.user.username,
+    account.user,
+    { userAgent: 'Outro Chrome', ip: '10.20.30.50' },
+    undefined,
+    otherDevice.id,
+  );
+  assert.equal(
+    (
+      await securityCall({
+        action: 'disable-totp',
+        currentPassword: 'Donosenha123',
+        kind: 'recovery',
+        code: nextCodes[1],
+      })
+    ).status,
+    200,
+  );
+  assert.equal(await signedIn(`reparosm_session=${otherSession}`), null);
+  assert.ok(await signedIn(shop.owner), 'a sessão atual permanece');
+  const trusted = await db.migrationQuery(
+    'SELECT trusted_until FROM auth_devices WHERE user_id = $1',
+    [account.user.id],
+  );
+  assert.ok(trusted.every((device) => device.trusted_until === null));
+
+  state = await (await securityCall()).json();
+  assert.equal(state.totpEnabled, false);
+  const current = state.devices.find((device) => device.current);
+  const revoked = await securityCall({ action: 'revoke-device', id: current.id });
+  assert.equal(revoked.status, 200);
+  assert.equal((await securityCall()).status, 401, 'remover este aparelho encerra a sessão');
 });
 
 test(

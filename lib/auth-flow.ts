@@ -18,7 +18,7 @@ import {
   isTrusted,
   lockChallenge,
   trustDevice,
-  useTotpStep,
+  consumeTotpStep,
 } from '@/lib/repos/auth-security';
 import {
   clearLoginFailures,
@@ -156,7 +156,7 @@ export async function completeMfa(input: {
       accepted = Boolean(
         verified.valid &&
         verified.step !== undefined &&
-        (await useTotpStep(challenge.userId, verified.step, run)),
+        (await consumeTotpStep(challenge.userId, verified.step, run)),
       );
     } else {
       accepted = await consumeRecoveryCode(

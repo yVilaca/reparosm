@@ -45,3 +45,26 @@ test('auth forms preserve labels, autocomplete and accessible errors', async () 
   assert.match(mfa, /inputMode="numeric"|inputmode="numeric"/);
   assert.doesNotMatch(mfa, /QR|qrcode/i);
 });
+
+test('security setup exposes QR, manual key and one-time recovery actions', async () => {
+  const { default: AccountSecurity } = await import('../components/account-security.tsx');
+  const { FeedbackProvider } = await import('../components/feedback.tsx');
+  const html = renderToStaticMarkup(
+    createElement(
+      FeedbackProvider,
+      null,
+      createElement(AccountSecurity, {
+        initialSecurity: {
+          totpEnabled: false,
+          googleIdentity: null,
+          recoveryCodesRemaining: 0,
+          devices: [],
+        },
+      }),
+    ),
+  );
+  assert.match(html, /Ativar autenticador/);
+  assert.match(html, /recomendado/i);
+  assert.match(html, /Aparelhos/);
+  assert.doesNotMatch(html, /otpauth:|Chave manual/);
+});

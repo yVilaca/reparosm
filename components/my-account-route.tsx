@@ -1,56 +1,54 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { KeyRound, LogOut, MailCheck, MonitorSmartphone } from 'lucide-react';
+import { KeyRound, MailCheck } from 'lucide-react';
+import AccountSecurity from '@/components/account-security';
 import { useFeedback } from '@/components/feedback';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import IconChip from '@/components/ui/icon-chip';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import PageHeader from '@/components/ui/page-header';
 import SoftBanner from '@/components/ui/soft-banner';
 import { passwordRule, postJson } from '@/components/user-access';
-import { deviceLabel, roleLabel, whenLabel } from '@/lib/user-labels';
-import type { StoreSession, StoreUser } from '@/lib/types';
+import { roleLabel, whenLabel } from '@/lib/user-labels';
+import type { AuthSecurityState, StoreUser } from '@/lib/types';
 
 /** Minha conta: nome, e-mail, senha e aparelhos conectados de quem está usando. */
 export default function MyAccountRoute({
   storeName,
   initialUser,
-  initialSessions,
+  initialSecurity,
   initialPendingEmail,
   emailEnabled,
+  totpAvailable,
 }: {
   storeName: string;
   initialUser: StoreUser;
-  initialSessions: StoreSession[];
+  initialSecurity: AuthSecurityState;
   /** E-mail novo esperando a confirmação pelo link. */
   initialPendingEmail: { email: string; expiresAt: string } | null;
   emailEnabled: boolean;
+  totpAvailable: boolean;
 }) {
-  const { notify, confirm } = useFeedback();
+  const { notify } = useFeedback();
   const [user, setUser] = useState(initialUser);
-  const [sessions, setSessions] = useState(initialSessions);
   const [savingName, setSavingName] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [pending, setPending] = useState(initialPendingEmail);
   const [savingEmail, setSavingEmail] = useState(false);
   const [emailError, setEmailError] = useState('');
-  const others = sessions.filter((session) => !session.current);
 
   const reload = async () => {
     const response = await fetch('/api/me', { cache: 'no-store' });
     if (!response.ok) return;
     const result = (await response.json()) as {
       user: StoreUser;
-      sessions: StoreSession[];
       pendingEmail: { email: string; expiresAt: string } | null;
     };
     setUser(result.user);
-    setSessions(result.sessions);
     setPending(result.pendingEmail);
   };
 
@@ -114,32 +112,6 @@ export default function MyAccountRoute({
       setPasswordError(cause instanceof Error ? cause.message : 'Não foi possível trocar a senha.');
     } finally {
       setSavingPassword(false);
-    }
-  };
-
-  const endSession = async (session: StoreSession) => {
-    try {
-      await postJson('/api/me', { action: 'end-session', id: session.id });
-      setSessions((current) => current.filter((item) => item.id !== session.id));
-      notify('Aparelho desconectado.', 'success');
-    } catch (cause) {
-      notify(cause instanceof Error ? cause.message : 'Não foi possível desconectar.', 'error');
-    }
-  };
-
-  const endOthers = async () => {
-    if (
-      !(await confirm(
-        `Sair de ${others.length === 1 ? '1 outro aparelho' : `${others.length} outros aparelhos`}?`,
-      ))
-    )
-      return;
-    try {
-      await postJson('/api/me', { action: 'end-other-sessions' });
-      setSessions((current) => current.filter((item) => item.current));
-      notify('Pronto: só este aparelho continua conectado.', 'success');
-    } catch (cause) {
-      notify(cause instanceof Error ? cause.message : 'Não foi possível desconectar.', 'error');
     }
   };
 
@@ -323,57 +295,7 @@ export default function MyAccountRoute({
         </Card>
       </div>
 
-      <section aria-labelledby="devices-title" className="mt-6 grid gap-2">
-        <header className="flex flex-wrap items-center justify-between gap-3 px-1">
-          <div>
-            <h2 className="text-sm font-semibold" id="devices-title">
-              Aparelhos conectados
-              <span className="ml-1.5 font-normal text-muted-foreground tabular-nums">
-                {sessions.length}
-              </span>
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Cada aparelho fica conectado por 12 horas. Entrar em um não desconecta os outros.
-            </p>
-          </div>
-          {others.length > 0 && (
-            <Button onClick={() => void endOthers()} size="sm" variant="outline">
-              <LogOut aria-hidden="true" />
-              Sair dos outros aparelhos
-            </Button>
-          )}
-        </header>
-        <ul className="divide-y overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
-          {sessions.map((session) => (
-            <li className="flex flex-wrap items-center gap-3 px-4 py-3" key={session.id}>
-              <IconChip icon={MonitorSmartphone} tone={session.current ? 'brand' : 'neutral'} />
-              <div className="min-w-0 flex-1">
-                <p className="flex flex-wrap items-center gap-2 font-medium">
-                  {deviceLabel(session.userAgent)}
-                  {session.current && <Badge variant="secondary">Este aparelho</Badge>}
-                  {session.sessions > 1 && (
-                    <Badge variant="neutral">{session.sessions} sessões</Badge>
-                  )}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Visto {whenLabel(session.lastSeenAt)}
-                  {session.ip && session.ip !== 'unknown' ? ` · IP ${session.ip}` : ''}
-                </p>
-                {session.trustedUntil && (
-                  <p className="text-xs text-muted-foreground">
-                    Confiável até {whenLabel(session.trustedUntil)}
-                  </p>
-                )}
-              </div>
-              {!session.current && (
-                <Button onClick={() => void endSession(session)} size="sm" variant="ghost">
-                  Desconectar
-                </Button>
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
+      <AccountSecurity initialSecurity={initialSecurity} totpAvailable={totpAvailable} />
     </>
   );
 }
