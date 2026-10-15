@@ -88,6 +88,45 @@ export interface StoreSession {
   current: boolean;
 }
 
+export type AuthMethod = 'password' | 'google';
+
+/** The active person and tenant produced by any primary authentication method. */
+export type AuthUserContext = Readonly<{
+  user: StoreUser;
+  account: Account;
+}>;
+
+export interface AuthDevice {
+  id: string;
+  accountId: string;
+  userId: string;
+  userAgent: string;
+  lastIp: string;
+  lastSeenAt: string;
+  trustedUntil?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuthSecurityState {
+  totpEnabled: boolean;
+  googleIdentity: { email: string; linkedAt: string } | null;
+  recoveryCodesRemaining: number;
+  devices: AuthDevice[];
+}
+
+export interface MfaResetRequest {
+  id: string;
+  accountId: string;
+  userId: string;
+  username: string;
+  name: string;
+  role: UserRole;
+  status: 'pending' | 'approved' | 'dismissed';
+  requestedAt: string;
+  resolvedAt?: string;
+}
+
 export type OrderPayment = { id: string; value: number; method: string; date: string };
 
 export interface OrderItem extends DataObject {

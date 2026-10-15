@@ -70,8 +70,8 @@ test('rejects a malformed optional WhatsApp key', () => {
 });
 
 test('Google config is enabled only when client id and secret are both present', async () => {
-  const module = await import('../lib/env.ts');
-  assert.equal(typeof module.googleConfigured, 'function');
+  const envModule = await import('../lib/env.ts');
+  assert.equal(typeof envModule.googleConfigured, 'function');
 
   withEnv(
     {
@@ -81,7 +81,7 @@ test('Google config is enabled only when client id and secret are both present',
       GOOGLE_CLIENT_SECRET: 'client-secret',
     },
     () => {
-      assert.equal(module.googleConfigured(), true);
+      assert.equal(envModule.googleConfigured(), true);
       assert.doesNotThrow(() => validateEnv());
     },
   );
@@ -97,8 +97,8 @@ test('Google config is enabled only when client id and secret are both present',
 });
 
 test('auth encryption is enabled only with a 64-character hexadecimal key', async () => {
-  const module = await import('../lib/env.ts');
-  assert.equal(typeof module.authEncryptionConfigured, 'function');
+  const envModule = await import('../lib/env.ts');
+  assert.equal(typeof envModule.authEncryptionConfigured, 'function');
 
   withEnv(
     {
@@ -107,7 +107,7 @@ test('auth encryption is enabled only with a 64-character hexadecimal key', asyn
       AUTH_ENCRYPTION_KEY: 'a'.repeat(64),
     },
     () => {
-      assert.equal(module.authEncryptionConfigured(), true);
+      assert.equal(envModule.authEncryptionConfigured(), true);
       assert.doesNotThrow(() => validateEnv());
     },
   );

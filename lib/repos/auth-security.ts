@@ -1,0 +1,227 @@
+import {
+  googleIdentityTransaction,
+  setTenantContext,
+  tenantTransaction,
+  type Query,
+} from '@/lib/db';
+import { accountColumns, toAccount } from '@/lib/repos/accounts';
+import { iso, type Timestamp } from '@/lib/repos/rows';
+import { toUser, userColumns, type UserRow } from '@/lib/repos/users';
+import type { AuthMethod, AuthUserContext } from '@/lib/types';
+
+type IdentityRow = { account_id: string; user_id: string };
+
+export type StoredAuthenticator = {
+  accountId: string;
+  userId: string;
+  secretCiphertext: string;
+  enabledAt?: string;
+  lastUsedStep?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type NewAuthChallenge = {
+  user: AuthUserContext;
+  purpose: 'login' | 'reset';
+  method: AuthMethod;
+  browserTokenHash?: string;
+  userAgent: string;
+  ip: string;
+};
+
+export type StoredAuthChallenge = {
+  id: string;
+  accountId: string;
+  userId: string;
+  purpose: 'login' | 'reset';
+  method: AuthMethod;
+  browserTokenHash?: string;
+  userAgent: string;
+  ip: string;
+  expiresAt: string;
+  usedAt: string;
+};
+
+const randomToken = () =>
+  Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url');
+
+const sha256 = async (value: string) => {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Buffer.from(digest).toString('hex');
+};
+
+export async function findIdentity(
+  provider: 'google',
+  subject: string,
+): Promise<AuthUserContext | null> {
+  return googleIdentityTransaction(subject, async (run) => {
+    const [identity] = await run<IdentityRow>(
+      `SELECT account_id, user_id FROM user_identities
+       WHERE provider = $1 AND provider_subject = $2`,
+      [provider, subject],
+    );
+    if (!identity) return null;
+
+    await setTenantContext(run, identity.account_id);
+    const [user] = await run<UserRow>(`SELECT ${userColumns} FROM users u WHERE u.id = $1`, [
+      identity.user_id,
+    ]);
+    const [account] = await run<Parameters<typeof toAccount>[0]>(
+      `SELECT ${accountColumns} FROM accounts a WHERE a.id = $1`,
+      [identity.account_id],
+    );
+    if (!user || !account) return null;
+    await run(
+      `UPDATE user_identities SET last_used_at = now()
+       WHERE provider = $1 AND provider_subject = $2`,
+      [provider, subject],
+    );
+    return { user: toUser(user), account: toAccount(account) };
+  });
+}
+
+export async function linkIdentity(
+  user: AuthUserContext,
+  subject: string,
+  email: string,
+  run?: Query,
+) {
+  const insert = (query: Query) =>
+    query(
+      `INSERT INTO user_identities (
+         account_id, user_id, provider, provider_subject, email_at_link, last_used_at
+       ) VALUES ($1, $2, 'google', $3, $4, now())`,
+      [user.account.id, user.user.id, subject, email.trim().toLowerCase()],
+    );
+  if (run) await insert(run);
+  else await tenantTransaction(user.account.id, insert);
+}
+
+export async function authenticator(userId: string, run: Query) {
+  const [row] = await run<{
+    account_id: string;
+    user_id: string;
+    secret_ciphertext: string;
+    enabled_at: Timestamp | null;
+    last_used_step: string | number | null;
+    created_at: Timestamp;
+    updated_at: Timestamp;
+  }>(
+    `SELECT account_id, user_id, secret_ciphertext, enabled_at, last_used_step,
+            created_at, updated_at
+     FROM user_authenticators WHERE user_id = $1`,
+    [userId],
+  );
+  if (!row) return null;
+  return {
+    accountId: row.account_id,
+    userId: row.user_id,
+    secretCiphertext: row.secret_ciphertext,
+    enabledAt: row.enabled_at ? iso(row.enabled_at) : undefined,
+    lastUsedStep: row.last_used_step === null ? undefined : Number(row.last_used_step),
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+  } satisfies StoredAuthenticator;
+}
+
+export async function savePendingAuthenticator(
+  userId: string,
+  accountId: string,
+  ciphertext: string,
+  run: Query,
+) {
+  await run(
+    `INSERT INTO user_authenticators (account_id, user_id, secret_ciphertext)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (user_id) DO UPDATE SET
+       secret_ciphertext = EXCLUDED.secret_ciphertext,
+       enabled_at = NULL,
+       last_used_step = NULL,
+       updated_at = now()`,
+    [accountId, userId, ciphertext],
+  );
+}
+
+export async function enableAuthenticator(
+  userId: string,
+  step: number,
+  codeHashes: string[],
+  run: Query,
+) {
+  const [enabled] = await run<{ account_id: string }>(
+    `UPDATE user_authenticators
+     SET enabled_at = now(), last_used_step = $2, updated_at = now()
+     WHERE user_id = $1 RETURNING account_id`,
+    [userId, step],
+  );
+  if (!enabled) throw new Error('Autenticador pendente não encontrado.');
+  await run('DELETE FROM recovery_codes WHERE user_id = $1', [userId]);
+  await run(
+    `INSERT INTO recovery_codes (account_id, user_id, code_hash)
+     SELECT $2, $1, codes.code_hash FROM unnest($3::text[]) AS codes(code_hash)`,
+    [userId, enabled.account_id, codeHashes],
+  );
+}
+
+export async function createChallenge(input: NewAuthChallenge, run: Query) {
+  const rawToken = randomToken();
+  const tokenHash = await sha256(rawToken);
+  await run(
+    `DELETE FROM auth_challenges
+     WHERE user_id = $1 AND (used_at IS NOT NULL OR expires_at <= now())`,
+    [input.user.user.id],
+  );
+  await run(
+    `INSERT INTO auth_challenges (
+       account_id, user_id, token_hash, purpose, auth_method, browser_token_hash,
+       user_agent, ip, expires_at
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now() + interval '10 minutes')`,
+    [
+      input.user.account.id,
+      input.user.user.id,
+      tokenHash,
+      input.purpose,
+      input.method,
+      input.browserTokenHash ?? null,
+      input.userAgent.slice(0, 300),
+      input.ip.slice(0, 80),
+    ],
+  );
+  return rawToken;
+}
+
+export async function consumeChallenge(tokenHash: string, run: Query) {
+  const [row] = await run<{
+    id: string;
+    account_id: string;
+    user_id: string;
+    purpose: 'login' | 'reset';
+    auth_method: AuthMethod;
+    browser_token_hash: string | null;
+    user_agent: string;
+    ip: string;
+    expires_at: Timestamp;
+    used_at: Timestamp;
+  }>(
+    `UPDATE auth_challenges SET used_at = now()
+     WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
+     RETURNING id, account_id, user_id, purpose, auth_method, browser_token_hash,
+               user_agent, ip, expires_at, used_at`,
+    [tokenHash],
+  );
+  return row
+    ? ({
+        id: row.id,
+        accountId: row.account_id,
+        userId: row.user_id,
+        purpose: row.purpose,
+        method: row.auth_method,
+        browserTokenHash: row.browser_token_hash ?? undefined,
+        userAgent: row.user_agent,
+        ip: row.ip,
+        expiresAt: iso(row.expires_at),
+        usedAt: iso(row.used_at),
+      } satisfies StoredAuthChallenge)
+    : null;
+}

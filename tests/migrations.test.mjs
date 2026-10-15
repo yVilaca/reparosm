@@ -201,6 +201,15 @@ async function revokeRuntimeFromCurrentUser(role) {
   if (membership.granted) await db.migrationQuery(`REVOKE ${role} FROM CURRENT_USER`);
 }
 
+test('0031 auth security migration is additive', async () => {
+  const migration = await readFile(
+    new URL('../netlify/database/migrations/0031_auth_security.sql', import.meta.url),
+    'utf8',
+  ).catch(() => '');
+  assert.match(migration, /ALTER TABLE sessions\s+ADD COLUMN device_id/i);
+  assert.doesNotMatch(migration, /DROP\s+(?:TABLE|COLUMN).*sessions/i);
+});
+
 test('0002 copies accounts, coercing values that break the new constraints', { skip }, async () => {
   const rows = await db.migrationQuery(
     `SELECT id, username, name, role, status, plan, due_date::text AS due_date, access_policy

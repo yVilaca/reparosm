@@ -218,6 +218,45 @@ test('deleting an account cascades to all of its data', { skip }, async () => {
   // Telefone real: sem ele a OS não cadastra cliente e o teste de exclusão em
   // cascata deixaria de verificar a tabela de clientes.
   await clients.upsertFromOrder(id, { customer: 'A', phone: '11966665555', status: 'Aberto' });
+  const [user] = await db.migrationQuery(
+    'SELECT id FROM users WHERE account_id = $1 AND role = $2',
+    [id, 'owner'],
+  );
+  const [device] = await db.migrationQuery(
+    `INSERT INTO auth_devices (account_id, user_id, browser_token_hash, user_agent, last_ip)
+     VALUES ($1, $2, $3, 'Browser', '10.0.0.7') RETURNING id`,
+    [id, user.id, 'd'.repeat(64)],
+  );
+  await db.migrationQuery(
+    `INSERT INTO user_identities (account_id, user_id, provider, provider_subject, email_at_link)
+     VALUES ($1, $2, 'google', 'google-gone', 'gone@example.com')`,
+    [id, user.id],
+  );
+  await db.migrationQuery(
+    `INSERT INTO user_authenticators (account_id, user_id, secret_ciphertext)
+     VALUES ($1, $2, 'v1.iv.cipher')`,
+    [id, user.id],
+  );
+  await db.migrationQuery(
+    'INSERT INTO recovery_codes (account_id, user_id, code_hash) VALUES ($1, $2, $3)',
+    [id, user.id, 'c'.repeat(64)],
+  );
+  await db.migrationQuery(
+    `INSERT INTO auth_challenges (
+       account_id, user_id, token_hash, purpose, auth_method, browser_token_hash,
+       user_agent, ip, expires_at
+     ) VALUES ($1, $2, $3, 'login', 'password', $4, 'Browser', '10.0.0.7',
+               now() + interval '10 minutes')`,
+    [id, user.id, 'e'.repeat(64), 'c'.repeat(64)],
+  );
+  await db.migrationQuery('INSERT INTO mfa_reset_requests (account_id, user_id) VALUES ($1, $2)', [
+    id,
+    user.id,
+  ]);
+  await db.migrationQuery('UPDATE sessions SET device_id = $2 WHERE account_id = $1', [
+    id,
+    device.id,
+  ]);
   const response = await accounts.DELETE(
     new Request(`https://test.local/api/accounts?id=${id}`, {
       method: 'DELETE',
@@ -230,7 +269,13 @@ test('deleting an account cascades to all of its data', { skip }, async () => {
     'sessions',
     'password_requests',
     'access_links',
+    'auth_challenges',
+    'auth_devices',
+    'mfa_reset_requests',
     'orders',
+    'recovery_codes',
+    'user_authenticators',
+    'user_identities',
     'clients',
   ])
     assert.equal(

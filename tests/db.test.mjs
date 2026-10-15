@@ -22,6 +22,8 @@ test('migrations leave one table per entity and no records table', { skip }, asy
   assert.deepEqual(tables, [
     'access_links',
     'accounts',
+    'auth_challenges',
+    'auth_devices',
     'automations',
     'cash_entries',
     'clients',
@@ -29,6 +31,7 @@ test('migrations leave one table per entity and no records table', { skip }, asy
     'local_migrations',
     'login_failures',
     'messages',
+    'mfa_reset_requests',
     'order_checklists',
     'order_code_counters',
     'order_device_tests',
@@ -41,11 +44,14 @@ test('migrations leave one table per entity and no records table', { skip }, asy
     'password_requests',
     'payables',
     'quotes',
+    'recovery_codes',
     'sessions',
     'shop_logos',
     'shops',
     'stock_movements',
     'tutorials',
+    'user_authenticators',
+    'user_identities',
     'users',
     'whatsapp_configs',
   ]);
@@ -379,7 +385,19 @@ test('P1 auth controls force RLS and require matching scoped capabilities', { sk
        VALUES ('p1-auth-a', '10.2.0.1'), ('p1-auth-a', '10.2.0.2'), ('p1-auth-b', '10.2.0.1')`,
   );
 
-  const tables = ['accounts', 'sessions', 'password_requests', 'login_failures', 'users'];
+  const tables = [
+    'accounts',
+    'auth_challenges',
+    'auth_devices',
+    'login_failures',
+    'mfa_reset_requests',
+    'password_requests',
+    'recovery_codes',
+    'sessions',
+    'user_authenticators',
+    'user_identities',
+    'users',
+  ];
   const secured = await db.query(
     `SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity
        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace

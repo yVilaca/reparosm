@@ -119,6 +119,16 @@ export const accessLinkTransaction: ScopedTransaction = (tokenHash, fn) => {
   return runAsRuntime(fn, ['app.access_link_hash', tokenHash]);
 };
 
+/** Resolves exactly one external identity by its immutable provider subject. */
+export const googleIdentityTransaction: ScopedTransaction = (subject, fn) =>
+  runAsRuntime(fn, ['app.google_subject', requiredContext(subject, 'Google subject')]);
+
+/** Opens exactly one temporary MFA challenge by its SHA-256 token hash. */
+export const authChallengeTransaction: ScopedTransaction = (tokenHash, fn) => {
+  if (!/^[0-9a-f]{64}$/.test(tokenHash)) throw new Error('auth challenge hash inválido.');
+  return runAsRuntime(fn, ['app.auth_challenge_hash', tokenHash]);
+};
+
 /** Runs session lookups with access to one SHA-256 token hash. */
 export const sessionTransaction: ScopedTransaction = (tokenHash, fn) => {
   if (!/^[0-9a-f]{64}$/.test(tokenHash)) throw new Error('session token hash inválido.');
