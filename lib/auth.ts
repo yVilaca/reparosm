@@ -53,6 +53,18 @@ const cookie = (request: Request, name: string) =>
     .find((x) => x.startsWith(`${name}=`))
     ?.slice(name.length + 1);
 
+export type GoogleCookieName =
+  'reparosm_google_state' | 'reparosm_google_nonce' | 'reparosm_google_verifier';
+
+export const googleCookies = (request: Request) => ({
+  state: cookie(request, 'reparosm_google_state'),
+  nonce: cookie(request, 'reparosm_google_nonce'),
+  verifier: cookie(request, 'reparosm_google_verifier'),
+});
+
+export const googleCookie = (name: GoogleCookieName, value: string, maxAge = 600, secure = false) =>
+  `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure ? '; Secure' : ''}`;
+
 export const sessionToken = (request: Request) => cookie(request, 'reparosm_session');
 
 const BROWSER_SECONDS = 60 * 60 * 24 * 30;

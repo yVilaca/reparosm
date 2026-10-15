@@ -37,6 +37,21 @@ test('the MFA orchestration service and route exist', async () => {
   assert.equal(typeof route?.POST, 'function');
 });
 
+test('the Google OIDC service and routes exist', async () => {
+  const oidc = await import('../lib/google-oidc.ts').catch(() => null);
+  const start = await import('../app/api/auth/google/route.ts').catch(() => null);
+  const callback = await import('../app/api/auth/google/callback/route.ts').catch(() => null);
+  for (const name of [
+    'exchangeGoogleCode',
+    'googleAuthorizationUrl',
+    'resolveGoogleUser',
+    'verifyGoogleIdToken',
+  ])
+    assert.equal(typeof oidc?.[name], 'function', `${name} must be exported`);
+  assert.equal(typeof start?.GET, 'function');
+  assert.equal(typeof callback?.GET, 'function');
+});
+
 test('0031 adds auth security tables without changing existing sessions', { skip }, async () => {
   const expectedTables = [
     'auth_challenges',

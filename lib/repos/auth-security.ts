@@ -1,4 +1,5 @@
 import {
+  authEmailTransaction,
   googleIdentityTransaction,
   setTenantContext,
   tenantTransaction,
@@ -191,6 +192,29 @@ export async function linkIdentity(
     );
   if (run) await insert(run);
   else await tenantTransaction(user.account.id, insert);
+}
+
+/** First Google link: verified e-mail lookup and identity insert share one transaction. */
+export async function linkVerifiedGoogleIdentity(subject: string, email: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+  return authEmailTransaction(normalizedEmail, async (run) => {
+    const [user] = await run<UserRow>(
+      `SELECT ${userColumns} FROM users u
+       WHERE u.email = $1 AND u.email_verified_at IS NOT NULL
+       FOR UPDATE`,
+      [normalizedEmail],
+    );
+    if (!user) return null;
+    await setTenantContext(run, user.account_id);
+    const [account] = await run<Parameters<typeof toAccount>[0]>(
+      `SELECT ${accountColumns} FROM accounts a WHERE a.id = $1`,
+      [user.account_id],
+    );
+    if (!account || user.status !== 'active' || account.status !== 'active') return null;
+    const context = { user: toUser(user), account: toAccount(account) } satisfies AuthUserContext;
+    await linkIdentity(context, subject, normalizedEmail, run);
+    return context;
+  });
 }
 
 export async function authenticator(userId: string, run: Query) {
