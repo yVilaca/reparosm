@@ -34,6 +34,15 @@ export const env = {
   get adminPasswordHash() {
     return read('ADMIN_PASSWORD_HASH');
   },
+  get googleClientId() {
+    return read('GOOGLE_CLIENT_ID');
+  },
+  get googleClientSecret() {
+    return read('GOOGLE_CLIENT_SECRET');
+  },
+  get authEncryptionKey() {
+    return read('AUTH_ENCRYPTION_KEY');
+  },
   /** SMTP para os e-mails de acesso. Sem SMTP_HOST, os links são copiados à mão. */
   get smtp() {
     const host = read('SMTP_HOST');
@@ -95,12 +104,26 @@ export function requiredEnv(name: string, value: string | undefined, pattern?: R
   return value;
 }
 
+export function googleConfigured() {
+  return Boolean(env.googleClientId && env.googleClientSecret);
+}
+
+export function authEncryptionConfigured() {
+  return Boolean(env.authEncryptionKey && /^[a-f0-9]{64}$/i.test(env.authEncryptionKey));
+}
+
 export function validateEnv() {
   requiredEnv('DATABASE_URL', env.databaseUrl, /^postgres(?:ql)?:\/\//i);
   requiredEnv('URL', env.siteUrl);
   requiredEnv('ADMIN_PASSWORD_HASH', env.adminPasswordHash, /^pbkdf2\$/);
   if (env.whatsappConfigKey)
     requiredEnv('WHATSAPP_CONFIG_KEY', env.whatsappConfigKey, /^[a-f0-9]{64}$/i);
+  if (env.googleClientId || env.googleClientSecret) {
+    requiredEnv('GOOGLE_CLIENT_ID', env.googleClientId);
+    requiredEnv('GOOGLE_CLIENT_SECRET', env.googleClientSecret);
+  }
+  if (env.authEncryptionKey)
+    requiredEnv('AUTH_ENCRYPTION_KEY', env.authEncryptionKey, /^[a-f0-9]{64}$/i);
   requiredEnv('APP_URL', env.appUrl);
   if (env.smtp) {
     requiredEnv('EMAIL_FROM', env.emailFrom, /@/);
