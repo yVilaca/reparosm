@@ -5,13 +5,15 @@ import { linkToken, outbox, openLink } from './support/access.mjs';
 import { createTestDatabase, skipWithoutDatabase } from './support/db.mjs';
 
 const skip = skipWithoutDatabase;
-let db, auth, lib, accounts;
+let db, auth, mfa, lib, accounts;
 
 before(async () => {
   if (skip) return;
   db = await createTestDatabase();
   process.env.ADMIN_PASSWORD_HASH = await passwordHash('adminreparosm', 'TestAdminPassword123');
+  process.env.AUTH_ENCRYPTION_KEY = '11'.repeat(32);
   auth = await import('../app/api/auth/route.ts');
+  mfa = await import('../app/api/auth/mfa/route.ts');
   accounts = await import('../app/api/accounts/route.ts');
   lib = await import('../lib/auth.ts');
 });
@@ -32,8 +34,24 @@ const get = (cookie = '') =>
   new Request('https://test.local/api/accounts', { headers: { cookie } });
 const login = (username, password, ip) =>
   auth.POST(request({ action: 'login', username, password }, { ip }));
+const loginWithCookie = (username, password, cookie, ip) =>
+  auth.POST(request({ action: 'login', username, password }, { cookie, ip }));
 const cookieOf = (response) => response.headers.get('set-cookie').split(';')[0];
 const signedIn = (cookie) => lib.currentAccount(request({}, { cookie }));
+const cookiesOf = (response) => response.headers.getSetCookie().map((value) => value.split(';')[0]);
+const cookieNamed = (response, name) =>
+  cookiesOf(response).find((value) => value.startsWith(`${name}=`));
+const mfaRequest = (body, cookie, ip = '10.0.1.1') =>
+  new Request('https://test.local/api/auth/mfa', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      origin: 'https://test.local',
+      cookie,
+      'x-nf-client-connection-ip': ip,
+    },
+    body: JSON.stringify(body),
+  });
 
 /** Loja nova: o dono recebe o convite e cria a senha pelo link. */
 async function createStore(adminCookie, username, password) {
@@ -53,6 +71,162 @@ async function createStore(adminCookie, username, password) {
   await openLink(linkToken(`${username}@lojas.test`), password);
   return created;
 }
+
+async function enableTotp(username) {
+  const { encryptAuthSecret } = await import('../lib/auth-secrets.ts');
+  const { createTotpEnrollment } = await import('../lib/totp.ts');
+  const { TOTP } = await import('otpauth');
+  const [user] = await db.migrationQuery('SELECT id, account_id FROM users WHERE username = $1', [
+    username,
+  ]);
+  const enrollment = createTotpEnrollment(username);
+  await db.migrationQuery(
+    `INSERT INTO user_authenticators (
+       account_id, user_id, secret_ciphertext, enabled_at
+     ) VALUES ($1, $2, $3, now())`,
+    [user.account_id, user.id, await encryptAuthSecret(enrollment.secret)],
+  );
+  await db.migrationQuery('DELETE FROM sessions WHERE user_id = $1', [user.id]);
+  return {
+    ...user,
+    code: () =>
+      new TOTP({ algorithm: 'SHA1', digits: 6, period: 30, secret: enrollment.secret }).generate(),
+  };
+}
+
+test(
+  'password login creates no session before MFA and one challenge completes exactly once',
+  { skip },
+  async () => {
+    const adminCookie = cookieOf(await login('adminreparosm', 'TestAdminPassword123', '10.0.1.2'));
+    await createStore(adminCookie, 'mfa-once', 'MfaPassword123');
+    const user = await enableTotp('mfa-once');
+
+    const primary = await login('mfa-once', 'MfaPassword123', '10.0.1.3');
+    assert.equal(primary.status, 200);
+    assert.deepEqual(await primary.json(), { step: 'mfa' });
+    assert.equal(
+      Number(
+        (
+          await db.migrationQuery('SELECT count(*) AS count FROM sessions WHERE user_id = $1', [
+            user.id,
+          ])
+        )[0].count,
+      ),
+      0,
+    );
+    const cookie = [
+      cookieNamed(primary, 'reparosm_browser'),
+      cookieNamed(primary, 'reparosm_mfa'),
+    ].join('; ');
+    const code = user.code();
+    const responses = await Promise.all([
+      mfa.POST(mfaRequest({ kind: 'totp', code, trustDevice: true }, cookie, '10.0.1.3')),
+      mfa.POST(mfaRequest({ kind: 'totp', code, trustDevice: true }, cookie, '10.0.1.3')),
+    ]);
+
+    assert.deepEqual(responses.map((response) => response.status).sort(), [200, 409]);
+    assert.equal(
+      Number(
+        (
+          await db.migrationQuery('SELECT count(*) AS count FROM sessions WHERE user_id = $1', [
+            user.id,
+          ])
+        )[0].count,
+      ),
+      1,
+    );
+    const [device] = await db.migrationQuery(
+      'SELECT trusted_until FROM auth_devices WHERE user_id = $1',
+      [user.id],
+    );
+    assert.ok(device.trusted_until, 'TOTP can trust this user device');
+    const trustedLogin = await loginWithCookie(
+      'mfa-once',
+      'MfaPassword123',
+      cookieNamed(primary, 'reparosm_browser'),
+      '10.0.1.3',
+    );
+    assert.equal((await trustedLogin.json()).step, 'complete');
+    assert.equal(cookieNamed(trustedLogin, 'reparosm_mfa'), undefined);
+  },
+);
+
+test('MFA limits failures and recovery codes never trust a device', { skip }, async () => {
+  const adminCookie = cookieOf(await login('adminreparosm', 'TestAdminPassword123', '10.0.1.4'));
+  await createStore(adminCookie, 'mfa-recovery', 'MfaPassword123');
+  const user = await enableTotp('mfa-recovery');
+  const primary = await login('mfa-recovery', 'MfaPassword123', '10.0.1.5');
+  const cookie = [
+    cookieNamed(primary, 'reparosm_browser'),
+    cookieNamed(primary, 'reparosm_mfa'),
+  ].join('; ');
+
+  for (let attempt = 0; attempt < 10; attempt++)
+    assert.equal(
+      (await mfa.POST(mfaRequest({ kind: 'totp', code: 'not-a-code' }, cookie, '10.0.1.5'))).status,
+      401,
+    );
+  assert.equal(
+    (await mfa.POST(mfaRequest({ kind: 'totp', code: user.code() }, cookie, '10.0.1.5'))).status,
+    429,
+  );
+
+  assert.equal(
+    (
+      await mfa.POST(
+        mfaRequest({ kind: 'totp', code: user.code(), trustDevice: false }, cookie, '10.0.1.6'),
+      )
+    ).status,
+    200,
+    'the limit is scoped to the attempting IP',
+  );
+
+  const browser = cookieNamed(primary, 'reparosm_browser');
+  const expired = await loginWithCookie('mfa-recovery', 'MfaPassword123', browser, '10.0.1.6');
+  const expiredCookie = [browser, cookieNamed(expired, 'reparosm_mfa')].join('; ');
+  await db.migrationQuery("UPDATE auth_challenges SET expires_at = now() - interval '1 minute'");
+  assert.equal(
+    (await mfa.POST(mfaRequest({ kind: 'totp', code: user.code() }, expiredCookie, '10.0.1.6')))
+      .status,
+    409,
+    'expired challenge is refused',
+  );
+
+  const { hashRecoveryCode } = await import('../lib/totp.ts');
+  const recovery = 'ABCD-EFGH';
+  await db.migrationQuery(
+    `INSERT INTO recovery_codes (account_id, user_id, code_hash)
+     VALUES ($1, $2, $3)`,
+    [user.account_id, user.id, await hashRecoveryCode(recovery)],
+  );
+  const retry = await loginWithCookie('mfa-recovery', 'MfaPassword123', browser, '10.0.1.6');
+  const retryCookie = [browser, cookieNamed(retry, 'reparosm_mfa')].join('; ');
+  const completed = await mfa.POST(
+    mfaRequest(
+      { kind: 'recovery', code: recovery.toLowerCase(), trustDevice: true },
+      retryCookie,
+      '10.0.1.6',
+    ),
+  );
+  assert.equal(completed.status, 200);
+  const [device] = await db.migrationQuery(
+    'SELECT trusted_until FROM auth_devices WHERE user_id = $1',
+    [user.id],
+  );
+  assert.equal(device.trusted_until, null);
+  assert.equal(
+    Number(
+      (
+        await db.migrationQuery(
+          'SELECT count(*) AS count FROM recovery_codes WHERE user_id = $1 AND used_at IS NOT NULL',
+          [user.id],
+        )
+      )[0].count,
+    ),
+    1,
+  );
+});
 
 test(
   'recovery flow: admin, owner, invite, forgotten password and request queue',

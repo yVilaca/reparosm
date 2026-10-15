@@ -105,6 +105,13 @@ export async function createSession(
   );
 }
 
+export async function upgradePasswordHash(run: Query, userId: string, upgradedHash: string) {
+  await run('UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1', [
+    userId,
+    upgradedHash,
+  ]);
+}
+
 /** A loja e o usuário por trás de um token válido (qualquer situação), ou null. */
 export async function accountForSession(token: string): Promise<SessionAccount | null> {
   return sessionTransaction(await hashToken(token), async (run) => {

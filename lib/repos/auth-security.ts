@@ -40,7 +40,7 @@ export type StoredAuthChallenge = {
   userAgent: string;
   ip: string;
   expiresAt: string;
-  usedAt: string;
+  usedAt?: string;
 };
 
 const randomToken = () =>
@@ -119,6 +119,31 @@ export async function trustDevice(deviceId: string, days: number, run: Query) {
     [deviceId, days],
   );
   return row ? toDevice(row) : null;
+}
+
+export async function deviceForChallenge(userId: string, browserTokenHash: string, run: Query) {
+  const [row] = await run<DeviceRow>(
+    `SELECT id, account_id, user_id, user_agent, last_ip, last_seen_at,
+            trusted_until, created_at, updated_at
+     FROM auth_devices
+     WHERE user_id = $1 AND browser_token_hash = $2`,
+    [userId, browserTokenHash],
+  );
+  return row ? toDevice(row) : null;
+}
+
+export async function authContext(accountId: string, userId: string, run: Query) {
+  const [user] = await run<UserRow>(
+    `SELECT ${userColumns} FROM users u WHERE u.id = $1 AND u.account_id = $2`,
+    [userId, accountId],
+  );
+  const [account] = await run<Parameters<typeof toAccount>[0]>(
+    `SELECT ${accountColumns} FROM accounts a WHERE a.id = $1`,
+    [accountId],
+  );
+  return user && account
+    ? ({ user: toUser(user), account: toAccount(account) } satisfies AuthUserContext)
+    : null;
 }
 
 export async function findIdentity(
@@ -292,6 +317,40 @@ export async function consumeChallenge(tokenHash: string, run: Query) {
         ip: row.ip,
         expiresAt: iso(row.expires_at),
         usedAt: iso(row.used_at),
+      } satisfies StoredAuthChallenge)
+    : null;
+}
+
+export async function lockChallenge(tokenHash: string, run: Query) {
+  const [row] = await run<{
+    id: string;
+    account_id: string;
+    user_id: string;
+    purpose: 'login' | 'reset';
+    auth_method: AuthMethod;
+    browser_token_hash: string | null;
+    user_agent: string;
+    ip: string;
+    expires_at: Timestamp;
+  }>(
+    `SELECT id, account_id, user_id, purpose, auth_method, browser_token_hash,
+            user_agent, ip, expires_at
+     FROM auth_challenges
+     WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
+     FOR UPDATE`,
+    [tokenHash],
+  );
+  return row
+    ? ({
+        id: row.id,
+        accountId: row.account_id,
+        userId: row.user_id,
+        purpose: row.purpose,
+        method: row.auth_method,
+        browserTokenHash: row.browser_token_hash ?? undefined,
+        userAgent: row.user_agent,
+        ip: row.ip,
+        expiresAt: iso(row.expires_at),
       } satisfies StoredAuthChallenge)
     : null;
 }

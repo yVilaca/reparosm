@@ -1,4 +1,6 @@
 import {
+  browserCookie,
+  browserToken,
   clientIp,
   currentAccount,
   endSession,
@@ -9,11 +11,11 @@ import {
   sessionCookie,
   verifyPassword,
 } from '@/lib/auth';
+import { finishPrimaryAuth } from '@/lib/auth-flow';
 import { after } from 'next/server';
 import { forgotPassword, normalizeEmail } from '@/lib/access';
 import {
   clearLoginFailures,
-  createSession,
   findLogin,
   MAX_LOGIN_FAILURES,
   recentLoginFailures,
@@ -117,18 +119,26 @@ export async function POST(request: Request) {
     );
   if (login.user.status !== 'active')
     return json({ error: 'Seu acesso foi desativado. Fale com o dono da loja.' }, { status: 403 });
-  // Cada aparelho tem sua sessão: entrar aqui não derruba ninguém.
-  const token = await createSession(
-    login.user.username,
-    login.user,
-    { userAgent: request.headers.get('user-agent') || '', ip },
-    verified.legacy ? await passwordHash(login.user.username, password) : undefined,
-  );
-  return new Response(JSON.stringify({ account: { ...login.account, user: login.user } }), {
-    headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-store',
-      'Set-Cookie': sessionCookie(token, undefined, secure),
-    },
+  const result = await finishPrimaryAuth({
+    user: { account: login.account, user: login.user },
+    method: 'password',
+    browserToken: browserToken(request),
+    userAgent: request.headers.get('user-agent') || '',
+    ip,
+    upgradedPasswordHash: verified.legacy
+      ? await passwordHash(login.user.username, password)
+      : undefined,
   });
+  const response = json(
+    result.step === 'mfa' ? { step: 'mfa' } : { step: 'complete', account: result.account },
+  );
+  if (result.step === 'complete')
+    response.headers.append('Set-Cookie', sessionCookie(result.sessionToken, undefined, secure));
+  response.headers.append('Set-Cookie', browserCookie(result.browserToken, undefined, secure));
+  if (result.step === 'mfa')
+    response.headers.append(
+      'Set-Cookie',
+      `reparosm_mfa=${result.challengeToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600${secure ? '; Secure' : ''}`,
+    );
+  return response;
 }

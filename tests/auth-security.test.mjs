@@ -29,6 +29,14 @@ test('auth security repository exposes only the planned foundation', async () =>
     assert.equal(typeof repository[name], 'function', `${name} must be exported`);
 });
 
+test('the MFA orchestration service and route exist', async () => {
+  const flow = await import('../lib/auth-flow.ts').catch(() => null);
+  const route = await import('../app/api/auth/mfa/route.ts').catch(() => null);
+  assert.equal(typeof flow?.finishPrimaryAuth, 'function');
+  assert.equal(typeof flow?.completeMfa, 'function');
+  assert.equal(typeof route?.POST, 'function');
+});
+
 test('0031 adds auth security tables without changing existing sessions', { skip }, async () => {
   const expectedTables = [
     'auth_challenges',
