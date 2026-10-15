@@ -4,7 +4,7 @@ const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { execFileSync } = require('child_process');
 const dir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const BAKED = "D:\\Projetos\\reparosm\\reparosm\\node_modules\\.pnpm\\@nanonets+graft@0.19.0_patc_f56e3f575500b25d97429d6335e46540\\node_modules\\@nanonets\\graft\\dist\\claude";
+const BAKED = "/home/lucas/Área de trabalho/vilaca/reparosm/node_modules/.pnpm/@nanonets+graft@0.19.0_patch_hash=9969b34d22e6b6e2dd1cb5107e62d337b584c8c801f53cea5993d46a24d73110_ws@8.21.3_zod@3.25.76/node_modules/@nanonets/graft/dist/claude";
 
 // The dist/claude dir of @nanonets/graft resolved from a base whose node_modules is searched.
 function fromPkg(base) {
