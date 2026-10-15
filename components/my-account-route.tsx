@@ -351,11 +351,19 @@ export default function MyAccountRoute({
                 <p className="flex flex-wrap items-center gap-2 font-medium">
                   {deviceLabel(session.userAgent)}
                   {session.current && <Badge variant="secondary">Este aparelho</Badge>}
+                  {session.sessions > 1 && (
+                    <Badge variant="neutral">{session.sessions} sessões</Badge>
+                  )}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Entrou {whenLabel(session.createdAt)}
+                  Visto {whenLabel(session.lastSeenAt)}
                   {session.ip && session.ip !== 'unknown' ? ` · IP ${session.ip}` : ''}
                 </p>
+                {session.trustedUntil && (
+                  <p className="text-xs text-muted-foreground">
+                    Confiável até {whenLabel(session.trustedUntil)}
+                  </p>
+                )}
               </div>
               {!session.current && (
                 <Button onClick={() => void endSession(session)} size="sm" variant="ghost">

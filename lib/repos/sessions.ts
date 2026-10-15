@@ -62,13 +62,15 @@ export async function insertSession(
   user: Pick<StoreUser, 'id' | 'accountId'>,
   device: Device,
   upgradedHash?: string,
+  deviceId?: string,
 ) {
   const token = crypto.randomUUID();
   const tokenHash = await hashToken(token);
   await run('DELETE FROM sessions WHERE user_id = $1 AND expires_at <= now()', [user.id]);
   await run(
-    `INSERT INTO sessions (token_hash, account_id, user_id, expires_at, user_agent, ip)
-     VALUES ($1, $2, $3, now() + make_interval(secs => $4), $5, $6)`,
+    `INSERT INTO sessions (
+       token_hash, account_id, user_id, expires_at, user_agent, ip, device_id
+     ) VALUES ($1, $2, $3, now() + make_interval(secs => $4), $5, $6, $7)`,
     [
       tokenHash,
       user.accountId,
@@ -76,6 +78,7 @@ export async function insertSession(
       SESSION_SECONDS,
       device.userAgent.slice(0, 300),
       device.ip.slice(0, 80),
+      deviceId ?? null,
     ],
   );
   // Senha no formato antigo é regravada no novo, no mesmo acesso. (O runtime
@@ -95,8 +98,11 @@ export async function createSession(
   user: Pick<StoreUser, 'id' | 'accountId'>,
   device: Device,
   upgradedHash?: string,
+  deviceId?: string,
 ) {
-  return authTransaction(username, (run) => insertSession(run, user, device, upgradedHash));
+  return authTransaction(username, (run) =>
+    insertSession(run, user, device, upgradedHash, deviceId),
+  );
 }
 
 /** A loja e o usuário por trás de um token válido (qualquer situação), ou null. */
@@ -153,52 +159,123 @@ export async function withOwnSession<T>(
   });
 }
 
+const abbreviatedIp = (ip: string) => {
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(ip)) return `${ip.split('.').slice(0, 3).join('.')}.xxx`;
+  if (ip.includes(':')) return `${ip.split(':').slice(0, 4).join(':')}…`;
+  return ip;
+};
+
 /** Os aparelhos conectados do usuário, este primeiro. */
-export async function listOwnSessions(token: string) {
+export async function listOwnDevices(token: string) {
   return withOwnSession(token, async (run, { userId, tokenHash }) => {
     const rows = await run<{
-      id: string;
-      user_agent: string | null;
-      ip: string | null;
-      created_at: Timestamp;
+      session_id: string;
+      device_id: string | null;
+      session_user_agent: string | null;
+      session_ip: string | null;
+      session_created_at: Timestamp;
       expires_at: Timestamp;
       current: boolean;
+      device_user_agent: string | null;
+      last_ip: string | null;
+      last_seen_at: Timestamp | null;
+      trusted_until: Timestamp | null;
+      device_created_at: Timestamp | null;
     }>(
-      `SELECT id, user_agent, ip, created_at, expires_at, token_hash = $2 AS current
-       FROM sessions WHERE user_id = $1 AND expires_at > now()
-       ORDER BY token_hash = $2 DESC, created_at DESC`,
+      `SELECT s.id AS session_id, s.device_id, s.user_agent AS session_user_agent,
+              s.ip AS session_ip, s.created_at AS session_created_at, s.expires_at,
+              s.token_hash = $2 AS current, d.user_agent AS device_user_agent,
+              d.last_ip, d.last_seen_at, d.trusted_until,
+              d.created_at AS device_created_at
+       FROM sessions AS s
+       LEFT JOIN auth_devices AS d ON d.id = s.device_id
+       WHERE s.user_id = $1 AND s.expires_at > now()
+       ORDER BY s.token_hash = $2 DESC, s.created_at DESC`,
       [userId, tokenHash],
     );
-    return rows.map((row): StoreSession => ({
-      id: row.id,
-      userAgent: row.user_agent ?? '',
-      ip: row.ip ?? '',
-      createdAt: iso(row.created_at),
-      expiresAt: iso(row.expires_at),
-      current: row.current,
-    }));
+    const devices = new Map<string, StoreSession>();
+    for (const row of rows) {
+      const id = row.device_id ?? row.session_id;
+      const saved = devices.get(id);
+      if (saved) {
+        saved.sessions += 1;
+        saved.current ||= row.current;
+        if (Date.parse(saved.expiresAt) < new Date(row.expires_at).getTime())
+          saved.expiresAt = iso(row.expires_at);
+        continue;
+      }
+      devices.set(id, {
+        id,
+        userAgent: row.device_user_agent ?? row.session_user_agent ?? '',
+        ip: abbreviatedIp(row.last_ip ?? row.session_ip ?? ''),
+        createdAt: iso(row.device_created_at ?? row.session_created_at),
+        lastSeenAt: iso(row.last_seen_at ?? row.session_created_at),
+        expiresAt: iso(row.expires_at),
+        trustedUntil: row.trusted_until ? iso(row.trusted_until) : undefined,
+        sessions: 1,
+        current: row.current,
+      });
+    }
+    return [...devices.values()].sort(
+      (left, right) =>
+        Number(right.current) - Number(left.current) ||
+        Date.parse(right.lastSeenAt) - Date.parse(left.lastSeenAt),
+    );
+  });
+}
+
+/** Compatibilidade para chamadores existentes; a resposta agora é agrupada por aparelho. */
+export const listOwnSessions = listOwnDevices;
+
+export async function revokeOwnDevice(token: string, deviceId: string) {
+  return withOwnSession(token, async (run, { userId, tokenHash }) => {
+    const linked = await run<{ current: boolean }>(
+      `SELECT token_hash = $3 AS current FROM sessions
+       WHERE user_id = $1 AND device_id = $2`,
+      [userId, deviceId, tokenHash],
+    );
+    if (linked.length) {
+      const deleted = await run(
+        'DELETE FROM auth_devices WHERE id = $1 AND user_id = $2 RETURNING id',
+        [deviceId, userId],
+      );
+      return deleted.length
+        ? { ended: linked.length, current: linked.some((row) => row.current) }
+        : null;
+    }
+    const legacy = await run<{ current: boolean }>(
+      `DELETE FROM sessions
+       WHERE id = $1 AND user_id = $2 AND device_id IS NULL
+       RETURNING token_hash = $3 AS current`,
+      [deviceId, userId, tokenHash],
+    );
+    return legacy.length ? { ended: 1, current: legacy[0].current } : null;
   });
 }
 
 /** Encerra um aparelho do próprio usuário. */
 export async function endOwnSession(token: string, sessionId: string) {
-  return withOwnSession(token, async (run, { userId }) => {
-    const rows = await run('DELETE FROM sessions WHERE id = $1 AND user_id = $2 RETURNING id', [
-      sessionId,
-      userId,
-    ]);
-    return rows.length > 0;
-  });
+  return Boolean(await revokeOwnDevice(token, sessionId));
 }
 
 /** "Sair dos outros aparelhos": fica só este. */
 export async function endOtherOwnSessions(token: string) {
   return withOwnSession(token, async (run, { userId, tokenHash }) => {
-    const rows = await run(
-      'DELETE FROM sessions WHERE user_id = $1 AND token_hash <> $2 RETURNING id',
+    const [current] = await run<{ device_id: string | null }>(
+      'SELECT device_id FROM sessions WHERE user_id = $1 AND token_hash = $2',
       [userId, tokenHash],
     );
-    return rows.length;
+    const [{ count }] = await run<{ count: string | number }>(
+      'SELECT count(*) AS count FROM sessions WHERE user_id = $1 AND token_hash <> $2',
+      [userId, tokenHash],
+    );
+    await run(
+      `DELETE FROM auth_devices
+       WHERE user_id = $1 AND ($2::text IS NULL OR id <> $2)`,
+      [userId, current?.device_id ?? null],
+    );
+    await run('DELETE FROM sessions WHERE user_id = $1 AND token_hash <> $2', [userId, tokenHash]);
+    return Number(count);
   });
 }
 

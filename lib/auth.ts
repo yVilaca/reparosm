@@ -55,6 +55,22 @@ const cookie = (request: Request, name: string) =>
 
 export const sessionToken = (request: Request) => cookie(request, 'reparosm_session');
 
+const BROWSER_SECONDS = 60 * 60 * 24 * 30;
+
+/** Anonymous browser identity. It grants nothing without a matching user device row. */
+export const browserToken = (request: Request) => {
+  const token = cookie(request, 'reparosm_browser');
+  if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return undefined;
+  const decoded = Buffer.from(token, 'base64url');
+  return decoded.length === 32 && decoded.toString('base64url') === token ? token : undefined;
+};
+
+export const createBrowserToken = () =>
+  Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url');
+
+export const browserCookie = (token: string, maxAge = BROWSER_SECONDS, secure = false) =>
+  `reparosm_browser=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure ? '; Secure' : ''}`;
+
 /** The signed-in store and user for this request, or null if either is not active. */
 export async function currentAccount(request: Request) {
   await ensureAdmin();

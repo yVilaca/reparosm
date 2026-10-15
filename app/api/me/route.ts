@@ -16,8 +16,8 @@ import {
 import {
   changeOwnPassword,
   endOtherOwnSessions,
-  endOwnSession,
-  listOwnSessions,
+  listOwnDevices,
+  revokeOwnDevice,
   updateOwnName,
 } from '@/lib/repos/sessions';
 import type { DataObject } from '@/lib/types';
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
   if (!account || !token) return json({ error: 'Não autenticado' }, 401);
   return json({
     user: account.user,
-    sessions: (await listOwnSessions(token)) ?? [],
+    sessions: (await listOwnDevices(token)) ?? [],
     pendingEmail: await pendingEmail(token),
     emailEnabled: emailConfigured(),
   });
@@ -105,7 +105,7 @@ export async function POST(request: Request) {
   }
 
   if (body.action === 'end-session') {
-    const ended = await endOwnSession(token, String(body.id || ''));
+    const ended = await revokeOwnDevice(token, String(body.id || ''));
     return ended ? json({ ok: true }) : json({ error: 'Aparelho não encontrado.' }, 404);
   }
 

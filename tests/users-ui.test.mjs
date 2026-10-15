@@ -4,6 +4,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import AccountsRoute from '../components/accounts-route.tsx';
 import { FeedbackProvider } from '../components/feedback.tsx';
+import MyAccountRoute from '../components/my-account-route.tsx';
 import TeamRoute from '../components/team-route.tsx';
 import { deviceLabel, lastAccessLabel, whenLabel } from '../lib/user-labels.ts';
 
@@ -42,6 +43,70 @@ test('says when in São Paulo time: today, yesterday or the date', () => {
   assert.equal(whenLabel('2026-10-07T23:59:00-03:00', now), 'ontem às 23:59');
   assert.equal(whenLabel('2026-10-01T08:05:00-03:00', now), '01/10 às 08:05');
   assert.equal(lastAccessLabel(undefined, now), 'Ainda não entrou');
+});
+
+test('Minha conta presents grouped sessions, last activity and device trust', () => {
+  const now = new Date();
+  const html = render(MyAccountRoute, {
+    storeName: 'Cell Prime',
+    emailEnabled: false,
+    initialPendingEmail: null,
+    initialUser: {
+      id: 'user-ana',
+      accountId: 'account-demo',
+      username: 'ana',
+      name: 'Ana',
+      role: 'owner',
+      status: 'active',
+      emailVerified: true,
+      mustChangePassword: false,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    },
+    initialSessions: [
+      {
+        id: 'device-ana',
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0) Chrome/130.0',
+        ip: '10.7.0.xxx',
+        createdAt: now.toISOString(),
+        lastSeenAt: now.toISOString(),
+        expiresAt: new Date(now.getTime() + 3_600_000).toISOString(),
+        trustedUntil: new Date(now.getTime() + 86_400_000).toISOString(),
+        sessions: 2,
+        current: true,
+      },
+    ],
+  });
+
+  assert.match(html, /Chrome no Windows/);
+  assert.match(html, /Este aparelho/);
+  assert.match(html, /2 sessões/);
+  assert.match(html, /Visto hoje às/);
+  assert.match(html, /IP 10\.7\.0\.xxx/);
+  assert.match(html, /Confiável até/);
+});
+
+test('browser identity cookie is HttpOnly, Lax and lasts 30 days', async () => {
+  const authModule = await import('../lib/auth.ts');
+  assert.equal(typeof authModule.browserToken, 'function');
+  assert.equal(typeof authModule.browserCookie, 'function');
+  const token = 'c'.repeat(43);
+  const request = new Request('https://test.local', {
+    headers: { cookie: `x=1; reparosm_browser=${token}` },
+  });
+
+  assert.equal(authModule.browserToken(request), token);
+  assert.equal(
+    authModule.browserToken(
+      new Request('https://test.local', { headers: { cookie: 'reparosm_browser=invalid' } }),
+    ),
+    undefined,
+  );
+  assert.match(authModule.browserCookie(token), /^reparosm_browser=/);
+  assert.match(authModule.browserCookie(token), /HttpOnly/);
+  assert.match(authModule.browserCookie(token), /SameSite=Lax/);
+  assert.match(authModule.browserCookie(token), /Max-Age=2592000/);
+  assert.match(authModule.browserCookie(token, undefined, true), /; Secure$/);
 });
 
 const store = (id, overrides = {}) => ({

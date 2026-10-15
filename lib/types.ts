@@ -78,13 +78,16 @@ export interface SessionAccount extends Account {
 
 export type PublicAccount = SessionAccount;
 
-/** Um aparelho conectado: uma sessão aberta de um usuário. */
+/** Um aparelho conectado, reunindo suas sessões ainda ativas. */
 export interface StoreSession {
   id: string;
   userAgent: string;
   ip: string;
   createdAt: string;
+  lastSeenAt: string;
   expiresAt: string;
+  trustedUntil?: string;
+  sessions: number;
   current: boolean;
 }
 

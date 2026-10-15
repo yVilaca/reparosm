@@ -6,7 +6,7 @@ import { createTestDatabase, skipWithoutDatabase } from './support/db.mjs';
 
 // Várias pessoas por loja: cada uma com login próprio, ao mesmo tempo.
 const skip = skipWithoutDatabase;
-let db, auth, accounts, team, me, shops, lib;
+let db, auth, accounts, team, me, shops, lib, authSecurity, sessionRepo;
 
 before(async () => {
   if (skip) return;
@@ -18,6 +18,8 @@ before(async () => {
   me = await import('../app/api/me/route.ts');
   shops = await import('../app/api/shops/route.ts');
   lib = await import('../lib/auth.ts');
+  authSecurity = await import('../lib/repos/auth-security.ts');
+  sessionRepo = await import('../lib/repos/sessions.ts');
 });
 after(async () => db?.drop());
 
@@ -180,6 +182,10 @@ test('Minha conta lists the devices and ends the others', { skip }, async () => 
   assert.equal(mine.sessions.length, 2);
   assert.equal(mine.sessions.filter((session) => session.current).length, 1);
   assert.match(mine.sessions[0].userAgent, /Chrome/);
+  assert.equal(mine.sessions[0].sessions, 1, 'sessão antiga continua como um aparelho');
+  assert.match(mine.sessions[0].lastSeenAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.match(mine.sessions[0].ip, /^10\.7\.0\.xxx$/);
+  assert.equal(mine.sessions[0].trustedUntil, undefined);
 
   const response = await call(me.POST, '/api/me', {
     cookie: shop.owner,
@@ -189,6 +195,71 @@ test('Minha conta lists the devices and ends the others', { skip }, async () => 
   assert.equal(await signedIn(other), null);
   mine = await (await call(me.GET, '/api/me', { cookie: shop.owner })).json();
   assert.equal(mine.sessions.length, 1);
+});
+
+test('the same browser is trusted separately for each user', { skip }, async () => {
+  const shop = await store('confianca');
+  await addStaff(shop.owner, 'confianca-staff');
+  const staffCookie = await accept(emailOf('confianca-staff'));
+  const owner = await signedIn(shop.owner);
+  const staff = await signedIn(staffCookie);
+  const browser = 'a'.repeat(43);
+  const seen = { userAgent: 'Shared Chrome', ip: '10.10.0.20' };
+
+  const ownerDevice = await db.authTransaction(owner.user.username, (run) =>
+    authSecurity.deviceForLogin(owner.user, browser, seen, run),
+  );
+  await db.authTransaction(staff.user.username, (run) =>
+    authSecurity.deviceForLogin(staff.user, browser, seen, run),
+  );
+  await db.tenantTransaction(shop.id, (run) => authSecurity.trustDevice(ownerDevice.id, 30, run));
+
+  const trustedOwner = await db.authTransaction(owner.user.username, (run) =>
+    authSecurity.deviceForLogin(owner.user, browser, seen, run),
+  );
+  const untrustedStaff = await db.authTransaction(staff.user.username, (run) =>
+    authSecurity.deviceForLogin(staff.user, browser, seen, run),
+  );
+  assert.equal(authSecurity.isTrusted(trustedOwner), true);
+  assert.equal(authSecurity.isTrusted(untrustedStaff), false);
+});
+
+test('revoking a device ends all its sessions and trust', { skip }, async () => {
+  const shop = await store('revogar-aparelho');
+  const account = await signedIn(shop.owner);
+  const deviceInfo = { userAgent: 'Chrome grouped', ip: '10.20.30.40' };
+  const device = await db.authTransaction(account.user.username, (run) =>
+    authSecurity.deviceForLogin(account.user, 'b'.repeat(43), deviceInfo, run),
+  );
+  await db.tenantTransaction(shop.id, (run) => authSecurity.trustDevice(device.id, 30, run));
+  const first = await sessionRepo.createSession(
+    account.user.username,
+    account.user,
+    deviceInfo,
+    undefined,
+    device.id,
+  );
+  const second = await sessionRepo.createSession(
+    account.user.username,
+    account.user,
+    deviceInfo,
+    undefined,
+    device.id,
+  );
+
+  const grouped = await sessionRepo.listOwnDevices(first);
+  assert.equal(grouped.length, 1);
+  assert.equal(grouped[0].sessions, 2);
+  assert.equal(grouped[0].current, true);
+  const result = await sessionRepo.revokeOwnDevice(first, device.id);
+
+  assert.equal(result.ended, 2);
+  assert.equal(await signedIn(`reparosm_session=${first}`), null);
+  assert.equal(await signedIn(`reparosm_session=${second}`), null);
+  const [saved] = await db.migrationQuery('SELECT trusted_until FROM auth_devices WHERE id = $1', [
+    device.id,
+  ]);
+  assert.equal(saved, undefined);
 });
 
 test(

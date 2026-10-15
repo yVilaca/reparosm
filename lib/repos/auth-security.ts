@@ -7,7 +7,7 @@ import {
 import { accountColumns, toAccount } from '@/lib/repos/accounts';
 import { iso, type Timestamp } from '@/lib/repos/rows';
 import { toUser, userColumns, type UserRow } from '@/lib/repos/users';
-import type { AuthMethod, AuthUserContext } from '@/lib/types';
+import type { AuthDevice, AuthMethod, AuthUserContext } from '@/lib/types';
 
 type IdentityRow = { account_id: string; user_id: string };
 
@@ -50,6 +50,76 @@ const sha256 = async (value: string) => {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
   return Buffer.from(digest).toString('hex');
 };
+
+type DeviceRow = {
+  id: string;
+  account_id: string;
+  user_id: string;
+  user_agent: string;
+  last_ip: string;
+  last_seen_at: Timestamp;
+  trusted_until: Timestamp | null;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+};
+
+const toDevice = (row: DeviceRow): AuthDevice => ({
+  id: row.id,
+  accountId: row.account_id,
+  userId: row.user_id,
+  userAgent: row.user_agent,
+  lastIp: row.last_ip,
+  lastSeenAt: iso(row.last_seen_at),
+  trustedUntil: row.trusted_until ? iso(row.trusted_until) : undefined,
+  createdAt: iso(row.created_at),
+  updatedAt: iso(row.updated_at),
+});
+
+export const hashBrowserToken = sha256;
+
+export async function deviceForLogin(
+  context: AuthUserContext,
+  rawBrowserToken: string,
+  device: { userAgent: string; ip: string },
+  run: Query,
+) {
+  const [row] = await run<DeviceRow>(
+    `INSERT INTO auth_devices (
+       account_id, user_id, browser_token_hash, user_agent, last_ip
+     ) VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (user_id, browser_token_hash) DO UPDATE SET
+       user_agent = EXCLUDED.user_agent,
+       last_ip = EXCLUDED.last_ip,
+       last_seen_at = now(),
+       updated_at = now()
+     RETURNING id, account_id, user_id, user_agent, last_ip, last_seen_at,
+               trusted_until, created_at, updated_at`,
+    [
+      context.account.id,
+      context.user.id,
+      await hashBrowserToken(rawBrowserToken),
+      device.userAgent.slice(0, 300),
+      device.ip.slice(0, 80),
+    ],
+  );
+  if (!row) throw new Error('Não foi possível reconhecer o aparelho.');
+  return toDevice(row);
+}
+
+export const isTrusted = (device: Pick<AuthDevice, 'trustedUntil'>, now = Date.now()) =>
+  Boolean(device.trustedUntil && Date.parse(device.trustedUntil) > now);
+
+export async function trustDevice(deviceId: string, days: number, run: Query) {
+  const [row] = await run<DeviceRow>(
+    `UPDATE auth_devices
+     SET trusted_until = now() + make_interval(days => $2), updated_at = now()
+     WHERE id = $1
+     RETURNING id, account_id, user_id, user_agent, last_ip, last_seen_at,
+               trusted_until, created_at, updated_at`,
+    [deviceId, days],
+  );
+  return row ? toDevice(row) : null;
+}
 
 export async function findIdentity(
   provider: 'google',
