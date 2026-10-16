@@ -73,8 +73,7 @@ export async function POST(request: Request) {
 
   if (result.purpose === 'reset')
     await notifyPasswordChanged({ ...result.user, storeName: result.storeName });
-  if (!result.auth)
-    return json({ ok: true, purpose: result.purpose, signedIn: false });
+  if (!result.auth) return json({ ok: true, purpose: result.purpose, signedIn: false });
 
   const secure = new URL(request.url).protocol === 'https:';
   const response = json(
@@ -87,10 +86,7 @@ export async function POST(request: Request) {
       'Set-Cookie',
       sessionCookie(result.auth.sessionToken, undefined, secure),
     );
-  response.headers.append(
-    'Set-Cookie',
-    browserCookie(result.auth.browserToken, undefined, secure),
-  );
+  response.headers.append('Set-Cookie', browserCookie(result.auth.browserToken, undefined, secure));
   if (result.auth.step === 'mfa')
     response.headers.append(
       'Set-Cookie',

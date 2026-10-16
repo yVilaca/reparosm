@@ -46,3 +46,35 @@ test('allows authenticated panel requests through', { skip }, async () => {
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('x-middleware-next'), '1');
 });
+
+test('panel proxy still guards entry points without consulting auth credentials', async () => {
+  const { config, proxy: guard } = await import('../proxy.ts');
+  assert.deepEqual(config.matcher, ['/', '/ordens/:path*']);
+  for (const path of ['/', '/ordens', '/minha-conta']) {
+    const response = await guard(new Request(`https://test.local${path}`));
+    assert.equal(response.status, 307);
+    assert.equal(response.headers.get('location'), 'https://test.local/login');
+  }
+});
+
+test('Google entry and callback responses are never cached', async () => {
+  const previousId = process.env.GOOGLE_CLIENT_ID;
+  const previousSecret = process.env.GOOGLE_CLIENT_SECRET;
+  delete process.env.GOOGLE_CLIENT_ID;
+  delete process.env.GOOGLE_CLIENT_SECRET;
+  try {
+    const google = await import('../app/api/auth/google/route.ts');
+    const callback = await import('../app/api/auth/google/callback/route.ts');
+    const entry = await google.GET();
+    const rejected = await callback.GET(
+      new Request('https://test.local/api/auth/google/callback?error=access_denied'),
+    );
+    assert.match(entry.headers.get('cache-control') || '', /no-store/i);
+    assert.match(rejected.headers.get('cache-control') || '', /no-store/i);
+  } finally {
+    if (previousId === undefined) delete process.env.GOOGLE_CLIENT_ID;
+    else process.env.GOOGLE_CLIENT_ID = previousId;
+    if (previousSecret === undefined) delete process.env.GOOGLE_CLIENT_SECRET;
+    else process.env.GOOGLE_CLIENT_SECRET = previousSecret;
+  }
+});

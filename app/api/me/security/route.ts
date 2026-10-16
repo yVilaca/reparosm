@@ -1,11 +1,5 @@
 import { decryptAuthSecret, encryptAuthSecret } from '@/lib/auth-secrets';
-import {
-  clientIp,
-  currentAccount,
-  sameOrigin,
-  sessionToken,
-  verifyPassword,
-} from '@/lib/auth';
+import { clientIp, currentAccount, sameOrigin, sessionToken, verifyPassword } from '@/lib/auth';
 import { authEncryptionConfigured } from '@/lib/env';
 import type { Query } from '@/lib/db';
 import {
@@ -56,11 +50,13 @@ async function authorize(
   const credentials = await ownSecurityCredentials(userId, run);
   if (
     !credentials ||
-    !(await verifyPassword(
-      credentials.username,
-      String(body.currentPassword || ''),
-      credentials.passwordHash,
-    )).valid
+    !(
+      await verifyPassword(
+        credentials.username,
+        String(body.currentPassword || ''),
+        credentials.passwordHash,
+      )
+    ).valid
   )
     return { valid: false, totpEnabled: Boolean(credentials?.authenticator?.enabledAt) };
 
@@ -129,11 +125,13 @@ export async function POST(request: Request) {
       const credentials = await ownSecurityCredentials(userId, run);
       if (
         !credentials ||
-        !(await verifyPassword(
-          credentials.username,
-          String(body.currentPassword || ''),
-          credentials.passwordHash,
-        )).valid
+        !(
+          await verifyPassword(
+            credentials.username,
+            String(body.currentPassword || ''),
+            credentials.passwordHash,
+          )
+        ).valid
       )
         return 'invalid' as const;
       if (credentials.authenticator?.enabledAt) return 'enabled' as const;
@@ -148,7 +146,10 @@ export async function POST(request: Request) {
     if (result !== 'ok') {
       await recordLoginFailure(failureKey, ip);
       return json(
-        { error: result === 'enabled' ? 'O autenticador já está ativo.' : 'A senha atual não confere.' },
+        {
+          error:
+            result === 'enabled' ? 'O autenticador já está ativo.' : 'A senha atual não confere.',
+        },
         400,
       );
     }
@@ -195,8 +196,7 @@ export async function POST(request: Request) {
         ? ('ok' as const)
         : ('missing-totp' as const);
     if (body.action === 'disable-totp')
-      return confirmation.totpEnabled &&
-        (await disableOwnAuthenticator(userId, tokenHash, run))
+      return confirmation.totpEnabled && (await disableOwnAuthenticator(userId, tokenHash, run))
         ? ('ok' as const)
         : ('missing-totp' as const);
     return (await unlinkOwnGoogle(userId, run)) ? ('ok' as const) : ('missing-google' as const);

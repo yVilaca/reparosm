@@ -6,7 +6,14 @@ const randomToken = () =>
   Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url');
 
 export async function GET() {
-  if (!googleConfigured()) return Response.redirect(new URL('/login?erro=google', env.appUrl), 303);
+  if (!googleConfigured())
+    return new Response(null, {
+      status: 303,
+      headers: {
+        Location: new URL('/login?erro=google', env.appUrl).toString(),
+        'Cache-Control': 'no-store',
+      },
+    });
   const state = randomToken();
   const nonce = randomToken();
   const verifier = randomToken();
@@ -15,7 +22,7 @@ export async function GET() {
   const secure = new URL(env.appUrl).protocol === 'https:';
   const response = new Response(null, {
     status: 302,
-    headers: { Location: authorization.toString() },
+    headers: { Location: authorization.toString(), 'Cache-Control': 'no-store' },
   });
   response.headers.append('Set-Cookie', googleCookie('reparosm_google_state', state, 600, secure));
   response.headers.append('Set-Cookie', googleCookie('reparosm_google_nonce', nonce, 600, secure));

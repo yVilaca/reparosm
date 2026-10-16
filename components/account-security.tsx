@@ -165,10 +165,7 @@ export default function AccountSecurity({
     }
   };
 
-  const finishStrongAction = async (
-    action: StrongAction,
-    result: { recoveryCodes?: string[] },
-  ) => {
+  const finishStrongAction = async (action: StrongAction, result: { recoveryCodes?: string[] }) => {
     if (result.recoveryCodes) setRecoveryCodes(result.recoveryCodes);
     if (action === 'disable-totp') setRecoveryCodes(null);
     await reload();
@@ -316,7 +313,9 @@ export default function AccountSecurity({
                   <div className="grid gap-2 text-sm">
                     <p>Leia o QR no Google Authenticator ou em outro aplicativo compatível.</p>
                     <p className="text-muted-foreground">Chave manual</p>
-                    <code className="break-all rounded-md bg-muted px-3 py-2">{enrollment.secret}</code>
+                    <code className="break-all rounded-md bg-muted px-3 py-2">
+                      {enrollment.secret}
+                    </code>
                   </div>
                 </div>
                 <form className="grid gap-3" onSubmit={confirmTotp}>

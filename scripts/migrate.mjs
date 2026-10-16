@@ -1,5 +1,5 @@
-// Applies netlify/database/migrations/*.sql in order to DATABASE_URL (local development and CI).
-// Production migrations are applied by Netlify on deploy; never point this at production.
+// Applies netlify/database/migrations/*.sql in order to the configured database.
+// Production runs are explicit and happen before publishing the compatible app version.
 import { readdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { closeMigrationDatabase, migrationQuery, migrationTransaction } from './migration-db.mjs';

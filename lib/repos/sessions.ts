@@ -274,8 +274,7 @@ export async function revokeOwnDevice(token: string, deviceId: string) {
       'DELETE FROM auth_devices WHERE id = $1 AND user_id = $2 RETURNING id',
       [deviceId, userId],
     );
-    if (deleted.length)
-      return { ended: linked.length, current: linked.some((row) => row.current) };
+    if (deleted.length) return { ended: linked.length, current: linked.some((row) => row.current) };
     const legacy = await run<{ current: boolean }>(
       `DELETE FROM sessions
        WHERE id = $1 AND user_id = $2 AND device_id IS NULL

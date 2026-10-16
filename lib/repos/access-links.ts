@@ -222,81 +222,81 @@ export async function consumeLink(
     const result = await accessLinkTransaction(
       tokenHash,
       async (run): Promise<LinkUse | AuthenticatedLinkUse> => {
-      const [row] = await run<LinkRow>(
-        `UPDATE access_links SET used_at = now()
+        const [row] = await run<LinkRow>(
+          `UPDATE access_links SET used_at = now()
          WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
          RETURNING *`,
-        [tokenHash],
-      );
-      if (!row) {
-        const [current] = await run<LinkRow>('SELECT * FROM access_links WHERE token_hash = $1', [
-          tokenHash,
-        ]);
-        return { status: problemOf(current) };
-      }
-      const found = await owner(run, row);
-      if (!found) throw new LinkRefused('blocked');
-      const { user } = found;
-
-      if (row.purpose === 'email') {
-        try {
-          await run(
-            `UPDATE users SET email = $2, email_verified_at = now(), updated_at = now()
-             WHERE id = $1`,
-            [user.id, row.email],
-          );
-        } catch (error) {
-          if ((error as { code?: string }).code === '23505') throw new LinkRefused('email-taken');
-          throw error;
-        }
-        await run(
-          `UPDATE access_links SET expires_at = least(expires_at, now())
-           WHERE user_id = $1 AND purpose = 'email' AND used_at IS NULL`,
-          [user.id],
+          [tokenHash],
         );
-        return {
-          status: 'ok',
-          purpose: row.purpose,
-          user: { ...user, email: row.email ?? undefined, emailVerified: true },
-          storeName: found.account.name,
-        };
-      }
+        if (!row) {
+          const [current] = await run<LinkRow>('SELECT * FROM access_links WHERE token_hash = $1', [
+            tokenHash,
+          ]);
+          return { status: problemOf(current) };
+        }
+        const found = await owner(run, row);
+        if (!found) throw new LinkRefused('blocked');
+        const { user } = found;
 
-      if (!use.hashPassword) throw new Error('senha obrigatória para este link.');
-      // O link recebido no e-mail cadastrado prova que o e-mail é da pessoa.
-      const verifies = Boolean(row.sent_to && row.sent_to === user.email);
-      await run(
-        `UPDATE users SET password_hash = $2, must_change_password = false,
+        if (row.purpose === 'email') {
+          try {
+            await run(
+              `UPDATE users SET email = $2, email_verified_at = now(), updated_at = now()
+             WHERE id = $1`,
+              [user.id, row.email],
+            );
+          } catch (error) {
+            if ((error as { code?: string }).code === '23505') throw new LinkRefused('email-taken');
+            throw error;
+          }
+          await run(
+            `UPDATE access_links SET expires_at = least(expires_at, now())
+           WHERE user_id = $1 AND purpose = 'email' AND used_at IS NULL`,
+            [user.id],
+          );
+          return {
+            status: 'ok',
+            purpose: row.purpose,
+            user: { ...user, email: row.email ?? undefined, emailVerified: true },
+            storeName: found.account.name,
+          };
+        }
+
+        if (!use.hashPassword) throw new Error('senha obrigatória para este link.');
+        // O link recebido no e-mail cadastrado prova que o e-mail é da pessoa.
+        const verifies = Boolean(row.sent_to && row.sent_to === user.email);
+        await run(
+          `UPDATE users SET password_hash = $2, must_change_password = false,
            email_verified_at = CASE WHEN $3 THEN now() ELSE email_verified_at END,
            updated_at = now()
          WHERE id = $1`,
-        [user.id, await use.hashPassword(user.username), verifies],
-      );
-      await run('DELETE FROM sessions WHERE user_id = $1', [user.id]);
-      if (row.purpose === 'reset')
-        await run('UPDATE auth_devices SET trusted_until = NULL WHERE user_id = $1', [user.id]);
-      await run(
-        `UPDATE access_links SET expires_at = least(expires_at, now())
+          [user.id, await use.hashPassword(user.username), verifies],
+        );
+        await run('DELETE FROM sessions WHERE user_id = $1', [user.id]);
+        if (row.purpose === 'reset')
+          await run('UPDATE auth_devices SET trusted_until = NULL WHERE user_id = $1', [user.id]);
+        await run(
+          `UPDATE access_links SET expires_at = least(expires_at, now())
          WHERE user_id = $1 AND purpose <> 'email' AND used_at IS NULL`,
-        [user.id],
-      );
-      await run(
-        `UPDATE password_requests SET status = 'resolved', resolved_at = now()
+          [user.id],
+        );
+        await run(
+          `UPDATE password_requests SET status = 'resolved', resolved_at = now()
          WHERE user_id = $1 AND status = 'pending'`,
-        [user.id],
-      );
-      const updatedUser = {
-        ...user,
-        mustChangePassword: false,
-        emailVerified: user.emailVerified || verifies,
-      };
-      return {
-        status: 'ok',
-        purpose: row.purpose,
-        user: updatedUser,
-        storeName: found.account.name,
-        authUser: { account: found.account, user: updatedUser },
-      };
+          [user.id],
+        );
+        const updatedUser = {
+          ...user,
+          mustChangePassword: false,
+          emailVerified: user.emailVerified || verifies,
+        };
+        return {
+          status: 'ok',
+          purpose: row.purpose,
+          user: updatedUser,
+          storeName: found.account.name,
+          authUser: { account: found.account, user: updatedUser },
+        };
       },
     );
     if (result.status !== 'ok' || !('authUser' in result)) return result;

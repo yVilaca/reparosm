@@ -33,9 +33,21 @@ test('quote exposes only customer-facing values', () => {
   });
   assert.deepEqual(result.data, { notes: 'Garantia de 90 dias', total: 250 });
 });
-test('account and session records are not business records', () => {
-  assert.equal(businessTypes.includes('account'), false);
-  assert.equal(businessTypes.includes('session'), false);
+test('authentication and account tables never become business exports', () => {
+  for (const type of [
+    'account',
+    'user',
+    'session',
+    'user_identity',
+    'user_authenticator',
+    'recovery_code',
+    'auth_challenge',
+    'auth_device',
+    'mfa_reset_request',
+    'password_request',
+    'access_link',
+  ])
+    assert.equal(businessTypes.includes(type), false, `${type} não é exportável`);
 });
 test('shared catalogue contains 82 unique compatibility groups', () => {
   assert.equal(filmCatalog.length, 82);

@@ -68,3 +68,24 @@ test('security setup exposes QR, manual key and one-time recovery actions', asyn
   assert.match(html, /Aparelhos/);
   assert.doesNotMatch(html, /otpauth:|Chave manual/);
 });
+
+test('security summary never renders authenticator or recovery secrets again', async () => {
+  const { default: AccountSecurity } = await import('../components/account-security.tsx');
+  const { FeedbackProvider } = await import('../components/feedback.tsx');
+  const html = renderToStaticMarkup(
+    createElement(
+      FeedbackProvider,
+      null,
+      createElement(AccountSecurity, {
+        initialSecurity: {
+          totpEnabled: true,
+          googleIdentity: null,
+          recoveryCodesRemaining: 8,
+          devices: [],
+        },
+      }),
+    ),
+  );
+  assert.match(html, /8 códigos disponíveis/);
+  assert.doesNotMatch(html, /otpauth:|Chave manual|ABCD-EFGH|secret_ciphertext/i);
+});

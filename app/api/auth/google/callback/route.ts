@@ -28,7 +28,10 @@ const redirect = (path: string, cookies: string[] = []) => {
   const secure = new URL(env.appUrl).protocol === 'https:';
   const response = new Response(null, {
     status: 303,
-    headers: { Location: new URL(path, env.appUrl).toString() },
+    headers: {
+      Location: new URL(path, env.appUrl).toString(),
+      'Cache-Control': 'no-store',
+    },
   });
   for (const value of cookies) response.headers.append('Set-Cookie', value);
   for (const name of googleCookieNames)
