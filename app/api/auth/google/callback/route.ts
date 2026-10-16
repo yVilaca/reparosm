@@ -24,15 +24,26 @@ const googleCookieNames: GoogleCookieName[] = [
   'reparosm_google_verifier',
 ];
 
-const redirect = (path: string, cookies: string[] = []) => {
+/**
+ * `sameSite` answers with a page that navigates on its own instead of a 303: this
+ * request started on accounts.google.com, so the whole redirect chain is cross-site
+ * and the browser would withhold the SameSite=Strict session cookie on /ordens.
+ */
+const redirect = (path: string, cookies: string[] = [], sameSite = false) => {
   const secure = new URL(env.appUrl).protocol === 'https:';
-  const response = new Response(null, {
-    status: 303,
-    headers: {
-      Location: new URL(path, env.appUrl).toString(),
-      'Cache-Control': 'no-store',
-    },
-  });
+  const location = new URL(path, env.appUrl).toString();
+  const response = sameSite
+    ? new Response(
+        `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${location}"><title>Entrando…</title><a href="${location}">Continuar</a>`,
+        {
+          status: 200,
+          headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+        },
+      )
+    : new Response(null, {
+        status: 303,
+        headers: { Location: location, 'Cache-Control': 'no-store' },
+      });
   for (const value of cookies) response.headers.append('Set-Cookie', value);
   for (const name of googleCookieNames)
     response.headers.append('Set-Cookie', googleCookie(name, '', 0, secure));
@@ -89,7 +100,9 @@ export async function GET(request: Request) {
       cookies.unshift(
         `reparosm_mfa=${result.challengeToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600${secure ? '; Secure' : ''}`,
       );
-    return redirect(result.step === 'complete' ? '/ordens' : '/login?etapa=verificacao', cookies);
+    return result.step === 'complete'
+      ? redirect('/ordens', cookies, true)
+      : redirect('/login?etapa=verificacao', cookies);
   } catch {
     await recordLoginFailure(FAILURE_KEY, ip);
     return redirect('/login?erro=google');
