@@ -51,6 +51,16 @@ O Graft deve ser usado em toda tarefa neste repositório, sem exceção:
 3. Depois de alterações relevantes, execute `pnpm exec graft build` e `pnpm exec graft check` antes de finalizar.
 4. Nunca inclua o cache local `graft/` em commits, salvo solicitação explícita.
 
+## Regra obrigatória de Git (todos os agentes)
+
+Vale para Codex, Claude, Cursor, Gemini e qualquer outro agente, e sobrepõe skills
+ou plugins que sugiram o contrário (ex.: `using-git-worktrees`):
+
+1. **Nunca crie worktrees** (`git worktree add`, `.worktrees/`, pastas-cópia do repositório).
+   Trabalhe sempre na pasta principal do projeto.
+2. Para uma tarefa nova: `git switch -c <branch>` a partir da `main` atualizada.
+3. Ao terminar: commit, push, PR e merge. Nada além disso.
+
 ## Regra obrigatória do Ponytail
 
 O Ponytail deve ser aplicado em toda tarefa de código neste repositório, no modo `full` por padrão:
@@ -60,3 +70,13 @@ O Ponytail deve ser aplicado em toda tarefa de código neste repositório, no mo
 3. Manter validação em limites de confiança, tratamento de erros, segurança e acessibilidade; a simplificação nunca pode removê-los.
 4. Para lógica não trivial, deixar um teste ou verificação executável mínimo.
 5. Marcar atalhos deliberados com `ponytail:` e registrar o limite conhecido e o caminho de evolução.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
