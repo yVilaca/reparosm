@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import AccountsRoute from '../components/accounts-route.tsx';
 import AccountSecurity from '../components/account-security.tsx';
 import { FeedbackProvider } from '../components/feedback.tsx';
+import Login from '../components/login.tsx';
 import MyAccountRoute from '../components/my-account-route.tsx';
 import TeamRoute from '../components/team-route.tsx';
 import { deviceLabel, lastAccessLabel, whenLabel } from '../lib/user-labels.ts';
@@ -68,17 +69,19 @@ test('Minha conta presents security, grouped devices and trust', () => {
       totpEnabled: false,
       googleIdentity: { email: 'ana@google.test', linkedAt: now.toISOString() },
       recoveryCodesRemaining: 0,
-      devices: [{
-        id: 'device-ana',
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0) Chrome/130.0',
-        ip: '10.7.0.xxx',
-        createdAt: now.toISOString(),
-        lastSeenAt: now.toISOString(),
-        expiresAt: new Date(now.getTime() + 3_600_000).toISOString(),
-        trustedUntil: new Date(now.getTime() + 86_400_000).toISOString(),
-        sessions: 2,
-        current: true,
-      }],
+      devices: [
+        {
+          id: 'device-ana',
+          userAgent: 'Mozilla/5.0 (Windows NT 10.0) Chrome/130.0',
+          ip: '10.7.0.xxx',
+          createdAt: now.toISOString(),
+          lastSeenAt: now.toISOString(),
+          expiresAt: new Date(now.getTime() + 3_600_000).toISOString(),
+          trustedUntil: new Date(now.getTime() + 86_400_000).toISOString(),
+          sessions: 2,
+          current: true,
+        },
+      ],
     },
   });
 
@@ -143,6 +146,12 @@ test('browser identity cookie is HttpOnly, Lax and lasts 30 days', async () => {
   assert.match(authModule.browserCookie(token, undefined, true), /; Secure$/);
 });
 
+test('MFA login offers assisted recovery without hiding the reserve code option', () => {
+  const html = render(Login, { initialMode: 'mfa', onLogin: () => {} });
+  assert.match(html, /Usar um código de recuperação/);
+  assert.match(html, /Não tenho mais acesso ao autenticador/);
+});
+
 const store = (id, overrides = {}) => ({
   id: `account-${id}`,
   username: id,
@@ -179,6 +188,19 @@ test('stores are listed by urgency, with renewal only where it matters', () => {
         createdAt: new Date().toISOString(),
       },
     ],
+    initialMfaRequests: [
+      {
+        id: 'mfa-reset-owner-x',
+        userId: 'user-x',
+        accountId: 'account-vencida',
+        username: 'vencida',
+        name: 'Dono vencida',
+        role: 'owner',
+        status: 'pending',
+        storeName: 'Loja vencida',
+        requestedAt: new Date().toISOString(),
+      },
+    ],
   });
   const order = ['vencida', 'vencendo', 'cortesia', 'emdia', 'suspensa'].map((id) =>
     html.indexOf(`aria-label="Abrir Loja ${id}"`),
@@ -195,6 +217,8 @@ test('stores are listed by urgency, with renewal only where it matters', () => {
   assert.equal((html.match(/>Renovar</g) || []).length, 2, 'só a vencida e a que vence em breve');
   assert.match(html, /Donos que pediram senha nova/);
   assert.match(html, /Loja vencida · vencida · sem e-mail · pediu hoje/);
+  assert.match(html, /Donos sem acesso ao autenticador/);
+  assert.match(html, /Aprovar reset do autenticador/);
 });
 
 test('the team shows roles, who is you, invites, provisional passwords and password requests', () => {
@@ -237,6 +261,19 @@ test('the team shows roles, who is you, invites, provisional passwords and passw
         createdAt: new Date().toISOString(),
       },
     ],
+    initialMfaRequests: [
+      {
+        id: 'mfa-reset-user-esqueceu',
+        userId: 'user-esqueceu',
+        accountId: 'account-demo',
+        username: 'esqueceu',
+        name: 'Pessoa esqueceu',
+        role: 'staff',
+        status: 'pending',
+        storeName: 'Cell Prime',
+        requestedAt: new Date().toISOString(),
+      },
+    ],
   });
   assert.match(html, /Pediram senha nova/);
   assert.match(html, /dono@loja.test · Dono/, 'mostra o e-mail quando existe');
@@ -244,6 +281,8 @@ test('the team shows roles, who is you, invites, provisional passwords and passw
   assert.match(html, /Convite vencido/);
   assert.match(html, /envio de e-mail ainda não está ligado/);
   assert.match(html, /Gerar link de nova senha/);
+  assert.match(html, /Equipe sem acesso ao autenticador/);
+  assert.match(html, /Aprovar reset do autenticador/);
   assert.match(html, /nova · Funcionário/);
   assert.match(html, />Você</);
   assert.match(html, /Conectado em 2 aparelhos/);

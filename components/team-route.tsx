@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { KeyRound } from 'lucide-react';
+import { useFeedback } from '@/components/feedback';
 import TeamList, { type TeamApi } from '@/components/team-list';
 import { Button } from '@/components/ui/button';
 import { ListGroup, ListRow } from '@/components/ui/list-group';
@@ -9,7 +10,13 @@ import PageHeader from '@/components/ui/page-header';
 import SoftBanner from '@/components/ui/soft-banner';
 import { Avatar, CopyLinkDialog, postJson } from '@/components/user-access';
 import { whenLabel } from '@/lib/user-labels';
-import type { LinkDelivery, PasswordRequest, StoreUser, TeamMember } from '@/lib/types';
+import type {
+  LinkDelivery,
+  MfaResetRequest,
+  PasswordRequest,
+  StoreUser,
+  TeamMember,
+} from '@/lib/types';
 
 const team = <T,>(body: object) => postJson<T>('/api/team', body);
 const api: TeamApi = {
@@ -32,23 +39,58 @@ export default function TeamRoute({
   emailEnabled,
   initialUsers,
   initialRequests,
+  initialMfaRequests,
 }: {
   storeName: string;
   selfId: string;
   emailEnabled: boolean;
   initialUsers: TeamMember[];
   initialRequests: PasswordRequest[];
+  initialMfaRequests: MfaResetRequest[];
 }) {
+  const { confirm, notify } = useFeedback();
   const [users, setUsers] = useState(initialUsers);
   const [requests, setRequests] = useState(initialRequests);
+  const [mfaRequests, setMfaRequests] = useState(initialMfaRequests);
   const [linking, setLinking] = useState<PasswordRequest | null>(null);
 
   const reload = async () => {
     const response = await fetch('/api/team', { cache: 'no-store' });
     if (!response.ok) return;
-    const result = (await response.json()) as { users: TeamMember[]; requests: PasswordRequest[] };
+    const result = (await response.json()) as {
+      users: TeamMember[];
+      requests: PasswordRequest[];
+      mfaRequests: MfaResetRequest[];
+    };
     setUsers(result.users);
     setRequests(result.requests);
+    setMfaRequests(result.mfaRequests);
+  };
+
+  const resolveMfa = async (request: MfaResetRequest, approve: boolean) => {
+    if (
+      approve &&
+      !(await confirm(
+        `Remover o autenticador de ${request.name}? Todos os aparelhos conectados sairão.`,
+      ))
+    )
+      return;
+    try {
+      await team({
+        action: approve ? 'approve-mfa-reset' : 'dismiss-mfa-reset',
+        id: request.userId,
+      });
+      notify(
+        approve ? 'Autenticador removido e sessões encerradas.' : 'Pedido ignorado.',
+        'success',
+      );
+      await reload();
+    } catch (cause) {
+      notify(
+        cause instanceof Error ? cause.message : 'Não foi possível resolver o pedido.',
+        'error',
+      );
+    }
   };
 
   return (
@@ -77,6 +119,38 @@ export default function TeamRoute({
                   </Button>
                 }
                 details={`${request.username} · sem e-mail cadastrado · pediu ${whenLabel(request.createdAt)}`}
+                key={request.id}
+                leading={<Avatar name={request.name} />}
+                title={request.name}
+              />
+            ))}
+          </ListGroup>
+        </div>
+      )}
+      {mfaRequests.length > 0 && (
+        <div className="mb-6">
+          <ListGroup
+            count={mfaRequests.length}
+            title="Equipe sem acesso ao autenticador"
+            tone="warning"
+          >
+            {mfaRequests.map((request) => (
+              <ListRow
+                actions={
+                  <>
+                    <Button onClick={() => void resolveMfa(request, true)} size="sm">
+                      Aprovar reset do autenticador
+                    </Button>
+                    <Button
+                      onClick={() => void resolveMfa(request, false)}
+                      size="sm"
+                      variant="outline"
+                    >
+                      Ignorar
+                    </Button>
+                  </>
+                }
+                details={`${request.username} · pediu ${whenLabel(request.requestedAt)}`}
                 key={request.id}
                 leading={<Avatar name={request.name} />}
                 title={request.name}

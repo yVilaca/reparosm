@@ -1,4 +1,6 @@
 import {
+  adminTransaction,
+  authChallengeTransaction,
   authEmailTransaction,
   googleIdentityTransaction,
   setTenantContext,
@@ -9,7 +11,7 @@ import { accountColumns, toAccount } from '@/lib/repos/accounts';
 import { iso, type Timestamp } from '@/lib/repos/rows';
 import { withOwnSession } from '@/lib/repos/sessions';
 import { toUser, userColumns, type UserRow } from '@/lib/repos/users';
-import type { AuthDevice, AuthMethod, AuthUserContext } from '@/lib/types';
+import type { AuthDevice, AuthMethod, AuthUserContext, MfaResetRequest } from '@/lib/types';
 
 type IdentityRow = { account_id: string; user_id: string };
 
@@ -462,14 +464,14 @@ export async function disableOwnAuthenticator(
   run: Query,
 ) {
   await run('DELETE FROM recovery_codes WHERE user_id = $1', [userId]);
-  const removed = await run('DELETE FROM user_authenticators WHERE user_id = $1 RETURNING user_id', [
-    userId,
-  ]);
-  await run('DELETE FROM auth_challenges WHERE user_id = $1', [userId]);
-  await run(
-    'UPDATE auth_devices SET trusted_until = NULL, updated_at = now() WHERE user_id = $1',
+  const removed = await run(
+    'DELETE FROM user_authenticators WHERE user_id = $1 RETURNING user_id',
     [userId],
   );
+  await run('DELETE FROM auth_challenges WHERE user_id = $1', [userId]);
+  await run('UPDATE auth_devices SET trusted_until = NULL, updated_at = now() WHERE user_id = $1', [
+    userId,
+  ]);
   await run('DELETE FROM sessions WHERE user_id = $1 AND token_hash <> $2', [
     userId,
     currentTokenHash,
@@ -483,4 +485,106 @@ export async function unlinkOwnGoogle(userId: string, run: Query) {
     [userId],
   );
   return removed.length === 1;
+}
+
+export async function requestMfaReset(challengeToken: string) {
+  const tokenHash = await sha256(challengeToken);
+  return authChallengeTransaction(tokenHash, async (run) => {
+    const challenge = await lockChallenge(tokenHash, run);
+    if (!challenge || challenge.purpose !== 'login') return 'unavailable' as const;
+    await setTenantContext(run, challenge.accountId);
+    const context = await authContext(challenge.accountId, challenge.userId, run);
+    const secondFactor = await authenticator(challenge.userId, run);
+    if (
+      !context ||
+      !secondFactor?.enabledAt ||
+      context.account.status !== 'active' ||
+      context.user.status !== 'active'
+    )
+      return 'unavailable' as const;
+    if (context.account.role === 'admin') return 'admin' as const;
+
+    await run(
+      `INSERT INTO mfa_reset_requests (account_id, user_id)
+       VALUES ($1, $2)
+       ON CONFLICT (user_id) WHERE status = 'pending' DO NOTHING`,
+      [context.account.id, context.user.id],
+    );
+    return context.user.role;
+  });
+}
+
+export async function listMfaResetRequests(
+  run: Query,
+  scope: { role: 'owner' } | { role: 'staff'; accountId: string },
+): Promise<MfaResetRequest[]> {
+  const rows = await run<{
+    id: string;
+    account_id: string;
+    user_id: string;
+    username: string;
+    name: string;
+    store_name: string;
+    role: 'owner' | 'staff';
+    requested_at: Timestamp;
+  }>(
+    `SELECT r.id, r.account_id, r.user_id, u.username, u.name, a.name AS store_name,
+            u.role, r.requested_at
+     FROM mfa_reset_requests r
+     JOIN users u ON u.id = r.user_id
+     JOIN accounts a ON a.id = r.account_id
+     WHERE r.status = 'pending' AND u.status = 'active' AND a.status = 'active'
+       AND u.role = $1 AND ($2::text IS NULL OR r.account_id = $2)
+     ORDER BY r.requested_at, r.id`,
+    [scope.role, scope.role === 'staff' ? scope.accountId : null],
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    accountId: row.account_id,
+    userId: row.user_id,
+    username: row.username,
+    name: row.name,
+    storeName: row.store_name,
+    role: row.role,
+    status: 'pending',
+    requestedAt: iso(row.requested_at),
+  }));
+}
+
+export async function clearUserMfa(userId: string, run: Query) {
+  await run('DELETE FROM sessions WHERE user_id = $1', [userId]);
+  await run('DELETE FROM auth_challenges WHERE user_id = $1', [userId]);
+  await run('DELETE FROM auth_devices WHERE user_id = $1', [userId]);
+  await run('DELETE FROM recovery_codes WHERE user_id = $1', [userId]);
+  await run('DELETE FROM user_authenticators WHERE user_id = $1', [userId]);
+}
+
+export async function resolveMfaReset(
+  actor: Readonly<{ id: string; role: 'owner' | 'admin' }>,
+  userId: string,
+  resolution: 'approved' | 'dismissed',
+) {
+  const resolve = async (run: Query) => {
+    const [request] = await run<{ id: string }>(
+      `SELECT r.id
+       FROM mfa_reset_requests r
+       JOIN users u ON u.id = r.user_id AND u.account_id = r.account_id
+       WHERE r.user_id = $1 AND r.status = 'pending'
+         AND (($2 = 'owner' AND u.role = 'staff' AND r.account_id = $3)
+           OR ($2 = 'admin' AND u.role = 'owner' AND r.account_id <> 'account-admin'))
+       FOR UPDATE OF r`,
+      [userId, actor.role, actor.id],
+    );
+    if (!request) return false;
+    if (resolution === 'approved') await clearUserMfa(userId, run);
+    await run(
+      `UPDATE mfa_reset_requests SET status = $2, resolved_at = now()
+       WHERE id = $1 AND status = 'pending'`,
+      [request.id, resolution],
+    );
+    return true;
+  };
+  return actor.role === 'admin'
+    ? adminTransaction({ id: actor.id, role: 'admin' }, resolve)
+    : tenantTransaction(actor.id, resolve);
 }

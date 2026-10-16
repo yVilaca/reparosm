@@ -11,6 +11,7 @@ import {
   updateAccountProfile,
 } from '@/lib/repos/accounts';
 import { revokeSessionsAsAdmin } from '@/lib/repos/sessions';
+import { listMfaResetRequests, resolveMfaReset } from '@/lib/repos/auth-security';
 import {
   createUser,
   endUserSessions,
@@ -60,11 +61,12 @@ export async function GET(request: Request) {
     const users = await adminTransaction(actor, (run) => listUsers(run, id));
     return json({ store, users, emailEnabled: emailConfigured() });
   }
-  const [stores, requests] = await Promise.all([
+  const [stores, requests, mfaRequests] = await Promise.all([
     listStores(actor),
     adminTransaction(actor, (run) => listPasswordRequests(run, { role: 'owner' })),
+    adminTransaction(actor, (run) => listMfaResetRequests(run, { role: 'owner' })),
   ]);
-  return json({ stores, requests, emailEnabled: emailConfigured() });
+  return json({ stores, requests, mfaRequests, emailEnabled: emailConfigured() });
 }
 
 export async function POST(request: Request) {
@@ -102,6 +104,15 @@ async function handle(actor: AdminActor, body: DataObject) {
   const typedEmail = text(body.email ?? body.ownerEmail, 254);
   const email = typedEmail ? normalizeEmail(typedEmail) : null;
   if (typedEmail && !email) return json({ error: 'Informe um e-mail válido.' }, 400);
+
+  if (body.action === 'approve-mfa-reset' || body.action === 'dismiss-mfa-reset') {
+    const resolved = await resolveMfaReset(
+      actor,
+      String(body.userId || ''),
+      body.action === 'approve-mfa-reset' ? 'approved' : 'dismissed',
+    );
+    return resolved ? json({ ok: true }) : json({ error: 'Pedido não encontrado.' }, 404);
+  }
 
   // Link para alguém de qualquer loja (pedido de senha de um dono, por exemplo).
   if (body.action === 'send-link' || body.action === 'copy-link') {

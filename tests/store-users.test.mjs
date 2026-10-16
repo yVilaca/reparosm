@@ -6,7 +6,7 @@ import { createTestDatabase, skipWithoutDatabase } from './support/db.mjs';
 
 // Várias pessoas por loja: cada uma com login próprio, ao mesmo tempo.
 const skip = skipWithoutDatabase;
-let db, auth, accounts, team, me, security, shops, lib, authSecurity, sessionRepo;
+let db, auth, accounts, team, me, mfa, security, shops, lib, authSecurity, sessionRepo;
 
 before(async () => {
   if (skip) return;
@@ -17,6 +17,7 @@ before(async () => {
   accounts = await import('../app/api/accounts/route.ts');
   team = await import('../app/api/team/route.ts');
   me = await import('../app/api/me/route.ts');
+  mfa = await import('../app/api/auth/mfa/route.ts');
   security = await import('../app/api/me/security/route.ts');
   shops = await import('../app/api/shops/route.ts');
   lib = await import('../lib/auth.ts');
@@ -42,6 +43,11 @@ const call = (handler, url, { body, cookie = '', method = body ? 'POST' : 'GET' 
     }),
   );
 const cookieOf = (response) => response.headers.get('set-cookie').split(';')[0];
+const cookiesOf = (response) =>
+  response.headers
+    .getSetCookie()
+    .map((value) => value.split(';')[0])
+    .join('; ');
 const login = (username, password) =>
   call(auth.POST, '/api/auth', { body: { action: 'login', username, password } });
 const signedIn = async (cookie) =>
@@ -72,6 +78,33 @@ async function addStaff(owner, username, { email = emailOf(username), ...extra }
 /** A pessoa abre o convite, cria a senha e entra. */
 const accept = async (source, password = 'Staffsenha123') =>
   (await openLink(linkToken(source), password)).cookie;
+
+async function enableMfa(cookie, currentPassword) {
+  const started = await call(security.POST, '/api/me/security', {
+    cookie,
+    body: { action: 'start-totp', currentPassword },
+  });
+  assert.equal(started.status, 200);
+  const { secret } = await started.json();
+  const { TOTP } = await import('otpauth');
+  const code = new TOTP({ algorithm: 'SHA1', digits: 6, period: 30, secret }).generate();
+  const confirmed = await call(security.POST, '/api/me/security', {
+    cookie,
+    body: { action: 'confirm-totp', code },
+  });
+  assert.equal(confirmed.status, 200);
+}
+
+async function askForMfaReset(username, password) {
+  const challenge = await login(username, password);
+  assert.deepEqual(await challenge.clone().json(), { step: 'mfa' });
+  const response = await call(mfa.POST, '/api/auth/mfa', {
+    cookie: cookiesOf(challenge),
+    body: { action: 'request-reset' },
+  });
+  assert.equal(response.status, 200);
+  return response;
+}
 
 test(
   'two people of the same shop, and one person on two devices, stay signed in together',
@@ -231,12 +264,7 @@ test('revoking a device ends all its sessions and trust', { skip }, async () => 
   const account = await signedIn(shop.owner);
   const deviceInfo = { userAgent: 'Chrome grouped', ip: '10.20.30.40' };
   const device = await db.authTransaction(account.user.username, (run) =>
-    authSecurity.deviceForLogin(
-      { account, user: account.user },
-      'b'.repeat(43),
-      deviceInfo,
-      run,
-    ),
+    authSecurity.deviceForLogin({ account, user: account.user }, 'b'.repeat(43), deviceInfo, run),
   );
   await db.tenantTransaction(shop.id, (run) => authSecurity.trustDevice(device.id, 30, run));
   const first = await sessionRepo.createSession(
@@ -269,30 +297,39 @@ test('revoking a device ends all its sessions and trust', { skip }, async () => 
   assert.equal(saved, undefined);
 });
 
-test('a trusted device stays visible and removable after its session expires', { skip }, async () => {
-  const shop = await store('aparelho-confiavel');
-  const account = await signedIn(shop.owner);
-  const device = await db.authTransaction(account.user.username, (run) =>
-    authSecurity.deviceForLogin(
-      { account, user: account.user },
-      'y'.repeat(43),
-      { userAgent: 'Chrome sem sessão', ip: '10.20.30.60' },
-      run,
-    ),
-  );
-  await db.tenantTransaction(shop.id, (run) => authSecurity.trustDevice(device.id, 30, run));
+test(
+  'a trusted device stays visible and removable after its session expires',
+  { skip },
+  async () => {
+    const shop = await store('aparelho-confiavel');
+    const account = await signedIn(shop.owner);
+    const device = await db.authTransaction(account.user.username, (run) =>
+      authSecurity.deviceForLogin(
+        { account, user: account.user },
+        'y'.repeat(43),
+        { userAgent: 'Chrome sem sessão', ip: '10.20.30.60' },
+        run,
+      ),
+    );
+    await db.tenantTransaction(shop.id, (run) => authSecurity.trustDevice(device.id, 30, run));
 
-  const listed = await sessionRepo.listOwnDevices(shop.owner.replace('reparosm_session=', ''));
-  const trusted = listed.find((item) => item.id === device.id);
-  assert.equal(trusted.sessions, 0);
-  assert.ok(trusted.trustedUntil);
-  assert.deepEqual(await sessionRepo.revokeOwnDevice(shop.owner.replace('reparosm_session=', ''), device.id), {
-    ended: 0,
-    current: false,
-  });
-  const [removed] = await db.migrationQuery('SELECT id FROM auth_devices WHERE id = $1', [device.id]);
-  assert.equal(removed, undefined);
-});
+    const listed = await sessionRepo.listOwnDevices(shop.owner.replace('reparosm_session=', ''));
+    const trusted = listed.find((item) => item.id === device.id);
+    assert.equal(trusted.sessions, 0);
+    assert.ok(trusted.trustedUntil);
+    assert.deepEqual(
+      await sessionRepo.revokeOwnDevice(shop.owner.replace('reparosm_session=', ''), device.id),
+      {
+        ended: 0,
+        current: false,
+      },
+    );
+    const [removed] = await db.migrationQuery('SELECT id FROM auth_devices WHERE id = $1', [
+      device.id,
+    ]);
+    assert.equal(removed, undefined);
+  },
+);
 
 test('TOTP is enabled only after password and first valid code', { skip }, async () => {
   const shop = await store('seguranca');
@@ -489,6 +526,128 @@ test(
     assert.equal((await relogin.json()).account.user.emailVerified, false);
   },
 );
+
+test(
+  'MFA recovery is routed by role, authorized and clears every credential on approval',
+  { skip },
+  async () => {
+    const shop = await store('recuperamfa');
+    const { user } = await addStaff(shop.owner, 'recuperamfa-staff');
+    const staff = await accept(emailOf('recuperamfa-staff'));
+    const ownerAccount = await signedIn(shop.owner);
+    await enableMfa(shop.owner, 'Donosenha123');
+    await enableMfa(staff, 'Staffsenha123');
+
+    const staffRequest = await askForMfaReset('recuperamfa-staff', 'Staffsenha123');
+    await askForMfaReset('recuperamfa-staff', 'Staffsenha123');
+    const ownerRequest = await askForMfaReset('recuperamfa', 'Donosenha123');
+    assert.match((await staffRequest.json()).message, /dono da loja/i);
+    assert.match((await ownerRequest.json()).message, /suporte ReparoSM/i);
+
+    const duplicate = await db.migrationQuery(
+      `SELECT count(*)::int AS count FROM mfa_reset_requests
+     WHERE user_id = $1 AND status = 'pending'`,
+      [user.id],
+    );
+    assert.equal(duplicate[0].count, 1, 'um pedido pendente por pessoa');
+
+    let mine = await (await call(team.GET, '/api/team', { cookie: shop.owner })).json();
+    assert.deepEqual(
+      mine.mfaRequests.map((request) => request.username),
+      ['recuperamfa-staff'],
+    );
+    let adminQueue = await (await call(accounts.GET, '/api/accounts', { cookie: admin })).json();
+    assert.deepEqual(
+      adminQueue.mfaRequests
+        .filter((request) => request.accountId === shop.id)
+        .map((request) => request.username),
+      ['recuperamfa'],
+    );
+
+    assert.equal(
+      (
+        await call(team.POST, '/api/team', {
+          cookie: staff,
+          body: { action: 'approve-mfa-reset', id: user.id },
+        })
+      ).status,
+      403,
+      'funcionário não aprova pedidos',
+    );
+    assert.equal(
+      (
+        await call(team.POST, '/api/team', {
+          cookie: shop.owner,
+          body: { action: 'approve-mfa-reset', id: ownerAccount.user.id },
+        })
+      ).status,
+      404,
+      'dono não aprova outro dono nem a si mesmo',
+    );
+
+    let response = await call(team.POST, '/api/team', {
+      cookie: shop.owner,
+      body: { action: 'dismiss-mfa-reset', id: user.id },
+    });
+    assert.equal(response.status, 200);
+    assert.equal(
+      (
+        await db.migrationQuery(
+          'SELECT count(*)::int AS count FROM user_authenticators WHERE user_id = $1',
+          [user.id],
+        )
+      )[0].count,
+      1,
+      'ignorar o pedido não altera o autenticador',
+    );
+
+    await call(mfa.POST, '/api/auth/mfa', {
+      cookie: cookiesOf(await login('recuperamfa-staff', 'Staffsenha123')),
+      body: { action: 'request-reset' },
+    });
+    response = await call(team.POST, '/api/team', {
+      cookie: shop.owner,
+      body: { action: 'approve-mfa-reset', id: user.id },
+    });
+    assert.equal(response.status, 200);
+    for (const table of ['user_authenticators', 'recovery_codes', 'auth_devices', 'sessions']) {
+      const [row] = await db.migrationQuery(
+        `SELECT count(*)::int AS count FROM ${table} WHERE user_id = $1`,
+        [user.id],
+      );
+      assert.equal(row.count, 0, `${table} foi limpo`);
+    }
+    assert.equal(await signedIn(staff), null);
+    assert.equal((await login('recuperamfa-staff', 'Staffsenha123')).status, 200);
+
+    response = await call(accounts.POST, '/api/accounts', {
+      cookie: admin,
+      body: { action: 'approve-mfa-reset', userId: ownerAccount.user.id },
+    });
+    assert.equal(response.status, 200);
+    assert.equal(await signedIn(shop.owner), null);
+    assert.equal((await login('recuperamfa', 'Donosenha123')).status, 200);
+
+    await enableMfa(admin, 'TestAdminPassword123');
+    const adminReset = await askForMfaReset('adminreparosm', 'TestAdminPassword123');
+    assert.match((await adminReset.json()).message, /procedimento de emergência/i);
+    const [queuedAdmin] = await db.migrationQuery(
+      `SELECT count(*)::int AS count FROM mfa_reset_requests r
+     JOIN users u ON u.id = r.user_id WHERE u.username = 'adminreparosm'`,
+    );
+    assert.equal(queuedAdmin.count, 0, 'administrador da plataforma nunca entra em fila');
+  },
+);
+
+test('emergency MFA reset requires the exact administrator twice', async () => {
+  const { adminMfaResetTarget } = await import('../scripts/reset-admin-mfa.mts');
+  assert.equal(adminMfaResetTarget(['--user', 'user-adminreparosm']), null);
+  assert.equal(adminMfaResetTarget(['--user', 'user-adminreparosm', '--confirm', 'outro']), null);
+  assert.equal(
+    adminMfaResetTarget(['--user', 'user-adminreparosm', '--confirm', 'user-adminreparosm']),
+    'user-adminreparosm',
+  );
+});
 
 test('the administrator sees each shop with its owner, people and renewal', { skip }, async () => {
   const shop = await store('assinatura');

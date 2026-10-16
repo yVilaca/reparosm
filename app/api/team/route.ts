@@ -2,6 +2,7 @@ import { deliverLink, normalizeEmail, type Context } from '@/lib/access';
 import { currentAccount, isOwner, normalizeUser, sameOrigin } from '@/lib/auth';
 import { tenantTransaction, type Query } from '@/lib/db';
 import { emailConfigured } from '@/lib/email';
+import { listMfaResetRequests, resolveMfaReset } from '@/lib/repos/auth-security';
 import {
   createUser,
   endUserSessions,
@@ -37,6 +38,7 @@ async function owner(request: Request): Promise<SessionAccount | Response> {
 const teamOf = async (run: Query, accountId: string) => ({
   users: await listUsers(run, accountId),
   requests: await listPasswordRequests(run, { role: 'staff', accountId }),
+  mfaRequests: await listMfaResetRequests(run, { role: 'staff', accountId }),
   emailEnabled: emailConfigured(),
 });
 
@@ -72,6 +74,15 @@ export async function POST(request: Request) {
   if (typedEmail && !email) return json({ error: 'Informe um e-mail válido.' }, 400);
 
   try {
+    if (body.action === 'approve-mfa-reset' || body.action === 'dismiss-mfa-reset') {
+      const resolved = await resolveMfaReset(
+        { id: account.id, role: 'owner' },
+        id,
+        body.action === 'approve-mfa-reset' ? 'approved' : 'dismissed',
+      );
+      return resolved ? json({ ok: true }) : json({ error: 'Pedido não encontrado.' }, 404);
+    }
+
     if (body.action === 'create') {
       const username = normalizeUser(String(body.username || '')).slice(0, 40);
       if (username.length < 3)

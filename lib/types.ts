@@ -124,6 +124,7 @@ export interface MfaResetRequest {
   userId: string;
   username: string;
   name: string;
+  storeName: string;
   role: UserRole;
   status: 'pending' | 'approved' | 'dismissed';
   requestedAt: string;

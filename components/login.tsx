@@ -105,6 +105,27 @@ export default function Login({
     }
   };
 
+  const requestMfaRecovery = async () => {
+    if (loading) return;
+    setLoading(true);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch('/api/auth/mfa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'request-reset' }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Não foi possível enviar o pedido.');
+      setNotice(result.message);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Falha na conexão. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AuthShell
       description={content.description}
@@ -281,6 +302,14 @@ export default function Login({
               type="button"
             >
               {mode === 'mfa' ? 'Usar um código de recuperação' : 'Usar o aplicativo autenticador'}
+            </button>
+            <button
+              className="text-muted-foreground hover:text-foreground hover:underline"
+              disabled={loading}
+              onClick={() => void requestMfaRecovery()}
+              type="button"
+            >
+              Não tenho mais acesso ao autenticador
             </button>
             <button
               className="inline-flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground"

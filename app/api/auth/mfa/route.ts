@@ -1,5 +1,6 @@
 import { browserToken, clientIp, sameOrigin, sessionCookie } from '@/lib/auth';
 import { completeMfa, MfaError } from '@/lib/auth-flow';
+import { requestMfaReset } from '@/lib/repos/auth-security';
 import type { DataObject } from '@/lib/types';
 
 const json = (body: unknown, status = 200) =>
@@ -28,7 +29,22 @@ export async function POST(request: Request) {
   } catch {
     return json({ error: 'Dados inválidos.' }, 400);
   }
-  if (!isObject(body) || (body.kind !== 'totp' && body.kind !== 'recovery'))
+  if (!isObject(body)) return json({ error: 'Dados inválidos.' }, 400);
+  if (body.action === 'request-reset') {
+    const result = await requestMfaReset(challengeToken);
+    if (result === 'unavailable')
+      return json({ error: 'Confirmação expirada. Entre novamente.' }, 409);
+    return json({
+      ok: true,
+      message:
+        result === 'admin'
+          ? 'A conta administrativa exige o procedimento de emergência do ReparoSM.'
+          : result === 'staff'
+            ? 'Pedido enviado ao dono da loja.'
+            : 'Pedido enviado ao suporte ReparoSM.',
+    });
+  }
+  if (body.kind !== 'totp' && body.kind !== 'recovery')
     return json({ error: 'Dados inválidos.' }, 400);
 
   try {

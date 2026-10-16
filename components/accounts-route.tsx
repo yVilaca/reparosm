@@ -51,6 +51,7 @@ import type { AdminStore } from '@/lib/repos/accounts';
 import type {
   AccountStatus,
   LinkDelivery,
+  MfaResetRequest,
   PasswordRequest,
   StoreUser,
   TeamMember,
@@ -128,13 +129,16 @@ const urgency = (store: AdminStore) =>
 export default function AccountsRoute({
   initialStores,
   initialRequests,
+  initialMfaRequests,
 }: {
   initialStores: AdminStore[];
   initialRequests: PasswordRequest[];
+  initialMfaRequests: MfaResetRequest[];
 }) {
   const { notify, confirm } = useFeedback();
   const [stores, setStores] = useState(initialStores);
   const [requests, setRequests] = useState(initialRequests);
+  const [mfaRequests, setMfaRequests] = useState(initialMfaRequests);
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
@@ -152,6 +156,7 @@ export default function AccountsRoute({
       error?: string;
       stores?: AdminStore[];
       requests?: PasswordRequest[];
+      mfaRequests?: MfaResetRequest[];
     };
     if (!response.ok) {
       notify(result.error || 'Não foi possível carregar as lojas.', 'error');
@@ -159,6 +164,7 @@ export default function AccountsRoute({
     }
     setStores(result.stores || []);
     setRequests(result.requests || []);
+    setMfaRequests(result.mfaRequests || []);
   };
 
   const act = async (body: object, done: string) => {
@@ -175,6 +181,22 @@ export default function AccountsRoute({
 
   const renew = (store: AdminStore) =>
     act({ action: 'renew', id: store.id }, `${store.name} renovada.`);
+  const resolveMfa = async (request: MfaResetRequest, approve: boolean) => {
+    if (
+      approve &&
+      !(await confirm(
+        `Remover o autenticador de ${request.name}, da ${request.storeName}? Todos os aparelhos conectados sairão.`,
+      ))
+    )
+      return;
+    await act(
+      {
+        action: approve ? 'approve-mfa-reset' : 'dismiss-mfa-reset',
+        userId: request.userId,
+      },
+      approve ? 'Autenticador removido e sessões encerradas.' : 'Pedido ignorado.',
+    );
+  };
   const setStatus = async (store: AdminStore, status: AccountStatus) => {
     if (
       status !== 'active' &&
@@ -312,6 +334,39 @@ export default function AccountsRoute({
                   </Button>
                 }
                 details={`${request.storeName} · ${request.username} · sem e-mail · pediu ${whenLabel(request.createdAt)}`}
+                key={request.id}
+                leading={<Avatar name={request.name} />}
+                title={request.name}
+              />
+            ))}
+          </ListGroup>
+        </div>
+      )}
+
+      {mfaRequests.length > 0 && (
+        <div className="mb-6">
+          <ListGroup
+            count={mfaRequests.length}
+            title="Donos sem acesso ao autenticador"
+            tone="warning"
+          >
+            {mfaRequests.map((request) => (
+              <ListRow
+                actions={
+                  <>
+                    <Button onClick={() => void resolveMfa(request, true)} size="sm">
+                      Aprovar reset do autenticador
+                    </Button>
+                    <Button
+                      onClick={() => void resolveMfa(request, false)}
+                      size="sm"
+                      variant="outline"
+                    >
+                      Ignorar
+                    </Button>
+                  </>
+                }
+                details={`${request.storeName} · ${request.username} · pediu ${whenLabel(request.requestedAt)}`}
                 key={request.id}
                 leading={<Avatar name={request.name} />}
                 title={request.name}
