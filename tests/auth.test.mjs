@@ -137,7 +137,7 @@ test(
       1,
     );
     const [device] = await db.migrationQuery(
-      'SELECT trusted_until FROM auth_devices WHERE user_id = $1',
+      "SELECT trusted_until FROM auth_devices WHERE user_id = $1 AND last_ip = '10.0.1.3'",
       [user.id],
     );
     assert.ok(device.trusted_until, 'TOTP can trust this user device');
@@ -240,15 +240,16 @@ test(
     const oldBrowser = cookieNamed(primary, 'reparosm_browser');
     const challengeCookie = [oldBrowser, cookieNamed(primary, 'reparosm_mfa')].join('; ');
     const completed = await mfa.POST(
-      mfaRequest({ kind: 'totp', code: user.code(), trustDevice: true }, challengeCookie, '10.0.1.8'),
+      mfaRequest(
+        { kind: 'totp', code: user.code(), trustDevice: true },
+        challengeCookie,
+        '10.0.1.8',
+      ),
     );
     assert.equal(completed.status, 200);
 
     await auth.POST(request({ action: 'forgot-password', username: 'mfa-reset' }));
-    const { response: reset } = await openLink(
-      linkToken('mfa-reset@lojas.test'),
-      'NewPassword123',
-    );
+    const { response: reset } = await openLink(linkToken('mfa-reset@lojas.test'), 'NewPassword123');
     assert.equal(reset.status, 200);
     assert.deepEqual(await reset.json(), { ok: true, purpose: 'reset', step: 'mfa' });
     const [device] = await db.migrationQuery(

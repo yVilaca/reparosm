@@ -22,6 +22,7 @@ export const accessRequest = (
       'Content-Type': 'application/json',
       origin: 'https://test.local',
       'user-agent': userAgent,
+      'x-nf-client-connection-ip': '10.7.0.250',
     },
     body: JSON.stringify(body),
   });

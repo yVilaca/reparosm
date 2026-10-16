@@ -197,14 +197,17 @@ export async function linkIdentity(
   else await tenantTransaction(user.account.id, insert);
 }
 
-/** First Google link: verified e-mail lookup and identity insert share one transaction. */
+/**
+ * First Google link: verified e-mail lookup and identity insert share one transaction.
+ * No FOR UPDATE here: RLS would apply the users UPDATE policy and silently hide the row;
+ * UNIQUE (user_id, provider) already makes a concurrent second link fail with 23505.
+ */
 export async function linkVerifiedGoogleIdentity(subject: string, email: string) {
   const normalizedEmail = email.trim().toLowerCase();
   return authEmailTransaction(normalizedEmail, async (run) => {
     const [user] = await run<UserRow>(
       `SELECT ${userColumns} FROM users u
-       WHERE u.email = $1 AND u.email_verified_at IS NOT NULL
-       FOR UPDATE`,
+       WHERE u.email = $1 AND u.email_verified_at IS NOT NULL`,
       [normalizedEmail],
     );
     if (!user) return null;

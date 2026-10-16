@@ -189,10 +189,10 @@ test(
 
     const steps = await Promise.all([
       db.tenantTransaction('auth-once', (run) =>
-        repository.useTotpStep('user-auth-once', 100, run),
+        repository.consumeTotpStep('user-auth-once', 100, run),
       ),
       db.tenantTransaction('auth-once', (run) =>
-        repository.useTotpStep('user-auth-once', 100, run),
+        repository.consumeTotpStep('user-auth-once', 100, run),
       ),
     ]);
     const codes = await Promise.all([

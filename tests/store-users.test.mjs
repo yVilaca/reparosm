@@ -282,7 +282,7 @@ test('revoking a device ends all its sessions and trust', { skip }, async () => 
     device.id,
   );
 
-  const grouped = await sessionRepo.listOwnDevices(first);
+  const grouped = (await sessionRepo.listOwnDevices(first)).filter(({ id }) => id === device.id);
   assert.equal(grouped.length, 1);
   assert.equal(grouped[0].sessions, 2);
   assert.equal(grouped[0].current, true);

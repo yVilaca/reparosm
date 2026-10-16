@@ -194,7 +194,7 @@ export default function AccessRoute() {
                 {error}
               </p>
             )}
-            <Button className="w-full" disabled={saving} type="submit">
+            <Button className="h-11 w-full" disabled={saving} type="submit">
               {saving
                 ? 'Salvando…'
                 : preview.purpose === 'email'
@@ -212,7 +212,7 @@ export default function AccessRoute() {
                 Pronto: {preview.email} agora é o seu e-mail no ReparoSM. Você pode entrar com ele.
               </span>
             </p>
-            <Button asChild className="w-full">
+            <Button asChild className="h-11 w-full">
               <Link href="/">Ir para o ReparoSM</Link>
             </Button>
           </>
@@ -226,11 +226,11 @@ export default function AccessRoute() {
                 {preview.error}
               </p>
               {preview.status === 'used' ? (
-                <Button asChild className="w-full">
+                <Button asChild className="h-11 w-full">
                   <Link href="/login">Entrar com a senha</Link>
                 </Button>
               ) : (
-                <Button asChild className="w-full">
+                <Button asChild className="h-11 w-full">
                   <Link href="/login?esqueci=1">Pedir um novo link</Link>
                 </Button>
               )}
