@@ -1,21 +1,39 @@
 import type { ReactNode } from 'react';
 
+/** What the bench illustration shows: it follows the form beside it. */
+export type AuthStatus = 'idle' | 'busy' | 'error' | 'ok';
+
+const statusLabel: Record<AuthStatus, string> = {
+  idle: 'DIAGNÓSTICO',
+  busy: 'VERIFICANDO',
+  error: 'NÃO CONFERE',
+  ok: 'LIBERADO',
+};
+
 export default function AuthShell({
   eyebrow,
   title,
   description,
   children,
   footer,
+  status = 'idle',
+  stepKey,
 }: {
   eyebrow: string;
   title: string;
   description?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
+  status?: AuthStatus;
+  /** Changing it replays the entrance animation (e.g. login → forgot). */
+  stepKey?: string;
 }) {
   return (
     <main className="grid min-h-svh bg-canvas text-foreground lg:grid-cols-[minmax(25rem,0.92fr)_minmax(30rem,1.08fr)]">
-      <aside className="auth-blueprint relative hidden min-h-svh overflow-hidden bg-brand-ink p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-14">
+      <aside
+        data-status={status}
+        className="auth-blueprint relative hidden min-h-svh overflow-hidden bg-brand-ink p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-14"
+      >
         <span
           aria-label="ReparoSM"
           className="auth-logo auth-logo-on-dark relative z-10 block w-[190px]"
@@ -41,23 +59,65 @@ export default function AuthShell({
               stroke="currentColor"
               strokeWidth="1.5"
               strokeDasharray="5 8"
-              className="text-primary/90"
+              className="auth-trace text-primary/90"
             />
+            <rect className="auth-scan" x="176" y="120" width="168" height="3" rx="1.5" />
             <path
               d="m84 137 32 18m-38 55 39-4m286-63 36-21m-37 92 39 11M114 319l-34 21m324-19 34 25"
               stroke="currentColor"
               strokeWidth="1.5"
               strokeLinecap="round"
-              className="text-white/25"
+              className="auth-wires text-white/25"
             />
-            <circle cx="76" cy="132" r="5" className="fill-primary" />
-            <circle cx="72" cy="211" r="5" className="fill-white/60" />
-            <circle cx="445" cy="119" r="5" className="fill-primary" />
-            <circle cx="447" cy="227" r="5" className="fill-white/60" />
-            <circle cx="75" cy="344" r="5" className="fill-white/35" />
-            <circle cx="443" cy="350" r="5" className="fill-primary" />
-            <text x="201" y="211" className="fill-white font-mono text-[14px] tracking-[.22em]">
-              DIAGNÓSTICO
+            <circle
+              cx="76"
+              cy="132"
+              r="5"
+              style={{ animationDelay: '0.00s' }}
+              className="auth-dot fill-primary"
+            />
+            <circle
+              cx="72"
+              cy="211"
+              r="5"
+              style={{ animationDelay: '0.35s' }}
+              className="auth-dot fill-white/60"
+            />
+            <circle
+              cx="445"
+              cy="119"
+              r="5"
+              style={{ animationDelay: '0.70s' }}
+              className="auth-dot fill-primary"
+            />
+            <circle
+              cx="447"
+              cy="227"
+              r="5"
+              style={{ animationDelay: '1.05s' }}
+              className="auth-dot fill-white/60"
+            />
+            <circle
+              cx="75"
+              cy="344"
+              r="5"
+              style={{ animationDelay: '1.40s' }}
+              className="auth-dot fill-white/35"
+            />
+            <circle
+              cx="443"
+              cy="350"
+              r="5"
+              style={{ animationDelay: '1.75s' }}
+              className="auth-dot fill-primary"
+            />
+            <text
+              x="260"
+              y="211"
+              textAnchor="middle"
+              className="auth-readout fill-white font-mono text-[14px] tracking-[.22em]"
+            >
+              {statusLabel[status]}
             </text>
           </svg>
         </div>
@@ -78,7 +138,7 @@ export default function AuthShell({
         <header className="mb-16 flex items-center lg:hidden">
           <span aria-label="ReparoSM" className="auth-logo block w-[164px]" role="img" />
         </header>
-        <div className="mx-auto w-full max-w-[27rem]">
+        <div className="auth-enter mx-auto w-full max-w-[27rem]" key={stepKey}>
           <p className="mb-4 text-xs font-bold tracking-[0.18em] text-primary uppercase">
             {eyebrow}
           </p>

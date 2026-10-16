@@ -40,7 +40,9 @@ test('auth forms preserve labels, autocomplete and accessible errors', async () 
   assert.match(login, /auto[Cc]omplete="username"/);
   assert.match(login, /auto[Cc]omplete="current-password"/);
   assert.match(login, /role="alert"/);
-  assert.doesNotMatch(login, /Continuar com Google/);
+  // Sem as envs do Google o botão aparece, mas desabilitado e sem link.
+  assert.match(login, /disabled=""[^>]*title="Login com Google ainda não configurado"/);
+  assert.doesNotMatch(login, /href="\/api\/auth\/google"/);
   assert.match(mfa, /auto[Cc]omplete="one-time-code"/);
   assert.match(mfa, /inputMode="numeric"|inputmode="numeric"/);
   assert.doesNotMatch(mfa, /QR|qrcode/i);

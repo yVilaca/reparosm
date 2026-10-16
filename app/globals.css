@@ -185,3 +185,110 @@
 .dark .auth-logo {
   background-image: url('/brand/reparosm-logo-dark.png');
 }
+
+/* Bancada viva: o painel reage ao formulário (data-status = idle | busy | error | ok). */
+.auth-scan {
+  fill: rgb(143 120 247 / 0.55);
+  filter: drop-shadow(0 0 6px rgb(143 120 247 / 0.9));
+  animation: auth-scan 3.2s ease-in-out infinite alternate;
+}
+.auth-trace {
+  animation: auth-march 1.6s linear infinite;
+}
+.auth-wires {
+  stroke-dasharray: 3 6;
+  animation: auth-march 2.4s linear infinite;
+}
+.auth-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: auth-pulse 2.1s ease-in-out infinite;
+}
+.auth-readout {
+  transition: fill 0.25s;
+}
+[data-status='busy'] .auth-scan {
+  animation-duration: 0.7s;
+}
+[data-status='busy'] .auth-trace,
+[data-status='busy'] .auth-wires {
+  animation-duration: 0.5s;
+}
+[data-status='busy'] .auth-dot {
+  animation-duration: 0.6s;
+}
+[data-status='error'] .auth-scan {
+  fill: rgb(244 63 94 / 0.7);
+  filter: drop-shadow(0 0 6px rgb(244 63 94 / 0.9));
+}
+[data-status='error'] .auth-trace {
+  color: rgb(251 113 133);
+}
+[data-status='error'] .auth-readout {
+  fill: rgb(251 113 133);
+}
+[data-status='ok'] .auth-scan {
+  fill: rgb(52 211 153 / 0.7);
+  filter: drop-shadow(0 0 6px rgb(52 211 153 / 0.9));
+}
+[data-status='ok'] .auth-trace {
+  color: rgb(110 231 183);
+}
+[data-status='ok'] .auth-readout {
+  fill: rgb(110 231 183);
+}
+
+/* Troca de etapa (login → esqueci → código) e erro do formulário. */
+.auth-enter {
+  animation: auth-enter 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.auth-shake {
+  animation: auth-shake 0.36s ease-in-out;
+}
+
+@keyframes auth-scan {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(166px);
+  }
+}
+@keyframes auth-march {
+  to {
+    stroke-dashoffset: -26;
+  }
+}
+@keyframes auth-pulse {
+  50% {
+    transform: scale(1.6);
+    opacity: 0.55;
+  }
+}
+@keyframes auth-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@keyframes auth-shake {
+  20%,
+  60% {
+    transform: translateX(-6px);
+  }
+  40%,
+  80% {
+    transform: translateX(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-scan,
+  .auth-trace,
+  .auth-wires,
+  .auth-dot,
+  .auth-enter,
+  .auth-shake {
+    animation: none;
+  }
+}

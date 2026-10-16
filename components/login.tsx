@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
-import { Eye, EyeOff, KeyRound } from 'lucide-react';
-import AuthShell from '@/components/auth-shell';
+import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react';
+import AuthShell, { type AuthStatus } from '@/components/auth-shell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -52,13 +52,29 @@ export default function Login({
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [capsLock, setCapsLock] = useState(false);
+  const [done, setDone] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
   const content = copy[mode];
+  const status: AuthStatus = done ? 'ok' : loading ? 'busy' : error ? 'error' : 'idle';
 
   const changeMode = (next: LoginMode) => {
     setMode(next);
     setError('');
     setNotice('');
   };
+
+  const fail = (message: string) => {
+    setError(message);
+    // Restart the shake even when the same error repeats.
+    const form = formRef.current;
+    form?.classList.remove('auth-shake');
+    void form?.offsetWidth;
+    form?.classList.add('auth-shake');
+  };
+
+  const watchCapsLock = (event: KeyboardEvent<HTMLInputElement>) =>
+    setCapsLock(event.getModifierState('CapsLock'));
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -97,9 +113,12 @@ export default function Login({
         );
       if (mode === 'forgot') setNotice(result.message);
       else if (result.step === 'mfa') changeMode('mfa');
-      else if (result.account) onLogin(result.account);
+      else if (result.account) {
+        setDone(true);
+        onLogin(result.account);
+      }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Falha na conexão. Tente novamente.');
+      fail(cause instanceof Error ? cause.message : 'Falha na conexão. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -120,7 +139,7 @@ export default function Login({
       if (!response.ok) throw new Error(result.error || 'Não foi possível enviar o pedido.');
       setNotice(result.message);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Falha na conexão. Tente novamente.');
+      fail(cause instanceof Error ? cause.message : 'Falha na conexão. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -130,6 +149,8 @@ export default function Login({
     <AuthShell
       description={content.description}
       eyebrow={content.eyebrow}
+      status={status}
+      stepKey={mode}
       title={content.title}
       footer={
         mode === 'login' ? (
@@ -137,7 +158,12 @@ export default function Login({
         ) : undefined
       }
     >
-      <form className="grid gap-5" onSubmit={submit}>
+      <form
+        className="grid gap-5"
+        onAnimationEnd={(event) => event.currentTarget.classList.remove('auth-shake')}
+        onSubmit={submit}
+        ref={formRef}
+      >
         {(mode === 'login' || mode === 'forgot') && (
           <div className="grid gap-2">
             <Label htmlFor="login-username">Usuário ou e-mail</Label>
@@ -178,6 +204,8 @@ export default function Login({
                 className="h-11 bg-background pr-11"
                 id="login-password"
                 name="password"
+                onKeyDown={watchCapsLock}
+                onKeyUp={watchCapsLock}
                 placeholder="Sua senha"
                 required
                 type={showPassword ? 'text' : 'password'}
@@ -193,6 +221,11 @@ export default function Login({
                 {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             </div>
+            {capsLock && (
+              <p className="text-xs font-medium text-amber-600 dark:text-amber-400" role="status">
+                Caps Lock está ativado.
+              </p>
+            )}
           </div>
         )}
 
@@ -211,6 +244,13 @@ export default function Login({
               inputMode={mode === 'mfa' ? 'numeric' : 'text'}
               maxLength={mode === 'mfa' ? 6 : 12}
               name="code"
+              onChange={(event) => {
+                if (mode !== 'mfa') return;
+                // Pasted "123 456" becomes 123456; six digits submit on their own.
+                const digits = event.currentTarget.value.replace(/\D/g, '').slice(0, 6);
+                event.currentTarget.value = digits;
+                if (digits.length === 6 && !loading) formRef.current?.requestSubmit();
+              }}
               pattern={mode === 'mfa' ? '[0-9]*' : undefined}
               placeholder={mode === 'mfa' ? '000000' : 'ABCD-EFGH'}
               required
@@ -241,23 +281,34 @@ export default function Login({
           </p>
         )}
 
-        <Button className="h-11 w-full" disabled={loading} type="submit">
-          {loading
-            ? 'Aguarde…'
-            : mode === 'forgot'
-              ? 'Enviar instruções'
-              : mode === 'mfa' || mode === 'recovery'
-                ? 'Confirmar e entrar'
-                : 'Entrar'}
+        <Button className="h-11 w-full" disabled={loading || done} type="submit">
+          {loading || done ? (
+            <>
+              <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+              {done ? 'Entrando…' : 'Verificando…'}
+            </>
+          ) : mode === 'forgot' ? (
+            'Enviar instruções'
+          ) : mode === 'mfa' || mode === 'recovery' ? (
+            'Confirmar e entrar'
+          ) : (
+            'Entrar'
+          )}
         </Button>
 
-        {mode === 'login' && googleEnabled && (
+        {mode === 'login' && (
           <>
             <div className="flex items-center gap-3 text-xs text-muted-foreground before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border">
               ou
             </div>
-            <Button asChild className="h-11 w-full" variant="outline">
-              <a href="/api/auth/google">
+            <Button
+              asChild={googleEnabled}
+              className="h-11 w-full transition-transform hover:-translate-y-px"
+              disabled={!googleEnabled}
+              title={googleEnabled ? undefined : 'Login com Google ainda não configurado'}
+              variant="outline"
+            >
+              <GoogleLink enabled={googleEnabled}>
                 <svg aria-hidden="true" className="size-4" viewBox="0 0 24 24">
                   <path
                     d="M21.35 12.25c0-.73-.06-1.27-.2-1.83h-8.96v3.25h5.26a4.46 4.46 0 0 1-1.95 2.85l-.03.11 2.83 2.18.2.02c1.84-1.7 2.85-4.2 2.85-6.58Z"
@@ -277,8 +328,13 @@ export default function Login({
                   />
                 </svg>
                 Continuar com Google
-              </a>
+              </GoogleLink>
             </Button>
+            {!googleEnabled && (
+              <p className="-mt-3 text-center text-xs text-muted-foreground">
+                Login com Google ainda não configurado.
+              </p>
+            )}
           </>
         )}
 
@@ -324,4 +380,9 @@ export default function Login({
       </form>
     </AuthShell>
   );
+}
+
+/** A real link only when Google is configured; otherwise inert button content. */
+function GoogleLink({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
+  return enabled ? <a href="/api/auth/google">{children}</a> : <>{children}</>;
 }
