@@ -38,7 +38,7 @@ O ambiente local não contém os dados de produção. As configurações em `.en
 
 Configure as variáveis secretas somente no servidor/hospedagem:
 
-- `ADMIN_PASSWORD_HASH`: hash PBKDF2 da senha administrativa, nunca a senha em texto.
+- `ADMIN_PASSWORD_HASH`: hash PBKDF2 da senha administrativa, nunca a senha em texto. Gere com `pnpm admin:hash <senha>`: no `.env` use a linha com `\$` (o Next expande `$`); na Vercel, o valor cru.
 - `WHATSAPP_CONFIG_KEY`: chave de criptografia das configurações do WhatsApp. A migração dos registros criptografados exige preservar a mesma chave; caso contrário será necessário reconectar os números.
 
 Não envie arquivos `.env`, backups do banco, tokens nem chaves ao GitHub. Não configure segredos em variáveis expostas ao navegador.

@@ -115,6 +115,10 @@ export function authEncryptionConfigured() {
 export function validateEnv() {
   requiredEnv('DATABASE_URL', env.databaseUrl, /^postgres(?:ql)?:\/\//i);
   requiredEnv('URL', env.siteUrl);
+  if (env.adminPasswordHash === 'pbkdf2')
+    throw new Error(
+      'ADMIN_PASSWORD_HASH chegou cortado: no .env escreva cada $ como \\$ (use `pnpm admin:hash <senha>`).',
+    );
   requiredEnv('ADMIN_PASSWORD_HASH', env.adminPasswordHash, /^pbkdf2\$/);
   if (env.whatsappConfigKey)
     requiredEnv('WHATSAPP_CONFIG_KEY', env.whatsappConfigKey, /^[a-f0-9]{64}$/i);

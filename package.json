@@ -16,7 +16,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "tsx --import ./tests/support/setup.mjs --test \"tests/*.test.mjs\"",
-    "db:migrate": "node --import ./tests/support/setup.mjs scripts/migrate.mjs"
+    "db:migrate": "node --import ./tests/support/setup.mjs scripts/migrate.mjs",
+    "admin:hash": "tsx scripts/admin-hash.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
