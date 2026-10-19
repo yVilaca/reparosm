@@ -15,6 +15,7 @@ import {
   MAX_LOGIN_FAILURES,
   recentLoginFailures,
   recordLoginFailure,
+  SeatLimitError,
 } from '@/lib/repos/sessions';
 
 const FAILURE_KEY = 'google:callback';
@@ -103,7 +104,9 @@ export async function GET(request: Request) {
     return result.step === 'complete'
       ? redirect('/ordens', cookies, true)
       : redirect('/login?etapa=verificacao', cookies);
-  } catch {
+  } catch (error) {
+    // Login válido, loja sem vaga: não é tentativa suspeita.
+    if (error instanceof SeatLimitError) return redirect('/login?erro=vagas');
     await recordLoginFailure(FAILURE_KEY, ip);
     return redirect('/login?erro=google');
   }

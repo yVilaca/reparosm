@@ -31,6 +31,11 @@ import type { DataObject, UserRole, UserStatus } from '@/lib/types';
 
 const PLANS = ['Mensal', 'Trimestral', 'Anual', 'Cortesia'] as const;
 const STATUSES = ['active', 'suspended', 'cancelled'] as const;
+/** Vagas simultâneas vendidas para a loja: inteiro de 1 a 50, senão ignora. */
+const seats = (value: unknown) => {
+  const count = Number(value);
+  return Number.isInteger(count) && count >= 1 && count <= 50 ? count : undefined;
+};
 const USER_ROLES: readonly UserRole[] = ['owner', 'staff'];
 const USER_STATUSES: readonly UserStatus[] = ['active', 'disabled'];
 const RESERVED = ['admin', 'adminreparosm'];
@@ -188,6 +193,7 @@ async function handle(actor: AdminActor, body: DataObject) {
       status,
       plan: isOneOf(body.plan, PLANS) ? body.plan : store.plan,
       dueDate: String(body.dueDate ?? store.dueDate ?? '').slice(0, 10),
+      maxActiveUsers: seats(body.maxActiveUsers) ?? store.maxActiveUsers ?? 1,
     });
     if (status !== 'active') await revokeSessionsAsAdmin(actor, store.id);
     return json({ account: updated });

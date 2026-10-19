@@ -1,6 +1,7 @@
 import { browserToken, clientIp, sameOrigin, sessionCookie } from '@/lib/auth';
 import { completeMfa, MfaError } from '@/lib/auth-flow';
 import { requestMfaReset } from '@/lib/repos/auth-security';
+import { SeatLimitError } from '@/lib/repos/sessions';
 import type { DataObject } from '@/lib/types';
 
 const json = (body: unknown, status = 200) =>
@@ -65,6 +66,9 @@ export async function POST(request: Request) {
     );
     return response;
   } catch (error) {
+    // Código não foi consumido: a transação voltou e a pessoa tenta de novo depois.
+    if (error instanceof SeatLimitError)
+      return json({ error: error.message, holders: error.holders }, 409);
     if (!(error instanceof MfaError)) throw error;
     if (error.problem === 'limited')
       return json({ error: 'Muitas tentativas. Aguarde 15 minutos e tente novamente.' }, 429);

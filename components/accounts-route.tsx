@@ -673,6 +673,7 @@ function StoreRecord({
                 await loadMembers();
                 await onChanged();
               }}
+              maxActiveUsers={store.maxActiveUsers}
               storeName={store.name}
             />
           ) : (
@@ -699,6 +700,7 @@ function SubscriptionForm({
   const [name, setName] = useState(store.name);
   const [plan, setPlan] = useState(store.plan || 'Mensal');
   const [dueDate, setDueDate] = useState(store.dueDate || '');
+  const [seats, setSeats] = useState(String(store.maxActiveUsers ?? 1));
   const [saving, setSaving] = useState(false);
   return (
     <RecordForm
@@ -712,6 +714,7 @@ function SubscriptionForm({
             name,
             plan,
             dueDate: plan === 'Cortesia' ? '' : dueDate,
+            maxActiveUsers: Number(seats),
           });
           notify('Assinatura atualizada.', 'success');
           await saved();
@@ -766,6 +769,25 @@ function SubscriptionForm({
               value={dueDate}
             />
           </div>
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="store-seats">Pessoas conectadas ao mesmo tempo</Label>
+          <Input
+            aria-describedby="store-seats-hint"
+            className="sm:max-w-40"
+            id="store-seats"
+            inputMode="numeric"
+            max={50}
+            min={1}
+            onChange={(event) => setSeats(event.target.value)}
+            required
+            step={1}
+            type="number"
+            value={seats}
+          />
+          <p className="text-xs text-muted-foreground" id="store-seats-hint">
+            O plano inclui 1. Aumente para vender vagas extras; vale no próximo login.
+          </p>
         </div>
       </div>
     </RecordForm>

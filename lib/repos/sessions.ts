@@ -6,6 +6,7 @@ import {
   loginFailureTransaction,
   sessionTransaction,
   setSessionAccountContext,
+  setTenantContext,
   type AdminActor,
   type Query,
 } from '@/lib/db';
@@ -53,9 +54,62 @@ export async function usernameForEmail(email: string) {
 
 export type Device = { userAgent: string; ip: string };
 
+/** A loja já tem todas as vagas ocupadas por outras pessoas. */
+export class SeatLimitError extends Error {
+  constructor(
+    readonly holders: string[],
+    readonly max: number,
+  ) {
+    super(
+      `A loja já está com ${max === 1 ? '1 pessoa conectada' : `${max} pessoas conectadas`}` +
+        `${holders.length ? ` (${holders.join(', ')})` : ''}, o limite do plano. ` +
+        'Peça para alguém sair ou fale com o dono da loja.',
+    );
+  }
+}
+
+/**
+ * Vaga = pessoa com sessão válida (2 aparelhos da mesma pessoa = 1 vaga). Quem já
+ * tem vaga reentra livre; o admin não tem limite. Loja cheia: o dono entra e
+ * desconecta quem entrou há mais tempo; o funcionário é recusado.
+ * ponytail: lock por loja (advisory) serializa logins da mesma loja; sessão de aba
+ * fechada segura a vaga até vencer (12h). Heartbeat/last_seen se isso incomodar.
+ */
+async function claimSeat(run: Query, user: Pick<StoreUser, 'id' | 'accountId'>) {
+  // A credencial já foi conferida: o escopo da loja permite ver os colegas.
+  await setTenantContext(run, user.accountId);
+  await run('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`seat:${user.accountId}`]);
+  const [account] = await run<{ role: string; max_active_users: number }>(
+    'SELECT role, max_active_users FROM accounts WHERE id = $1',
+    [user.accountId],
+  );
+  if (!account || account.role === 'admin') return;
+  const others = await run<{ user_id: string; name: string }>(
+    `SELECT s.user_id, u.name
+     FROM sessions AS s JOIN users AS u ON u.id = s.user_id
+     WHERE s.account_id = $1 AND s.user_id <> $2 AND s.expires_at > now()
+     GROUP BY s.user_id, u.name
+     ORDER BY max(s.created_at)`,
+    [user.accountId, user.id],
+  );
+  const excess = others.length + 1 - account.max_active_users;
+  if (excess <= 0) return;
+  const [me] = await run<{ role: string }>('SELECT role FROM users WHERE id = $1', [user.id]);
+  if (me?.role !== 'owner')
+    throw new SeatLimitError(
+      others.map((other) => other.name),
+      account.max_active_users,
+    );
+  await run('DELETE FROM sessions WHERE account_id = $1 AND user_id = ANY($2::text[])', [
+    user.accountId,
+    others.slice(0, excess).map((other) => other.user_id),
+  ]);
+}
+
 /**
  * Abre uma sessão dentro de uma transação já no login do usuário
  * (app.auth_username): cada aparelho tem a sua, e só as já vencidas dele saem.
+ * Ocupa uma vaga da loja ou lança SeatLimitError (a transação inteira volta).
  */
 export async function insertSession(
   run: Query,
@@ -67,6 +121,7 @@ export async function insertSession(
   const token = crypto.randomUUID();
   const tokenHash = await hashToken(token);
   await run('DELETE FROM sessions WHERE user_id = $1 AND expires_at <= now()', [user.id]);
+  await claimSeat(run, user);
   await run(
     `INSERT INTO sessions (
        token_hash, account_id, user_id, expires_at, user_agent, ip, device_id

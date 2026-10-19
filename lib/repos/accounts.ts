@@ -12,13 +12,14 @@ type AccountRow = {
   plan: string | null;
   due_date: string | null;
   access_policy: string | null;
+  max_active_users: number;
   created_at: Timestamp;
   updated_at: Timestamp;
 };
 
 // due_date as text avoids pg turning a date into local midnight and shifting its day.
 export const accountColumns = `a.id, a.username, a.name, a.role, a.status, a.plan,
-  a.due_date::text AS due_date, a.access_policy, a.created_at, a.updated_at`;
+  a.due_date::text AS due_date, a.access_policy, a.max_active_users, a.created_at, a.updated_at`;
 
 export const toAccount = (row: AccountRow): Account => ({
   id: row.id,
@@ -29,6 +30,7 @@ export const toAccount = (row: AccountRow): Account => ({
   plan: row.plan ?? undefined,
   dueDate: row.due_date ?? '',
   accessPolicy: row.access_policy ?? undefined,
+  maxActiveUsers: row.max_active_users,
   createdAt: iso(row.created_at),
   updatedAt: iso(row.updated_at),
 });
@@ -189,13 +191,27 @@ export async function storeByExternalRef(actor: AdminActor, externalRef: string)
 export async function updateAccountProfile(
   actor: AdminActor,
   id: string,
-  profile: { name: string; status: AccountStatus; plan?: string; dueDate?: string },
+  profile: {
+    name: string;
+    status: AccountStatus;
+    plan?: string;
+    dueDate?: string;
+    maxActiveUsers: number;
+  },
 ) {
   const [row] = await adminQuery<AccountRow>(
     actor,
-    `UPDATE accounts AS a SET name = $2, status = $3, plan = $4, due_date = $5, updated_at = now()
+    `UPDATE accounts AS a SET name = $2, status = $3, plan = $4, due_date = $5,
+       max_active_users = $6, updated_at = now()
      WHERE a.id = $1 RETURNING ${accountColumns}`,
-    [id, profile.name, profile.status, profile.plan ?? null, dateOrNull(profile.dueDate)],
+    [
+      id,
+      profile.name,
+      profile.status,
+      profile.plan ?? null,
+      dateOrNull(profile.dueDate),
+      profile.maxActiveUsers,
+    ],
   );
   return row ? toAccount(row) : null;
 }

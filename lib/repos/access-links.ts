@@ -2,7 +2,7 @@ import { finishPrimaryAuth, type PrimaryAuthResult } from '@/lib/auth-flow';
 import { accessLinkTransaction, setTenantContext, type Query } from '@/lib/db';
 import { env } from '@/lib/env';
 import { authContext } from '@/lib/repos/auth-security';
-import type { Device } from '@/lib/repos/sessions';
+import { SeatLimitError, type Device } from '@/lib/repos/sessions';
 import type { AuthUserContext, StoreUser } from '@/lib/types';
 
 /**
@@ -196,6 +196,8 @@ export type LinkUse =
       user: StoreUser;
       storeName: string;
       auth?: PrimaryAuthResult;
+      /** Senha salva, mas a loja está sem vaga para entrar agora. */
+      seatLimit?: string;
     }
   | { status: LinkProblem | 'email-taken' };
 
@@ -301,16 +303,22 @@ export async function consumeLink(
     );
     if (result.status !== 'ok' || !('authUser' in result)) return result;
     const { authUser, ...link } = result;
-    return {
-      ...link,
-      auth: await finishPrimaryAuth({
-        user: authUser,
-        method: 'password',
-        browserToken: use.browserToken,
-        userAgent: use.device.userAgent,
-        ip: use.device.ip,
-      }),
-    };
+    try {
+      return {
+        ...link,
+        auth: await finishPrimaryAuth({
+          user: authUser,
+          method: 'password',
+          browserToken: use.browserToken,
+          userAgent: use.device.userAgent,
+          ip: use.device.ip,
+        }),
+      };
+    } catch (error) {
+      // A senha já foi salva; só a entrada fica para quando houver vaga.
+      if (error instanceof SeatLimitError) return { ...link, seatLimit: error.message };
+      throw error;
+    }
   } catch (error) {
     if (error instanceof LinkRefused) return { status: error.reason };
     throw error;

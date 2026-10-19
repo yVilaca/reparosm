@@ -20,6 +20,7 @@ import {
   MAX_LOGIN_FAILURES,
   recentLoginFailures,
   recordLoginFailure,
+  SeatLimitError,
   usernameForEmail,
 } from '@/lib/repos/sessions';
 import type { DataObject } from '@/lib/types';
@@ -128,7 +129,12 @@ export async function POST(request: Request) {
     upgradedPasswordHash: verified.legacy
       ? await passwordHash(login.user.username, password)
       : undefined,
+  }).catch((error: unknown) => {
+    if (error instanceof SeatLimitError) return error;
+    throw error;
   });
+  if (result instanceof SeatLimitError)
+    return json({ error: result.message, holders: result.holders }, { status: 409 });
   const response = json(
     result.step === 'mfa' ? { step: 'mfa' } : { step: 'complete', account: result.account },
   );

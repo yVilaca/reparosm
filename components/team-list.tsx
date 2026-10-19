@@ -53,6 +53,7 @@ export default function TeamList({
   confirmIdentity = false,
   addLabel = 'Adicionar pessoa',
   storeName,
+  maxActiveUsers,
   onChanged,
 }: {
   members: TeamMember[];
@@ -63,6 +64,8 @@ export default function TeamList({
   confirmIdentity?: boolean;
   addLabel?: string;
   storeName: string;
+  /** Vagas do plano: mostra quantas pessoas estão conectadas agora. */
+  maxActiveUsers?: number;
   onChanged: () => Promise<void> | void;
 }) {
   const { notify, confirm } = useFeedback();
@@ -199,8 +202,23 @@ export default function TeamList({
     );
   };
 
+  const online = members.filter((member) => member.sessions > 0).length;
+
   return (
     <div className="grid gap-6">
+      {maxActiveUsers !== undefined && (
+        <p
+          className={`rounded-lg p-3 text-sm ${online >= maxActiveUsers ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300' : 'bg-muted/60'}`}
+          role="status"
+        >
+          <strong className="font-semibold">
+            {online} de {maxActiveUsers} {maxActiveUsers === 1 ? 'vaga' : 'vagas'} em uso
+          </strong>{' '}
+          — pessoas conectadas agora.{' '}
+          {online >= maxActiveUsers &&
+            'Com todas ocupadas, um funcionário só entra quando alguém sair; o dono sempre entra e desconecta quem entrou há mais tempo.'}
+        </p>
+      )}
       <ListGroup
         aside={
           <Button onClick={() => setAdding(true)} size="sm" variant="outline">

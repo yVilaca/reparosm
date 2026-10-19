@@ -73,7 +73,13 @@ export async function POST(request: Request) {
 
   if (result.purpose === 'reset')
     await notifyPasswordChanged({ ...result.user, storeName: result.storeName });
-  if (!result.auth) return json({ ok: true, purpose: result.purpose, signedIn: false });
+  if (!result.auth)
+    return json({
+      ok: true,
+      purpose: result.purpose,
+      signedIn: false,
+      seatLimit: result.seatLimit,
+    });
 
   const secure = new URL(request.url).protocol === 'https:';
   const response = json(

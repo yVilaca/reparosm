@@ -79,6 +79,10 @@ export default function AccessRoute() {
         window.location.replace('/login?etapa=verificacao');
         return;
       }
+      if (result.seatLimit) {
+        window.location.replace('/login?erro=vagas&senha=1');
+        return;
+      }
       if (result.signedIn) {
         // Navegação completa: o painel já abre com a sessão nova.
         window.location.replace('/');

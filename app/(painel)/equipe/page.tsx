@@ -18,6 +18,7 @@ export default async function TeamPage() {
       initialMfaRequests={mfaRequests}
       initialRequests={requests}
       initialUsers={users}
+      maxActiveUsers={account.maxActiveUsers}
       selfId={account.user.id}
       storeName={account.name}
     />

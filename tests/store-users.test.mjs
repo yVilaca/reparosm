@@ -53,10 +53,16 @@ const login = (username, password) =>
 const signedIn = async (cookie) =>
   lib.currentAccount(new Request('https://test.local/', { headers: { cookie } }));
 const emailOf = (username) => `${username}@lojas.test`;
+const setSeats = (id, seats) =>
+  db.migrationQuery('UPDATE accounts SET max_active_users = $2 WHERE id = $1', [id, seats]);
 
 let admin;
-/** Loja nova pelo administrador; o Dono cria a senha pelo convite e já entra. */
-async function store(username) {
+/**
+ * Loja nova pelo administrador; o Dono cria a senha pelo convite e já entra.
+ * `seats` folgado por padrão: estes testes são sobre várias pessoas na loja; o
+ * limite do plano tem testes próprios com 1 vaga.
+ */
+async function store(username, { seats = 10 } = {}) {
   admin ??= cookieOf(await login('adminreparosm', 'TestAdminPassword123'));
   const response = await call(accounts.POST, '/api/accounts', {
     cookie: admin,
@@ -64,7 +70,9 @@ async function store(username) {
   });
   assert.equal(response.status, 201);
   const { cookie } = await openLink(linkToken(emailOf(username)), 'Donosenha123');
-  return { id: (await response.json()).account.id, owner: cookie };
+  const { id } = (await response.json()).account;
+  await setSeats(id, seats);
+  return { id, owner: cookie };
 }
 /** O Dono cadastra alguém; com e-mail (padrão), o convite vai por e-mail. */
 async function addStaff(owner, username, { email = emailOf(username), ...extra } = {}) {
@@ -693,3 +701,89 @@ test('the administrator sees each shop with its owner, people and renewal', { sk
   });
   assert.equal(await signedIn(shop.owner), null, 'loja suspensa: todos saem');
 });
+
+test(
+  'the plan seat: staff waits while the owner is in, the owner always gets in',
+  { skip },
+  async () => {
+    const shop = await store('vaga-unica');
+    await addStaff(shop.owner, 'vaga-staff');
+    const staffCookie = await accept(emailOf('vaga-staff'));
+    await call(me.POST, '/api/me', { cookie: staffCookie, body: { action: 'end-other-sessions' } });
+    await setSeats(shop.id, 1);
+    // Staff saiu; com 1 vaga, o dono (já conectado) ocupa a loja.
+    await call(auth.POST, '/api/auth', { cookie: staffCookie, body: { action: 'logout' } });
+
+    const refused = await login('vaga-staff', 'Staffsenha123');
+    assert.equal(refused.status, 409);
+    assert.match((await refused.json()).error, /1 pessoa conectada \(Dono\).*dono da loja/);
+    assert.ok(await signedIn(shop.owner), 'quem ocupa a vaga continua');
+
+    const ownerAgain = await login('vaga-unica', 'Donosenha123');
+    assert.equal(ownerAgain.status, 200, 'a mesma pessoa em outro aparelho não gasta outra vaga');
+    assert.ok(await signedIn(shop.owner));
+
+    await call(me.POST, '/api/me', { cookie: shop.owner, body: { action: 'end-other-sessions' } });
+    await call(auth.POST, '/api/auth', { cookie: shop.owner, body: { action: 'logout' } });
+    const staff = cookieOf(await login('vaga-staff', 'Staffsenha123'));
+    assert.ok(await signedIn(staff), 'vaga livre: o funcionário entra');
+    const owner = cookieOf(await login('vaga-unica', 'Donosenha123'));
+    assert.ok(await signedIn(owner), 'o dono sempre entra');
+    assert.equal(await signedIn(staff), null, 'e desconecta quem estava na vaga');
+  },
+);
+
+test('two staff racing for the last seat: exactly one gets in', { skip }, async () => {
+  const shop = await store('vaga-corrida');
+  for (const name of ['corrida-a', 'corrida-b']) {
+    await addStaff(shop.owner, name);
+    const cookie = await accept(emailOf(name));
+    await call(auth.POST, '/api/auth', { cookie, body: { action: 'logout' } });
+  }
+  await setSeats(shop.id, 2);
+  const results = await Promise.all([
+    login('corrida-a', 'Staffsenha123'),
+    login('corrida-b', 'Staffsenha123'),
+  ]);
+  assert.deepEqual(results.map((response) => response.status).sort(), [200, 409]);
+  const [{ count }] = await db.migrationQuery(
+    `SELECT count(DISTINCT user_id) AS count FROM sessions
+     WHERE account_id = $1 AND expires_at > now()`,
+    [shop.id],
+  );
+  assert.equal(Number(count), 2);
+});
+
+test(
+  'an invite opened with the shop full saves the password and points to the login',
+  { skip },
+  async () => {
+    const shop = await store('vaga-convite', { seats: 1 });
+    await addStaff(shop.owner, 'convite-staff');
+    const { response } = await openLink(linkToken(emailOf('convite-staff')), 'Staffsenha123');
+    const result = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(result.signedIn, false);
+    assert.match(result.seatLimit, /limite do plano/);
+    assert.equal(response.headers.get('set-cookie'), null, 'nenhuma sessão foi aberta');
+    await call(auth.POST, '/api/auth', { cookie: shop.owner, body: { action: 'logout' } });
+    assert.equal((await login('convite-staff', 'Staffsenha123')).status, 200, 'a senha valeu');
+  },
+);
+
+test(
+  'the administrator sells extra seats; invalid values keep the current limit',
+  { skip },
+  async () => {
+    const shop = await store('vaga-extra', { seats: 1 });
+    const save = (maxActiveUsers) =>
+      call(accounts.POST, '/api/accounts', {
+        cookie: admin,
+        body: { id: shop.id, maxActiveUsers },
+      });
+    assert.equal((await (await save(3)).json()).account.maxActiveUsers, 3);
+    await assert.rejects(setSeats(shop.id, 0), /accounts_max_active_users_positive/);
+    for (const invalid of [0, -1, 2.5, 51, 'muitas'])
+      assert.equal((await (await save(invalid)).json()).account.maxActiveUsers, 3);
+  },
+);

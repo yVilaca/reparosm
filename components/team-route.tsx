@@ -35,6 +35,7 @@ const api: TeamApi = {
 /** Equipe: o Dono decide quem usa o sistema na loja e cuida do acesso de cada um. */
 export default function TeamRoute({
   storeName,
+  maxActiveUsers,
   selfId,
   emailEnabled,
   initialUsers,
@@ -42,6 +43,7 @@ export default function TeamRoute({
   initialMfaRequests,
 }: {
   storeName: string;
+  maxActiveUsers?: number;
   selfId: string;
   emailEnabled: boolean;
   initialUsers: TeamMember[];
@@ -161,6 +163,7 @@ export default function TeamRoute({
       )}
       <TeamList
         api={api}
+        maxActiveUsers={maxActiveUsers}
         members={users}
         onChanged={reload}
         selfId={selfId}

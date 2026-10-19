@@ -21,6 +21,8 @@ export interface Account extends DataObject {
   plan?: string;
   dueDate?: string;
   accessPolicy?: string;
+  /** Pessoas da loja conectadas ao mesmo tempo (vagas do plano). */
+  maxActiveUsers?: number;
   updatedAt?: string;
 }
 
