@@ -99,7 +99,7 @@ export default function TeamRoute({
     <>
       <PageHeader
         title="Equipe"
-        description="Quem usa o ReparoSM na loja. Cada pessoa entra com o próprio usuário, ao mesmo tempo e em quantos aparelhos precisar."
+        description="Quem usa o ReparoSM na loja. Cada pessoa entra com o próprio usuário; cada aparelho conectado ocupa uma vaga do plano."
       />
       {!emailEnabled && (
         <SoftBanner

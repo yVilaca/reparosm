@@ -18,7 +18,8 @@ export default async function TeamPage() {
       initialMfaRequests={mfaRequests}
       initialRequests={requests}
       initialUsers={users}
-      maxActiveUsers={account.maxActiveUsers}
+      // O administrador não tem limite de vagas.
+      maxActiveUsers={account.role === 'admin' ? undefined : account.maxActiveUsers}
       selfId={account.user.id}
       storeName={account.name}
     />

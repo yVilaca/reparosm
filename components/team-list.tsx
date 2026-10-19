@@ -215,9 +215,11 @@ export default function TeamList({
           <strong className="font-semibold">
             {online} de {maxActiveUsers} {maxActiveUsers === 1 ? 'vaga' : 'vagas'} em uso
           </strong>{' '}
-          — cada aparelho conectado ocupa uma.{' '}
-          {online >= maxActiveUsers &&
-            'Com todas ocupadas, entrar em outro aparelho encerra o acesso mais antigo da própria pessoa; um funcionário sem acesso aberto só entra quando alguém sair, e o dono sempre entra.'}
+          · cada aparelho conectado ocupa uma.
+          {online > maxActiveUsers
+            ? ' Acima do limite: acessos abertos antes da regra valem até sair ou vencer (12h).'
+            : online === maxActiveUsers &&
+              ' Com todas ocupadas, funcionários só entram quando alguém sair.'}
         </p>
       )}
       <ListGroup
