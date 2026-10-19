@@ -95,12 +95,27 @@
   text-align: center;
   font-size: 8pt;
 }
-.compact-signatures > div {
+.compact-signatures {
+  align-items: end;
+}
+.compact-signature-line {
+  display: block;
   border-top: 1px solid #666;
   padding-top: 1mm;
 }
+.compact-signature-image {
+  display: block;
+  height: 11mm;
+  max-width: 100%;
+  margin: 0 auto 0.5mm;
+  object-fit: contain;
+}
 .compact-signatures p {
   margin: 0;
+}
+.compact-signature-note {
+  font-size: 6.5pt;
+  color: #555;
 }
 .compact-cut {
   position: absolute;
