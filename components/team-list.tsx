@@ -202,7 +202,8 @@ export default function TeamList({
     );
   };
 
-  const online = members.filter((member) => member.sessions > 0).length;
+  // 1 login = 1 vaga: cada aparelho conectado conta.
+  const online = members.reduce((total, member) => total + member.sessions, 0);
 
   return (
     <div className="grid gap-6">
@@ -214,9 +215,9 @@ export default function TeamList({
           <strong className="font-semibold">
             {online} de {maxActiveUsers} {maxActiveUsers === 1 ? 'vaga' : 'vagas'} em uso
           </strong>{' '}
-          — pessoas conectadas agora.{' '}
+          — cada aparelho conectado ocupa uma.{' '}
           {online >= maxActiveUsers &&
-            'Com todas ocupadas, um funcionário só entra quando alguém sair; o dono sempre entra e desconecta quem entrou há mais tempo.'}
+            'Com todas ocupadas, entrar em outro aparelho encerra o acesso mais antigo da própria pessoa; um funcionário sem acesso aberto só entra quando alguém sair, e o dono sempre entra.'}
         </p>
       )}
       <ListGroup

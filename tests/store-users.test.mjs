@@ -702,34 +702,39 @@ test('the administrator sees each shop with its owner, people and renewal', { sk
   assert.equal(await signedIn(shop.owner), null, 'loja suspensa: todos saem');
 });
 
+test('1 login = 1 seat: the same login on a second device ends the first', { skip }, async () => {
+  const shop = await store('vaga-login');
+  await addStaff(shop.owner, 'login-staff');
+  const first = await accept(emailOf('login-staff'));
+  await setSeats(shop.id, 2);
+
+  const second = cookieOf(await login('login-staff', 'Staffsenha123'));
+  assert.ok(await signedIn(second));
+  assert.equal(await signedIn(first), null, 'quem dividir o login derruba o outro');
+  assert.ok(await signedIn(shop.owner), 'a vaga do dono não foi tocada');
+});
+
 test(
-  'the plan seat: staff waits while the owner is in, the owner always gets in',
+  'shop full: staff without a session is refused, the owner always gets in',
   { skip },
   async () => {
     const shop = await store('vaga-unica');
     await addStaff(shop.owner, 'vaga-staff');
     const staffCookie = await accept(emailOf('vaga-staff'));
-    await call(me.POST, '/api/me', { cookie: staffCookie, body: { action: 'end-other-sessions' } });
-    await setSeats(shop.id, 1);
-    // Staff saiu; com 1 vaga, o dono (já conectado) ocupa a loja.
     await call(auth.POST, '/api/auth', { cookie: staffCookie, body: { action: 'logout' } });
+    await setSeats(shop.id, 1);
 
     const refused = await login('vaga-staff', 'Staffsenha123');
     assert.equal(refused.status, 409);
-    assert.match((await refused.json()).error, /1 pessoa conectada \(Dono\).*dono da loja/);
+    assert.match((await refused.json()).error, /1 acesso em uso \(Dono\).*dono da loja/);
     assert.ok(await signedIn(shop.owner), 'quem ocupa a vaga continua');
 
-    const ownerAgain = await login('vaga-unica', 'Donosenha123');
-    assert.equal(ownerAgain.status, 200, 'a mesma pessoa em outro aparelho não gasta outra vaga');
-    assert.ok(await signedIn(shop.owner));
-
-    await call(me.POST, '/api/me', { cookie: shop.owner, body: { action: 'end-other-sessions' } });
     await call(auth.POST, '/api/auth', { cookie: shop.owner, body: { action: 'logout' } });
     const staff = cookieOf(await login('vaga-staff', 'Staffsenha123'));
     assert.ok(await signedIn(staff), 'vaga livre: o funcionário entra');
     const owner = cookieOf(await login('vaga-unica', 'Donosenha123'));
     assert.ok(await signedIn(owner), 'o dono sempre entra');
-    assert.equal(await signedIn(staff), null, 'e desconecta quem estava na vaga');
+    assert.equal(await signedIn(staff), null, 'e encerra o acesso mais antigo da loja');
   },
 );
 
@@ -747,7 +752,7 @@ test('two staff racing for the last seat: exactly one gets in', { skip }, async 
   ]);
   assert.deepEqual(results.map((response) => response.status).sort(), [200, 409]);
   const [{ count }] = await db.migrationQuery(
-    `SELECT count(DISTINCT user_id) AS count FROM sessions
+    `SELECT count(*) AS count FROM sessions
      WHERE account_id = $1 AND expires_at > now()`,
     [shop.id],
   );

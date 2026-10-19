@@ -771,7 +771,7 @@ function SubscriptionForm({
           </div>
         </div>
         <div className="grid gap-2">
-          <Label htmlFor="store-seats">Pessoas conectadas ao mesmo tempo</Label>
+          <Label htmlFor="store-seats">Acessos simultâneos (vagas)</Label>
           <Input
             aria-describedby="store-seats-hint"
             className="sm:max-w-40"
@@ -786,7 +786,8 @@ function SubscriptionForm({
             value={seats}
           />
           <p className="text-xs text-muted-foreground" id="store-seats-hint">
-            O plano inclui 1. Aumente para vender vagas extras; vale no próximo login.
+            Cada login ativo, em qualquer aparelho, ocupa uma vaga. O plano inclui 1; aumente para
+            vender vagas extras. Vale no próximo login.
           </p>
         </div>
       </div>

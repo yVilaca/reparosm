@@ -54,14 +54,14 @@ export async function usernameForEmail(email: string) {
 
 export type Device = { userAgent: string; ip: string };
 
-/** A loja já tem todas as vagas ocupadas por outras pessoas. */
+/** A loja já tem todas as vagas ocupadas por logins de outras pessoas. */
 export class SeatLimitError extends Error {
   constructor(
     readonly holders: string[],
     readonly max: number,
   ) {
     super(
-      `A loja já está com ${max === 1 ? '1 pessoa conectada' : `${max} pessoas conectadas`}` +
+      `A loja já está com ${max === 1 ? '1 acesso em uso' : `${max} acessos em uso`}` +
         `${holders.length ? ` (${holders.join(', ')})` : ''}, o limite do plano. ` +
         'Peça para alguém sair ou fale com o dono da loja.',
     );
@@ -69,11 +69,13 @@ export class SeatLimitError extends Error {
 }
 
 /**
- * Vaga = pessoa com sessão válida (2 aparelhos da mesma pessoa = 1 vaga). Quem já
- * tem vaga reentra livre; o admin não tem limite. Loja cheia: o dono entra e
- * desconecta quem entrou há mais tempo; o funcionário é recusado.
+ * 1 login = 1 vaga: cada sessão válida ocupa uma, em qualquer aparelho, para que um
+ * mesmo usuário e senha não sirva a duas pessoas ao mesmo tempo. Loja cheia:
+ * - a pessoa já tem sessão: a mais antiga dela sai (a vaga muda de aparelho);
+ * - senão, o dono entra e derruba a sessão mais antiga da loja;
+ * - senão (funcionário), é recusado. O admin não tem limite.
  * ponytail: lock por loja (advisory) serializa logins da mesma loja; sessão de aba
- * fechada segura a vaga até vencer (12h). Heartbeat/last_seen se isso incomodar.
+ * fechada segura a vaga até vencer (12h) ou ser derrubada. Heartbeat se incomodar.
  */
 async function claimSeat(run: Query, user: Pick<StoreUser, 'id' | 'accountId'>) {
   // A credencial já foi conferida: o escopo da loja permite ver os colegas.
@@ -84,25 +86,27 @@ async function claimSeat(run: Query, user: Pick<StoreUser, 'id' | 'accountId'>) 
     [user.accountId],
   );
   if (!account || account.role === 'admin') return;
-  const others = await run<{ user_id: string; name: string }>(
-    `SELECT s.user_id, u.name
+  const live = await run<{ id: string; user_id: string; name: string }>(
+    `SELECT s.id, s.user_id, u.name
      FROM sessions AS s JOIN users AS u ON u.id = s.user_id
-     WHERE s.account_id = $1 AND s.user_id <> $2 AND s.expires_at > now()
-     GROUP BY s.user_id, u.name
-     ORDER BY max(s.created_at)`,
-    [user.accountId, user.id],
+     WHERE s.account_id = $1 AND s.expires_at > now()
+     ORDER BY s.created_at`,
+    [user.accountId],
   );
-  const excess = others.length + 1 - account.max_active_users;
+  const excess = live.length + 1 - account.max_active_users;
   if (excess <= 0) return;
+  const mine = live.filter((session) => session.user_id === user.id);
+  const others = live.filter((session) => session.user_id !== user.id);
   const [me] = await run<{ role: string }>('SELECT role FROM users WHERE id = $1', [user.id]);
-  if (me?.role !== 'owner')
+  const freed = [...mine, ...(me?.role === 'owner' ? others : [])].slice(0, excess);
+  if (freed.length < excess)
     throw new SeatLimitError(
-      others.map((other) => other.name),
+      [...new Set(others.map((session) => session.name))],
       account.max_active_users,
     );
-  await run('DELETE FROM sessions WHERE account_id = $1 AND user_id = ANY($2::text[])', [
+  await run('DELETE FROM sessions WHERE account_id = $1 AND id = ANY($2::text[])', [
     user.accountId,
-    others.slice(0, excess).map((other) => other.user_id),
+    freed.map((session) => session.id),
   ]);
 }
 
