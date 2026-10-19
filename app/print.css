@@ -135,6 +135,199 @@
   font-size: 8pt;
 }
 
+.checklist-print-sheet {
+  width: 186mm;
+  min-height: 273mm;
+  margin: 0 auto 24px;
+  padding: 8mm;
+  box-sizing: border-box;
+  background: white;
+  color: black;
+  border: 1px solid #ddd;
+  font:
+    9.5pt/1.3 Arial,
+    sans-serif;
+}
+.checklist-print-message {
+  margin: 0 0 5mm;
+  white-space: pre-line;
+  font-weight: 600;
+}
+.checklist-print-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8mm;
+  border-bottom: 1px solid #888;
+  padding-bottom: 4mm;
+  margin-bottom: 5mm;
+}
+.checklist-print-brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 3mm;
+  min-width: 0;
+}
+.checklist-print-brand p,
+.checklist-print-number span,
+.checklist-print-footer > p {
+  margin: 0;
+  color: #444;
+  font-size: 8pt;
+}
+.checklist-print-brand h1,
+.checklist-print-number b,
+.checklist-print-number strong {
+  display: block;
+  margin: 0;
+}
+.checklist-print-logo {
+  max-width: 35mm;
+  max-height: 14mm;
+  object-fit: contain;
+}
+.checklist-print-number {
+  flex-shrink: 0;
+  text-align: right;
+}
+.checklist-print-number b {
+  margin-top: 1mm;
+  font-size: 18pt;
+}
+.checklist-print-number span {
+  margin-top: 1mm;
+}
+.checklist-print-section {
+  margin-bottom: 4mm;
+  break-inside: avoid;
+}
+.checklist-print-section h2 {
+  margin: 0 0 2mm;
+  font-size: 10pt;
+  font-weight: 700;
+}
+.checklist-print-fields,
+.checklist-print-summary-values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2mm 5mm;
+  margin: 0;
+}
+.checklist-print-fields dt,
+.checklist-print-summary-values dt {
+  color: #444;
+  font-size: 8pt;
+}
+.checklist-print-fields dd,
+.checklist-print-summary-values dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.checklist-print-summary {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 6mm;
+  border: 1px solid #aaa;
+  padding: 3mm;
+}
+.checklist-print-summary p,
+.checklist-print-list,
+.checklist-print-notes {
+  margin: 0;
+  white-space: pre-line;
+}
+.checklist-print-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.checklist-print-table th,
+.checklist-print-table td {
+  border: 1px solid #bbb;
+  padding: 1.5mm 2mm;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.checklist-print-table thead th {
+  background: #eee;
+  font-size: 8pt;
+}
+.checklist-print-table tbody tr:not(.checklist-print-group) {
+  break-inside: avoid;
+}
+.checklist-print-table th:nth-child(1) {
+  width: 28%;
+}
+.checklist-print-table th:nth-child(2) {
+  width: 20%;
+}
+.checklist-print-table th:nth-child(3) {
+  width: 22%;
+}
+.checklist-print-group th {
+  background: #f2f2f2;
+  font-size: 8pt;
+}
+.checklist-print-state {
+  display: inline-block;
+  padding: 0.5mm 1.5mm;
+  border-radius: 2mm;
+  font-size: 8pt;
+  font-weight: 700;
+}
+.checklist-print-state-ok {
+  background: #dcfce7;
+  color: #166534;
+}
+.checklist-print-state-fail {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.checklist-print-state-skip,
+.checklist-print-state-none {
+  background: #eee;
+  color: #444;
+}
+.checklist-print-two-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8mm;
+}
+.checklist-print-list {
+  padding-left: 4mm;
+}
+.checklist-print-footer {
+  margin-top: 7mm;
+  border-top: 1px solid #aaa;
+  padding-top: 4mm;
+  break-inside: avoid;
+}
+.checklist-print-signatures {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12mm;
+  margin-top: 13mm;
+}
+.checklist-print-signatures > div {
+  min-height: 12mm;
+  border-top: 1px solid #555;
+  padding-top: 1.5mm;
+  text-align: center;
+}
+.checklist-print-signatures span,
+.checklist-print-signatures strong {
+  display: block;
+}
+.checklist-print-signatures span {
+  font-weight: 700;
+}
+.checklist-print-signatures strong {
+  margin-top: 1mm;
+  font-size: 8pt;
+  font-weight: 400;
+}
+
 /* Printing from a dark-themed session otherwise leaves the browser's default
    canvas (the page area beyond the laid-out content, and any native UI the
    print pipeline paints) dark: color-scheme, not an element's background,
@@ -158,6 +351,19 @@
     page-break-after: always;
   }
   .compact-sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+  .checklist-print-toolbar {
+    display: none;
+  }
+  .checklist-print-sheet {
+    margin: 0;
+    border: 0;
+    break-after: page;
+    page-break-after: always;
+  }
+  .checklist-print-sheet:last-child {
     break-after: auto;
     page-break-after: auto;
   }

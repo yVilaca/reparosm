@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { cn } from 'cn';
-import { ClipboardCheck } from 'lucide-react';
+import { ClipboardCheck, Printer } from 'lucide-react';
 import { stateBg } from '@/components/device-diagram';
 import { Button } from '@/components/ui/button';
 import { checklistSummary, checks, type Checklist } from '@/lib/order-checklist';
@@ -52,12 +52,24 @@ export default function OrderChecklistPanel({
                 : summary.text}
           </p>
         </div>
-        <Button asChild variant="outline">
-          <Link href={`/ordens/${encodeURIComponent(orderId)}/checklist`}>
-            <ClipboardCheck aria-hidden="true" />
-            {summary.status === 'empty' ? 'Fazer checklist' : 'Abrir checklist'}
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href={`/ordens/${encodeURIComponent(orderId)}/checklist`}>
+              <ClipboardCheck aria-hidden="true" />
+              {summary.status === 'empty' ? 'Fazer checklist' : 'Abrir checklist'}
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link
+              href={`/ordens/${encodeURIComponent(orderId)}/checklist/imprimir`}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              <Printer aria-hidden="true" />
+              Imprimir para assinatura
+            </Link>
+          </Button>
+        </div>
       </div>
       {checklist && summary.status !== 'empty' && !off && (
         <div aria-hidden="true" className="flex gap-[3px]">
