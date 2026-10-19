@@ -1,7 +1,9 @@
 'use client';
 
 import { useLayoutEffect, useRef } from 'react';
+import PrintSignature from '@/components/print-signature';
 import { formatMoney } from '@/lib/format';
+import type { OrderSignature } from '@/lib/order-signatures';
 import type { Order, Shop } from '@/lib/types';
 import { warrantyPeriod } from '@/lib/warranty';
 
@@ -10,7 +12,7 @@ export default function CompactOrderPrint({
   shop,
   issuedAt,
 }: {
-  orders: { id: string; data: Order }[];
+  orders: { id: string; data: Order; signatures?: OrderSignature[] }[];
   shop?: Shop;
   issuedAt: string;
 }) {
@@ -42,7 +44,7 @@ export default function CompactOrderPrint({
 
   return (
     <div className="compact-print" ref={documentRef}>
-      {orders.map(({ id, data }) => (
+      {orders.map(({ id, data, signatures }) => (
         <div className="compact-sheet" key={id} data-order-id={id}>
           {(['Via da assistência', 'Via do cliente'] as const).map((copy, index) => {
             const warranty = warrantyPeriod(data.deliveredAt, data.warrantyDays);
@@ -116,13 +118,18 @@ export default function CompactOrderPrint({
                     </p>
                   )}
                   <footer className="compact-signatures">
-                    <div>
-                      Assinatura do cliente<p>{data.customer}</p>
-                    </div>
-                    <div>
-                      Assinatura da assistência
-                      <p>{data.technician || shop?.technician || 'Responsável técnico'}</p>
-                    </div>
+                    <PrintSignature
+                      compact
+                      label="Assinatura do cliente"
+                      name={data.customer}
+                      signature={signatures?.find((item) => item.role === 'customer')}
+                    />
+                    <PrintSignature
+                      compact
+                      label="Assinatura da assistência"
+                      name={data.technician || shop?.technician || 'Responsável técnico'}
+                      signature={signatures?.find((item) => item.role === 'shop')}
+                    />
                   </footer>
                 </div>
               </section>

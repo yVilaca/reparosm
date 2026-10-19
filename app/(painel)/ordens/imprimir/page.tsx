@@ -3,6 +3,7 @@ import PrintOrdersDocument from '@/components/print-orders-document';
 import { normalizePrintCopies, normalizePrintLayout, parsePrintOrderIds } from '@/lib/print';
 import { orders, shops } from '@/lib/repos';
 import * as orderPhotos from '@/lib/repos/order-photos';
+import * as orderSignatures from '@/lib/repos/order-signatures';
 import { requireServerAccount } from '@/lib/server-auth';
 
 export default async function PrintSelectedOrdersPage({
@@ -18,7 +19,7 @@ export default async function PrintSelectedOrdersPage({
   const ids = parsePrintOrderIds(query.id);
   if (!ids) notFound();
   const layout = normalizePrintLayout(query.layout);
-  const [records, shop] = await Promise.all([
+  const [records, shop, signatures] = await Promise.all([
     Promise.all(
       ids.map(async (id) => {
         const order = await orders.get(account.id, id);
@@ -28,10 +29,11 @@ export default async function PrintSelectedOrdersPage({
       }),
     ),
     shops.get(account.id, 'shop-main'),
+    orderSignatures.forOrders(account.id, ids),
   ]);
   return (
     <PrintOrdersDocument
-      orders={records}
+      orders={records.map((record) => ({ ...record, signatures: signatures.get(record.id) }))}
       shop={shop?.data}
       layout={layout}
       copies={layout === 'compact' ? 2 : normalizePrintCopies(query.copies)}

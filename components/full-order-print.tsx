@@ -1,6 +1,8 @@
 import PrintOrderPhotos from '@/components/print-order-photos';
+import PrintSignature from '@/components/print-signature';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatMoney } from '@/lib/format';
+import type { OrderSignature } from '@/lib/order-signatures';
 import type { Order, Shop } from '@/lib/types';
 import { warrantyPeriod } from '@/lib/warranty';
 
@@ -10,12 +12,14 @@ export default function FullOrderPrint({
   photos,
   copies,
   issuedAt,
+  signatures = [],
 }: {
   data: Order;
   shop?: Shop;
   photos: { id: string; contentType: string }[];
   copies: number;
   issuedAt: string;
+  signatures?: OrderSignature[];
 }) {
   const shop = shopData ? { data: shopData } : undefined;
   const warrantyDays = data.warrantyDays;
@@ -126,17 +130,17 @@ export default function FullOrderPrint({
               </section>
             )}
 
-            <footer className="mt-6 grid gap-6 border-t pt-6 sm:grid-cols-2">
-              <div className="border-t pt-2 text-center">
-                <p className="text-sm font-medium">Assinatura do cliente</p>
-                <p className="text-xs text-muted-foreground">{data.customer}</p>
-              </div>
-              <div className="border-t pt-2 text-center">
-                <p className="text-sm font-medium">Assinatura da assistência</p>
-                <p className="text-xs text-muted-foreground">
-                  {data.technician || shop?.data.technician || 'Responsável técnico'}
-                </p>
-              </div>
+            <footer className="mt-6 grid break-inside-avoid gap-6 border-t pt-4 sm:grid-cols-2">
+              <PrintSignature
+                label="Assinatura do cliente"
+                name={data.customer}
+                signature={signatures.find((item) => item.role === 'customer')}
+              />
+              <PrintSignature
+                label="Assinatura da assistência"
+                name={data.technician || shop?.data.technician || 'Responsável técnico'}
+                signature={signatures.find((item) => item.role === 'shop')}
+              />
             </footer>
           </CardContent>
         </Card>
