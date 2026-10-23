@@ -114,11 +114,11 @@ test('the receipt shows unit price, discount and total, and says it is not fisca
   );
   const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
   assert.match(text, /Não é documento fiscal/);
-  assert.match(text, /2 × R\$\s25,00 R\$\s50,00/);
+  assert.match(text, /2,000 X R\$\s25,00 R\$\s50,00/);
   assert.match(text, /Desconto −R\$\s5,00/);
   assert.match(text, /Total R\$\s45,00/);
-  assert.match(text, /Pagamento Pix/);
-  assert.match(text, /Documento: 12\.345\.678\/0001-90/);
+  assert.match(text, /Pix R\$\s45,00/);
+  assert.match(text, /12\.345\.678\/0001-90/);
   assert.match(text, /23\/10\/2026 14:05/);
   assert.match(html, /&lt;b&gt;iPhone/);
 });

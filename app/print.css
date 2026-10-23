@@ -151,13 +151,15 @@
   background: white;
   color: black;
   font:
-    9pt/1.35 Arial,
-    sans-serif;
+    9pt/1.4 'Courier New',
+    Courier,
+    monospace;
+  text-transform: uppercase;
   overflow-wrap: anywhere;
 }
 .sale-receipt h1 {
   margin: 0;
-  font-size: 11pt;
+  font-size: 12pt;
   font-weight: 700;
 }
 .sale-receipt p,
@@ -165,27 +167,13 @@
 .sale-receipt dd {
   margin: 0;
 }
-.sale-receipt-center {
-  text-align: center;
-}
-.sale-receipt-logo {
-  display: block;
-  max-height: 14mm;
-  max-width: 40mm;
-  margin: 0 auto 1mm;
-  object-fit: contain;
-}
 .sale-receipt-section {
-  margin-top: 2mm;
-  padding-top: 2mm;
-  border-top: 1px dashed black;
+  margin-top: 2.5mm;
+  padding-top: 2.5mm;
+  border-top: 1px solid black;
 }
-.sale-receipt-title {
+.sale-receipt-strong {
   font-weight: 700;
-  text-transform: uppercase;
-}
-.sale-receipt-item {
-  font-weight: 600;
 }
 .sale-receipt-row {
   display: flex;
@@ -200,7 +188,6 @@
   font-weight: 700;
 }
 .sale-receipt-footer {
-  text-align: center;
   white-space: pre-line;
 }
 
