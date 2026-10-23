@@ -724,7 +724,16 @@ export default function QuickSaleRoute({
                             rel="noopener noreferrer"
                             target="_blank"
                           >
-                            Imprimir comprovante
+                            Comprovante na bobina
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link
+                            href={`/pagamentos/${encodeURIComponent(sale.id)}/comprovante?layout=a4`}
+                            rel="noopener noreferrer"
+                            target="_blank"
+                          >
+                            Comprovante em A4
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => void undo(sale)}>

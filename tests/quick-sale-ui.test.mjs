@@ -122,3 +122,45 @@ test('the receipt shows unit price, discount and total, and says it is not fisca
   assert.match(text, /23\/10\/2026 14:05/);
   assert.match(html, /&lt;b&gt;iPhone/);
 });
+
+test('the A4 receipt itemizes the sale and is also marked non-fiscal', async () => {
+  const { SaleReceiptA4 } = await import('../components/sale-receipt.tsx');
+  const html = renderToStaticMarkup(
+    createElement(SaleReceiptA4, {
+      sale: {
+        id: 'payment-1',
+        description: 'Capinha <b>iPhone</b>',
+        value: 45,
+        discount: 5,
+        quantity: 2,
+        method: 'Cartão de crédito',
+        date: '2026-10-23',
+        issuedAt: '23/10/2026 14:05',
+      },
+      shop: { name: 'Loja', document: '12.345.678/0001-90', footer: 'Trocas em 7 dias' },
+    }),
+  );
+  const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(text, /Sem valor fiscal/);
+  assert.match(text, /Capinha &lt;b&gt;iPhone&lt;\/b&gt; 2 R\$\s25,00 R\$\s50,00/);
+  assert.match(text, /Subtotal R\$\s50,00 Desconto −R\$\s5,00 Total pago R\$\s45,00/);
+  assert.match(text, /Forma de pagamento Cartão de crédito/);
+  assert.match(text, /Documento: 12\.345\.678\/0001-90/);
+  assert.match(text, /Trocas em 7 dias/);
+  // Sem desconto, o subtotal repetiria o total.
+  const plain = renderToStaticMarkup(
+    createElement(SaleReceiptA4, {
+      sale: {
+        id: 'p',
+        description: 'Cabo',
+        value: 20,
+        discount: 0,
+        quantity: 1,
+        method: 'Pix',
+        date: '2026-10-23',
+        issuedAt: '23/10/2026 14:05',
+      },
+    }),
+  );
+  assert.doesNotMatch(plain, /Subtotal|Desconto/);
+});
