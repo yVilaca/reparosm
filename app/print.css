@@ -135,6 +135,62 @@
   font-size: 8pt;
 }
 
+/* Comprovante de venda rápida: o papel é o da impressora escolhida (bobina
+   térmica de 58/80 mm, A4 ou PDF), não o A4 fixo das OS. */
+@page receipt {
+  size: auto;
+  margin: 0;
+}
+.sale-receipt {
+  page: receipt;
+  width: 100%;
+  max-width: 80mm;
+  margin: 0 auto;
+  padding: 4mm;
+  box-sizing: border-box;
+  background: white;
+  color: black;
+  font:
+    9pt/1.4 'Courier New',
+    Courier,
+    monospace;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.sale-receipt h1 {
+  margin: 0;
+  font-size: 12pt;
+  font-weight: 700;
+}
+.sale-receipt p,
+.sale-receipt dl,
+.sale-receipt dd {
+  margin: 0;
+}
+.sale-receipt-section {
+  margin-top: 2.5mm;
+  padding-top: 2.5mm;
+  border-top: 1px solid black;
+}
+.sale-receipt-strong {
+  font-weight: 700;
+}
+.sale-receipt-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 2mm;
+}
+.sale-receipt-row > :last-child {
+  white-space: nowrap;
+}
+.sale-receipt-total {
+  font-size: 11pt;
+  font-weight: 700;
+}
+.sale-receipt-footer {
+  white-space: pre-line;
+}
+
 /* Printing from a dark-themed session otherwise leaves the browser's default
    canvas (the page area beyond the laid-out content, and any native UI the
    print pipeline paints) dark: color-scheme, not an element's background,

@@ -127,6 +127,18 @@ export async function since(accountId: string, from: string): Promise<QuickSaleR
   return rows.map(toRecord);
 }
 
+/** Uma venda rápida com a hora do registro (horário de Brasília), para o comprovante. */
+export async function get(accountId: string, id: string) {
+  const [row] = await tenantQueryFor(accountId)<Row & { issued_at: string }>(
+    `SELECT id, description, value, discount, cost, quantity, part_id, method, ${DATE}::text AS date,
+            to_char(created_at AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY HH24:MI') AS issued_at
+     FROM cash_entries
+     WHERE account_id = $1 AND id = $2 AND kind = 'in' AND order_id IS NULL`,
+    [accountId, id],
+  );
+  return row ? { ...toRecord(row), issuedAt: row.issued_at } : undefined;
+}
+
 export async function remove(accountId: string, id: string, run?: Query) {
   const work = async (execute: Query) => {
     const [sale] = await execute<{

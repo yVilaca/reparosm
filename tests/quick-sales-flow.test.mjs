@@ -256,3 +256,14 @@ test("lists only this shop's sales without an order", { skip }, async () => {
     'Película 3D iPhone 15',
   ]);
 });
+
+test("the receipt opens only this shop's own quick sale", { skip }, async () => {
+  const mine = await sell({ description: 'Capinha', price: 30, discount: 5, method: 'Pix' });
+  const other = await sell({ description: 'Capinha', price: 30, method: 'Pix' }, B);
+  const sale = await repo.get(A.id, mine.body.sale.id);
+  assert.equal(sale.value, 25);
+  assert.equal(sale.discount, 5);
+  assert.match(sale.issuedAt, /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/);
+  assert.equal(await repo.get(A.id, other.body.sale.id), undefined);
+  assert.equal(await repo.get(A.id, 'payment-os'), undefined);
+});

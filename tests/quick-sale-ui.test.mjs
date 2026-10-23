@@ -94,3 +94,31 @@ test("today's sales show the discount given and the profit", () => {
   // O total do dia avisa que uma venda ficou sem custo.
   assert.match(html, /2 vendas rápidas · 1 sem custo/);
 });
+
+test('the receipt shows unit price, discount and total, and says it is not fiscal', async () => {
+  const { default: SaleReceipt } = await import('../components/sale-receipt.tsx');
+  const html = renderToStaticMarkup(
+    createElement(SaleReceipt, {
+      sale: {
+        id: 'payment-1',
+        description: 'Capinha <b>iPhone</b>',
+        value: 45,
+        discount: 5,
+        quantity: 2,
+        method: 'Pix',
+        date: '2026-10-23',
+        issuedAt: '23/10/2026 14:05',
+      },
+      shop: { name: 'Loja', phone: '11 99999-0000', document: '12.345.678/0001-90' },
+    }),
+  );
+  const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(text, /Não é documento fiscal/);
+  assert.match(text, /2,000 X R\$\s25,00 R\$\s50,00/);
+  assert.match(text, /Desconto −R\$\s5,00/);
+  assert.match(text, /Total R\$\s45,00/);
+  assert.match(text, /Pix R\$\s45,00/);
+  assert.match(text, /12\.345\.678\/0001-90/);
+  assert.match(text, /23\/10\/2026 14:05/);
+  assert.match(html, /&lt;b&gt;iPhone/);
+});

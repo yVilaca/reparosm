@@ -718,6 +718,15 @@ export default function QuickSaleRoute({
                   <ListRow
                     actions={
                       <RowMenu label={sale.description}>
+                        <DropdownMenuItem asChild>
+                          <Link
+                            href={`/pagamentos/${encodeURIComponent(sale.id)}/comprovante`}
+                            rel="noopener noreferrer"
+                            target="_blank"
+                          >
+                            Imprimir comprovante
+                          </Link>
+                        </DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => void undo(sale)}>
                           Desfazer venda
                         </DropdownMenuItem>
@@ -747,7 +756,7 @@ export default function QuickSaleRoute({
             </ListGroup>
           ) : (
             <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-              As vendas de hoje aparecem aqui, com a opção de desfazer um engano.
+              As vendas de hoje aparecem aqui, para imprimir o comprovante ou desfazer um engano.
             </p>
           )}
         </aside>
