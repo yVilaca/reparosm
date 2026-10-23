@@ -3,12 +3,13 @@
 import { Button } from '@/components/ui/button';
 import type { PrintLayout } from '@/lib/print';
 
+/** Sem `layout`, só o botão de imprimir (ex.: comprovante de venda). */
 export default function PrintOrderButton({
-  copies,
+  copies = 1,
   layout,
 }: {
-  copies: number;
-  layout: PrintLayout;
+  copies?: number;
+  layout?: PrintLayout;
 }) {
   const update = (key: string, value: string) => {
     const url = new URL(window.location.href);
