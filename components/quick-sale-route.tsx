@@ -54,6 +54,15 @@ export type QuickSale = {
   cost?: number;
   quantity?: number;
   partId?: string;
+  items?: CartItem[];
+};
+type CartItem = {
+  description: string;
+  price: number;
+  discount: number;
+  cost?: number;
+  quantity: number;
+  partId?: string;
 };
 export type SaleSuggestion = { description: string; value: number; cost?: number; partId?: string };
 
@@ -110,6 +119,7 @@ export default function QuickSaleRoute({
   const [method, setMethod] = useState<PaymentMethod>('Pix');
   const [given, setGiven] = useState('');
   const [saving, setSaving] = useState(false);
+  const [cart, setCart] = useState<CartItem[]>([]);
   const linkedProduct = product || uniqueStockProduct(products, description);
 
   const matches = useMemo(
@@ -120,12 +130,6 @@ export default function QuickSaleRoute({
 
   const price = parseMoney(priceText);
   const quantity = parseQuantity(quantityText);
-  const stock = useStockCheck(
-    linkedProduct && Number.isFinite(quantity) ? [{ partId: linkedProduct.id, quantity }] : [],
-  );
-  const productStock = linkedProduct
-    ? stock.check?.parts.find((part) => part.id === linkedProduct.id)?.available
-    : undefined;
   const subtotal = Number.isFinite(price) && Number.isFinite(quantity) ? price * quantity : price;
   const discount = parseDiscount(discountText, subtotal);
   const cost = costText.trim() ? parseMoney(costText) : undefined;
@@ -138,14 +142,50 @@ export default function QuickSaleRoute({
   const quantityError = !Number.isFinite(quantity)
     ? 'Informe uma quantidade inteira maior que zero.'
     : '';
-  const { total, profit, margin } = saleTotals(price, discount, cost, quantity);
-  const valid =
+  const draftItem: CartItem | null =
+    description.trim() && price > 0 && Number.isFinite(quantity) && !discountError && !costError
+      ? {
+          description: description.trim(),
+          price,
+          discount,
+          ...(cost === undefined ? {} : { cost }),
+          quantity,
+          ...(linkedProduct ? { partId: linkedProduct.id } : {}),
+        }
+      : null;
+  const saleItems = [...cart, ...(draftItem ? [draftItem] : [])];
+  const stock = useStockCheck(
+    Object.values(
+      saleItems
+        .filter((item) => item.partId)
+        .reduce<Record<string, { partId: string; quantity: number }>>((all, item) => {
+          const partId = item.partId!;
+          all[partId] = { partId, quantity: (all[partId]?.quantity || 0) + item.quantity };
+          return all;
+        }, {}),
+    ),
+  );
+  const productStock = linkedProduct
+    ? stock.check?.parts.find((part) => part.id === linkedProduct.id)?.available
+    : undefined;
+  const { total: draftTotal } = saleTotals(price, discount, cost, quantity);
+  const draftValid =
     Boolean(description.trim()) &&
     price > 0 &&
     !quantityError &&
     !discountError &&
     !costError &&
-    total > 0;
+    draftTotal > 0;
+  const total = saleItems.reduce(
+    (sum, item) => sum + item.price * item.quantity - item.discount,
+    0,
+  );
+  const totalCost = saleItems.every((item) => item.cost !== undefined)
+    ? saleItems.reduce((sum, item) => sum + item.cost! * item.quantity, 0)
+    : undefined;
+  const profit = totalCost === undefined ? null : total - totalCost;
+  const margin = profit === null || total <= 0 ? null : Math.round((profit / total) * 1000) / 10;
+  const valid = cart.length > 0 || draftValid;
   const change = method === 'Dinheiro' && given ? cashChange(total, parseMoney(given)) : null;
 
   const withCost = sales.filter((sale) => sale.cost !== undefined);
@@ -205,6 +245,17 @@ export default function QuickSaleRoute({
     setActive(-1);
     descriptionRef.current?.focus();
   };
+  const addToCart = () => {
+    if (!draftValid || !draftItem) {
+      notify(
+        quantityError || discountError || costError || 'Informe o item e um preço maior que zero.',
+        'error',
+      );
+      return;
+    }
+    setCart((current) => [...current, draftItem]);
+    reset();
+  };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -230,12 +281,7 @@ export default function QuickSaleRoute({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...stockDecision,
-            description: description.trim(),
-            price,
-            discount,
-            quantity,
-            ...(cost === undefined ? {} : { cost }),
-            ...(linkedProduct ? { partId: linkedProduct.id } : {}),
+            items: saleItems,
             method,
           }),
         });
@@ -253,6 +299,7 @@ export default function QuickSaleRoute({
         setSales((current) => [result.sale!, ...current]);
         notify(`Venda de ${formatMoney(result.sale.value)} registrada.`, 'success');
         reset();
+        setCart([]);
         router.refresh();
         return;
       }
@@ -594,6 +641,47 @@ export default function QuickSaleRoute({
                     </dl>
                   </div>
                 )}
+            </div>
+
+            <div className="grid gap-2 rounded-lg border bg-muted/20 p-3">
+              {cart.length ? (
+                <ul aria-label="Itens adicionados" className="grid gap-2">
+                  {cart.map((item, index) => (
+                    <li
+                      className="flex items-center justify-between gap-3 text-sm"
+                      key={`${item.description}-${index}`}
+                    >
+                      <span className="min-w-0 truncate">
+                        {item.quantity}× {item.description}
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2 tabular-nums">
+                        {formatMoney(item.price * item.quantity - item.discount)}
+                        <Button
+                          aria-label={`Remover ${item.description}`}
+                          onClick={() =>
+                            setCart((current) =>
+                              current.filter((_, position) => position !== index),
+                            )
+                          }
+                          size="icon-sm"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <X aria-hidden="true" />
+                        </Button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">Adicione os itens antes de receber.</p>
+              )}
+              <Button disabled={!draftValid} onClick={addToCart} type="button" variant="outline">
+                Adicionar item
+              </Button>
+              {cart.length > 0 && (
+                <p className="text-right text-sm font-semibold">Total: {formatMoney(total)}</p>
+              )}
             </div>
 
             <fieldset className="grid gap-2">

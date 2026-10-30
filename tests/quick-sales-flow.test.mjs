@@ -164,6 +164,76 @@ test('a multi-unit stock sale decrements and restores the exact quantity', { ski
   assert.equal(afterUndo.stock, 3);
 });
 
+test(
+  'a sale with several items charges once and restores every stock item when undone',
+  { skip },
+  async () => {
+    await db.migrationQuery(
+      `INSERT INTO parts (id, account_id, name, stock, cost, price)
+     VALUES ('part-quick-cart-screen', $1, 'Película', 3, 10, 30),
+            ('part-quick-cart-case', $1, 'Capa', 2, 8, 20)`,
+      [A.id],
+    );
+    const { status, body } = await sell({
+      items: [
+        {
+          description: 'Película',
+          price: 30,
+          discount: 2,
+          quantity: 2,
+          partId: 'part-quick-cart-screen',
+        },
+        { description: 'Capa', price: 20, quantity: 1, partId: 'part-quick-cart-case' },
+      ],
+      method: 'Pix',
+    });
+    assert.equal(status, 201, JSON.stringify(body));
+    assert.equal(body.sale.value, 78);
+    assert.equal(body.sale.discount, 2);
+    assert.equal(body.sale.cost, 28);
+    assert.deepEqual(body.sale.items, [
+      {
+        description: 'Película',
+        price: 30,
+        discount: 2,
+        cost: 10,
+        quantity: 2,
+        partId: 'part-quick-cart-screen',
+      },
+      {
+        description: 'Capa',
+        price: 20,
+        discount: 0,
+        cost: 8,
+        quantity: 1,
+        partId: 'part-quick-cart-case',
+      },
+    ]);
+    const afterSale = await db.migrationQuery(
+      `SELECT id, stock FROM parts WHERE id IN ('part-quick-cart-screen', 'part-quick-cart-case') ORDER BY id`,
+    );
+    assert.deepEqual(afterSale, [
+      { id: 'part-quick-cart-case', stock: 1 },
+      { id: 'part-quick-cart-screen', stock: 1 },
+    ]);
+
+    const response = await paymentRoute.DELETE(
+      new Request(`https://test.local/api/payments?id=${body.sale.id}`, {
+        method: 'DELETE',
+        headers: { origin: 'https://test.local', cookie: A.cookie },
+      }),
+    );
+    assert.equal(response.status, 200, JSON.stringify(await response.json()));
+    const afterUndo = await db.migrationQuery(
+      `SELECT id, stock FROM parts WHERE id IN ('part-quick-cart-screen', 'part-quick-cart-case') ORDER BY id`,
+    );
+    assert.deepEqual(afterUndo, [
+      { id: 'part-quick-cart-case', stock: 2 },
+      { id: 'part-quick-cart-screen', stock: 3 },
+    ]);
+  },
+);
+
 test('undoing a stock product sale restores its inventory', { skip }, async () => {
   await db.migrationQuery(
     `INSERT INTO parts (id, account_id, name, stock, cost, price)

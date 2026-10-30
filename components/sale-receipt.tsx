@@ -12,6 +12,16 @@ const amounts = ({ sale, shop }: ReceiptProps) => {
     quantity,
     subtotal,
     unit: subtotal / quantity,
+    items: sale.items?.length
+      ? sale.items
+      : [
+          {
+            description: sale.description,
+            price: subtotal / quantity,
+            quantity,
+            discount: sale.discount,
+          },
+        ],
     name: shop?.name || shop?.legalName || 'Assistência técnica',
     contact: [shop?.phone, shop?.email].filter(Boolean).join(' · '),
   };
@@ -24,7 +34,7 @@ const amounts = ({ sale, shop }: ReceiptProps) => {
  */
 export default function SaleReceipt(props: ReceiptProps) {
   const { sale, shop } = props;
-  const { quantity, subtotal, unit, name, contact } = amounts(props);
+  const { items, name, contact } = amounts(props);
   return (
     <article aria-label="Comprovante de venda" className="sale-receipt">
       <header>
@@ -42,13 +52,18 @@ export default function SaleReceipt(props: ReceiptProps) {
       </section>
 
       <section className="sale-receipt-section">
-        <p className="sale-receipt-strong">{sale.description}</p>
-        <div className="sale-receipt-row">
-          <span>
-            {quantity.toLocaleString('pt-BR', { minimumFractionDigits: 3 })} X {formatMoney(unit)}
-          </span>
-          <span>{formatMoney(subtotal)}</span>
-        </div>
+        {items.map((item, index) => (
+          <div key={`${item.description}-${index}`}>
+            <p className="sale-receipt-strong">{item.description}</p>
+            <div className="sale-receipt-row">
+              <span>
+                {item.quantity.toLocaleString('pt-BR', { minimumFractionDigits: 3 })} X{' '}
+                {formatMoney(item.price)}
+              </span>
+              <span>{formatMoney(item.price * item.quantity)}</span>
+            </div>
+          </div>
+        ))}
       </section>
 
       <dl className="sale-receipt-section">
@@ -76,7 +91,7 @@ export default function SaleReceipt(props: ReceiptProps) {
 /** O mesmo comprovante em folha A4 (ou PDF), para quem não tem impressora térmica. */
 export function SaleReceiptA4(props: ReceiptProps) {
   const { sale, shop } = props;
-  const { quantity, subtotal, unit, name, contact } = amounts(props);
+  const { subtotal, items, name, contact } = amounts(props);
   return (
     <article
       aria-label="Comprovante de venda"
@@ -125,16 +140,21 @@ export function SaleReceiptA4(props: ReceiptProps) {
           </tr>
         </thead>
         <tbody>
-          <tr className="border-b border-neutral-200 align-top">
-            <td className="py-3 pr-3 font-medium break-words">{sale.description}</td>
-            <td className="px-3 py-3 text-right tabular-nums">{quantity}</td>
-            <td className="px-3 py-3 text-right whitespace-nowrap tabular-nums">
-              {formatMoney(unit)}
-            </td>
-            <td className="py-3 pl-3 text-right whitespace-nowrap tabular-nums">
-              {formatMoney(subtotal)}
-            </td>
-          </tr>
+          {items.map((item, index) => (
+            <tr
+              className="border-b border-neutral-200 align-top"
+              key={`${item.description}-${index}`}
+            >
+              <td className="py-3 pr-3 font-medium break-words">{item.description}</td>
+              <td className="px-3 py-3 text-right tabular-nums">{item.quantity}</td>
+              <td className="px-3 py-3 text-right whitespace-nowrap tabular-nums">
+                {formatMoney(item.price)}
+              </td>
+              <td className="py-3 pl-3 text-right whitespace-nowrap tabular-nums">
+                {formatMoney(item.price * item.quantity)}
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
 
