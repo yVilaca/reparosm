@@ -31,6 +31,12 @@ test('asks only what was sold, the amount and how it was paid', () => {
   assert.match(html, /href="\/pagamentos\/historico"/);
 });
 
+test('does not let native required fields block receiving a populated cart', () => {
+  const html = render();
+  assert.doesNotMatch(html, /name="description"[^>]*required=""/);
+  assert.doesNotMatch(html, /id="sale-value"[^>]*required=""/);
+});
+
 test('one tap fills a frequent item', () => {
   const html = render({ suggestions: [{ description: 'Película 3D', value: 30 }] });
   assert.match(html, /Vendidos com frequência/);

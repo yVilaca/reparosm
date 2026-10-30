@@ -389,7 +389,6 @@ export default function QuickSaleRoute({
                   onKeyDown={onSearchKey}
                   placeholder="Busque no estoque ou digite livremente"
                   ref={descriptionRef}
-                  required
                   role="combobox"
                   value={description}
                 />
@@ -506,7 +505,6 @@ export default function QuickSaleRoute({
                       onChange={(event) => setPriceText(event.target.value)}
                       placeholder="0,00"
                       ref={priceRef}
-                      required
                       value={priceText}
                     />
                   </div>
