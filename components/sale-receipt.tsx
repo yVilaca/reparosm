@@ -51,6 +51,12 @@ export default function SaleReceipt(props: ReceiptProps) {
         <p>{sale.issuedAt}</p>
       </section>
 
+      {sale.client && (
+        <section className="sale-receipt-section">
+          <p>Cliente: {sale.client.name}</p>
+        </section>
+      )}
+
       <section className="sale-receipt-section">
         {items.map((item, index) => (
           <div key={`${item.description}-${index}`}>
@@ -116,6 +122,7 @@ export function SaleReceiptA4(props: ReceiptProps) {
             Comprovante de venda
           </p>
           <p className="mt-1 text-lg font-semibold tabular-nums">{sale.issuedAt}</p>
+          {sale.client && <p className="mt-1">Cliente: {sale.client.name}</p>}
           <p className="mt-2 inline-block rounded-full border border-neutral-300 px-2.5 py-0.5 text-xs font-medium text-neutral-600">
             Sem valor fiscal
           </p>

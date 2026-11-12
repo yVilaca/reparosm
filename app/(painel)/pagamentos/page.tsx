@@ -1,5 +1,6 @@
 import QuickSaleRoute from '@/components/quick-sale-route';
 import { frequentSales } from '@/lib/quick-sale';
+import { clients } from '@/lib/repos';
 import * as quickSales from '@/lib/repos/quick-sales';
 import { parts } from '@/lib/repos/rest';
 import { requireServerAccount } from '@/lib/server-auth';
@@ -8,12 +9,18 @@ import { todayInSaoPaulo } from '@/lib/warranty';
 export default async function PaymentsPage() {
   const account = await requireServerAccount();
   const today = todayInSaoPaulo();
-  const [sales, stock] = await Promise.all([
+  const [sales, stock, people] = await Promise.all([
     quickSales.since(account.id, `${today.slice(0, 7)}-01`),
     parts.list(account.id),
+    clients.list(account.id),
   ]);
   return (
     <QuickSaleRoute
+      clients={people.map(({ id, data }) => ({
+        id,
+        name: data.name,
+        ...(data.phone ? { phone: data.phone } : {}),
+      }))}
       products={stock.map(({ id, data }) => ({
         id,
         name: data.name,

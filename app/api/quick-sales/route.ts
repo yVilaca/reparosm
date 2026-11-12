@@ -46,6 +46,17 @@ const saleItem = (input: Record<string, unknown>) => {
   } as const;
 };
 
+/** Cliente opcional: um cadastrado ({ id }) ou um novo, só com o nome ({ name }). */
+const saleCustomer = (value: unknown): { customer?: quickSales.SaleCustomer; error?: string } => {
+  if (value === undefined || value === null) return {};
+  const { id, name } =
+    typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  if (typeof id === 'string' && id.trim()) return { customer: { id } };
+  if (typeof name === 'string' && name.trim() && name.trim().length <= 120)
+    return { customer: { name: name.trim() } };
+  return { error: 'Informe o nome do cliente (até 120 caracteres).' };
+};
+
 /**
  * Registra uma venda de balcão: preço e custo são unitários; o caixa recebe o
  * preço vezes a quantidade, menos o desconto, na data de hoje.
@@ -73,6 +84,8 @@ export async function POST(request: Request) {
   if (invalidItem) return invalid(invalidItem.error);
   const items = parsed.flatMap((result) => ('item' in result && result.item ? [result.item] : []));
   if (!isPaymentMethod(input.method)) return invalid('Escolha a forma de pagamento.');
+  const customer = saleCustomer(input.customer);
+  if (customer.error) return invalid(customer.error);
   if (
     input.acknowledgeNegativeStock !== undefined &&
     typeof input.acknowledgeNegativeStock !== 'boolean'
@@ -84,6 +97,7 @@ export async function POST(request: Request) {
       account.id,
       {
         items,
+        customer: customer.customer,
         method: input.method,
         acknowledgeNegativeStock: input.acknowledgeNegativeStock === true,
       },

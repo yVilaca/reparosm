@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { cn } from 'cn';
 import { useFeedback } from '@/components/feedback';
+import SaleCustomerField from '@/components/sale-customer-field';
 import StockAlertDialog, { StockCheckStatus } from '@/components/stock-alert-dialog';
 import { uniqueStockProduct, useStockCheck } from '@/components/use-stock-check';
 import { Button } from '@/components/ui/button';
@@ -39,8 +40,10 @@ import {
   parseDiscount,
   parseMoney,
   parseQuantity,
+  saleCustomer,
   saleProfit,
   saleTotals,
+  type ClientOption,
   type ProductOption,
 } from '@/lib/quick-sale';
 import { stockTone } from '@/lib/status-tones';
@@ -54,6 +57,7 @@ export type QuickSale = {
   cost?: number;
   quantity?: number;
   partId?: string;
+  client?: { id: string; name: string };
   items?: CartItem[];
 };
 type CartItem = {
@@ -95,10 +99,12 @@ function useServerState<T>(server: T) {
  */
 export default function QuickSaleRoute({
   products = [],
+  clients = [],
   todaySales = [],
   suggestions = [],
 }: {
   products?: ProductOption[];
+  clients?: ClientOption[];
   todaySales?: QuickSale[];
   suggestions?: SaleSuggestion[];
 }) {
@@ -120,6 +126,8 @@ export default function QuickSaleRoute({
   const [given, setGiven] = useState('');
   const [saving, setSaving] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [customerText, setCustomerText] = useState('');
+  const [customer, setCustomer] = useState<ClientOption | null>(null);
   const linkedProduct = product || uniqueStockProduct(products, description);
 
   const matches = useMemo(
@@ -282,6 +290,7 @@ export default function QuickSaleRoute({
           body: JSON.stringify({
             ...stockDecision,
             items: saleItems,
+            customer: saleCustomer(clients, customer, customerText),
             method,
           }),
         });
@@ -300,6 +309,8 @@ export default function QuickSaleRoute({
         notify(`Venda de ${formatMoney(result.sale.value)} registrada.`, 'success');
         reset();
         setCart([]);
+        setCustomerText('');
+        setCustomer(null);
         router.refresh();
         return;
       }
@@ -682,6 +693,14 @@ export default function QuickSaleRoute({
               )}
             </div>
 
+            <SaleCustomerField
+              chosen={customer}
+              clients={clients}
+              onChoose={setCustomer}
+              onText={setCustomerText}
+              text={customerText}
+            />
+
             <fieldset className="grid gap-2">
               <legend className="mb-2 text-sm font-medium">Forma de pagamento</legend>
               <div className="grid grid-cols-3 gap-2 min-[900px]:grid-cols-5">
@@ -829,6 +848,7 @@ export default function QuickSaleRoute({
                     }
                     dense
                     details={[
+                      sale.client?.name,
                       methodLook[sale.method as PaymentMethod]?.label || sale.method,
                       quantity > 1 ? `${quantity} unidades` : null,
                       sale.discount ? `desconto ${formatMoney(sale.discount)}` : null,
