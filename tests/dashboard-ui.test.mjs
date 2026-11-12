@@ -18,7 +18,9 @@ const base = {
   ],
   today: { ...totals(105), methods: [{ method: 'Pix', value: 60 }] },
   movements: [],
-  orderTotals: { gross: 1234.56, net: 789.01, grossReceivable: 345.67, netReceivable: 234.56 },
+  period: 'month',
+  periodTotals: { income: 1234.56, cost: 445.55, net: 789.01, expense: 300, balance: 934.56 },
+  orderTotals: { gross: 9999, net: 9999, grossReceivable: 345.67, netReceivable: 234.56 },
   trend: [{ month: '2026-10-01', ...totals(1425), paidOrders: 3, averageTicket: 475 }],
 };
 const render = (props = {}) =>
@@ -102,9 +104,13 @@ test("keeps today's cash separate from order totals", () => {
 });
 
 test('shows empty order totals as zero amounts', () => {
-  const html = render({ orderTotals: { gross: 0, net: 0, grossReceivable: 0, netReceivable: 0 } });
+  const html = render({
+    periodTotals: { income: 0, cost: 0, net: 0, expense: 0, balance: 0 },
+    orderTotals: { gross: 0, net: 0, grossReceivable: 0, netReceivable: 0 },
+  });
   const cards = html.match(/<section aria-label="Totais financeiros"[\s\S]*?<\/section>/)?.[0];
-  assert.equal((cards?.match(/R\$\s*0,00/g) || []).length, 4);
+  // Quatro valores e o custo do período no detalhe do líquido.
+  assert.equal((cards?.match(/R\$\s*0,00/g) || []).length, 5);
   assert.doesNotMatch(html, /Infinity|NaN/);
 });
 
@@ -121,13 +127,28 @@ test('describes received amounts separately from pending order balances and marg
   assert.match(html, /Total Líquido[\s\S]*?R\$\s*789,01/);
   assert.match(html, /Bruto a receber[\s\S]*?R\$\s*345,67/);
   assert.match(html, /Líquido a receber[\s\S]*?R\$\s*234,56/);
-  assert.match(html, /Valores recebidos de OS não canceladas e vendas avulsas/);
-  assert.match(html, /Resultado de OS e vendas avulsas, sem a margem ainda a receber/);
-  assert.match(html, /Saldo pendente apenas das OS, após os recebimentos/);
-  assert.match(html, /Margem das OS proporcional ao saldo ainda a receber/);
+  assert.doesNotMatch(html, /9\.999,00/);
+  assert.match(html, /Recebimentos de OS e vendas avulsas no período/);
+  assert.match(html, /Custos: R\$\s*445,55\. Antes das saídas/);
+  assert.match(html, /Saldo pendente das OS hoje, em qualquer período/);
+  assert.match(html, /Margem das OS proporcional ao saldo a receber hoje/);
   assert.match(html, /Evolução do caixa/);
   assert.doesNotMatch(html, /Lucro líquido/);
   assert.ok(html.indexOf('Evolução do caixa') < html.indexOf('Bancada e aprovações'));
+});
+
+test('filters the totals by period through links, marking the chosen one', () => {
+  const html = render({ period: 'year' });
+  const filter = html.match(/<div aria-label="Período dos resultados"[\s\S]*?<\/div>/)?.[0] ?? '';
+  for (const [value, label] of [
+    ['month', 'Mês atual'],
+    ['previous-month', 'Mês passado'],
+    ['last-30-days', 'Últimos 30 dias'],
+    ['year', 'Este ano'],
+  ])
+    assert.ok(filter.includes(`href="/?periodo=${value}">${label}<`), label);
+  assert.match(filter, /aria-current="page"[^>]*href="\/\?periodo=year"/);
+  assert.equal((filter.match(/aria-current/g) || []).length, 1);
 });
 
 test('separates workshop, pickup and management priorities', () => {

@@ -252,7 +252,39 @@ export async function review(accountId: string) {
   };
 }
 
-export type CashPeriod = 'today' | 'month' | 'previous-month';
+export type CashPeriod = 'today' | 'month' | 'previous-month' | 'last-30-days' | 'year';
+
+/** Primeiro e último dia do período, contados a partir do dia de referência. */
+const periodWindow = async (execute: Query, period: CashPeriod, asOfDate: string) =>
+  (
+    await execute<{ from: string; to: string }>(
+      `SELECT
+         CASE $2
+           WHEN 'today' THEN $1::date
+           WHEN 'month' THEN date_trunc('month', $1::date)::date
+           WHEN 'previous-month' THEN (date_trunc('month', $1::date) - interval '1 month')::date
+           WHEN 'last-30-days' THEN $1::date - 29
+           WHEN 'year' THEN date_trunc('year', $1::date)::date
+         END::text AS "from",
+         CASE $2
+           WHEN 'previous-month' THEN (date_trunc('month', $1::date) - interval '1 day')::date
+           ELSE $1::date
+         END::text AS "to"`,
+      [asOfDate, period],
+    )
+  )[0];
+
+/** Totais do caixa no período, pela data de competência, como no Financeiro. */
+export async function periodTotals(
+  accountId: string,
+  period: CashPeriod,
+  asOfDate = todayInSaoPaulo(),
+): Promise<FinanceTotals> {
+  const execute = tenantQueryFor(accountId);
+  const { from, to } = await periodWindow(execute, period, asOfDate);
+  return rangeTotals(execute, accountId, from, to);
+}
+
 export type CashHistoryRow = {
   id: string;
   kind: 'in' | 'out';
@@ -275,23 +307,7 @@ export async function history(
   if (typeof period !== 'string' && !isCashDateRange(period))
     throw new Error('Intervalo de datas inválido.');
   const window =
-    typeof period !== 'string'
-      ? period
-      : (
-          await execute<{ from: string; to: string }>(
-            `SELECT
-       CASE $2
-         WHEN 'today' THEN $1::date
-         WHEN 'month' THEN date_trunc('month', $1::date)::date
-         ELSE (date_trunc('month', $1::date) - interval '1 month')::date
-       END::text AS "from",
-       CASE $2
-         WHEN 'previous-month' THEN (date_trunc('month', $1::date) - interval '1 day')::date
-         ELSE $1::date
-       END::text AS "to"`,
-            [asOfDate, period],
-          )
-        )[0];
+    typeof period !== 'string' ? period : await periodWindow(execute, period, asOfDate);
   const rows = await execute<{
     id: string;
     kind: 'in' | 'out';
