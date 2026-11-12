@@ -154,3 +154,36 @@ test('charges the discounted quantity total and calculates change without deduct
   assert.deepEqual(cashChange(received, 180), { kind: 'change', amount: 0 });
   assert.deepEqual(billSuggestions(received), [190, 200]);
 });
+
+test('finds clients by name without accents or by part of the WhatsApp', async () => {
+  const { matchClients } = await import('../lib/quick-sale.ts');
+  const clients = [
+    { id: 'c1', name: 'João Silva', phone: '(11) 98888-7777' },
+    { id: 'c2', name: 'Ana Joana', phone: '' },
+    { id: 'c3', name: 'Bruno' },
+  ];
+  assert.deepEqual(
+    matchClients(clients, 'joa').map((client) => client.id),
+    ['c1', 'c2'],
+  );
+  assert.deepEqual(
+    matchClients(clients, '8888').map((client) => client.id),
+    ['c1'],
+  );
+  assert.deepEqual(matchClients(clients, '  '), []);
+});
+
+test('a sale goes to the chosen client, the one with that exact name, or a new one', async () => {
+  const { saleCustomer } = await import('../lib/quick-sale.ts');
+  const clients = [
+    { id: 'c1', name: 'João Silva' },
+    { id: 'c2', name: 'Ana' },
+    { id: 'c3', name: 'ana' },
+  ];
+  assert.deepEqual(saleCustomer(clients, clients[1], 'qualquer'), { id: 'c2' });
+  assert.deepEqual(saleCustomer(clients, null, ' joao   silva '), { id: 'c1' });
+  // Dois cadastros com o mesmo nome: não adivinha, cadastra outro.
+  assert.deepEqual(saleCustomer(clients, null, 'Ana'), { name: 'Ana' });
+  assert.deepEqual(saleCustomer(clients, null, 'Carla  Souza'), { name: 'Carla Souza' });
+  assert.equal(saleCustomer(clients, null, '   '), undefined);
+});

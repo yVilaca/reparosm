@@ -337,3 +337,76 @@ test("the receipt opens only this shop's own quick sale", { skip }, async () => 
   assert.equal(await repo.get(A.id, other.body.sale.id), undefined);
   assert.equal(await repo.get(A.id, 'payment-os'), undefined);
 });
+
+test('links a sale to a known or new client and lists it in their history', { skip }, async () => {
+  await db.migrationQuery(
+    `INSERT INTO clients (id, account_id, name, phone) VALUES
+       ('client-maria', $1, 'Maria', '11988887777'),
+       ('client-other-shop', $2, 'Outra loja', '')`,
+    [A.id, B.id],
+  );
+  const known = await sell({
+    items: [
+      { description: 'Capinha', price: 30, quantity: 2 },
+      { description: 'Película', price: 25 },
+    ],
+    customer: { id: 'client-maria' },
+    method: 'Pix',
+  });
+  assert.equal(known.status, 201);
+  assert.deepEqual(known.body.sale.client, { id: 'client-maria', name: 'Maria' });
+
+  const fresh = await sell({
+    description: 'Cabo USB-C',
+    price: 40,
+    customer: { name: '  Carlos Novo ' },
+    method: 'Dinheiro',
+  });
+  assert.equal(fresh.status, 201);
+  const [created] = await db.migrationQuery(
+    `SELECT id, name, automatic FROM clients WHERE account_id = $1 AND name = 'Carlos Novo'`,
+    [A.id],
+  );
+  assert.equal(created.automatic, true);
+  assert.deepEqual(fresh.body.sale.client, { id: created.id, name: 'Carlos Novo' });
+
+  const anonymous = await sell({ description: 'Chip', price: 10, method: 'Pix' });
+  assert.equal(anonymous.body.sale.client, undefined);
+
+  const history = await repo.byClient(A.id, 'client-maria');
+  assert.equal(history.length, 1);
+  assert.equal(history[0].value, 85);
+  assert.deepEqual(
+    history[0].items.map((item) => [item.quantity, item.description]),
+    [
+      [2, 'Capinha'],
+      [1, 'Película'],
+    ],
+  );
+  assert.equal((await repo.get(A.id, known.body.sale.id)).client.name, 'Maria');
+  assert.equal(
+    (await repo.since(A.id, '2000-01-01')).find((sale) => sale.id === known.body.sale.id).client
+      .name,
+    'Maria',
+  );
+
+  // Cliente de outra loja não entra, nem aparece no histórico dela.
+  const foreign = await sell({
+    description: 'Capinha',
+    price: 30,
+    customer: { id: 'client-other-shop' },
+    method: 'Pix',
+  });
+  assert.equal(foreign.status, 400);
+  assert.deepEqual(await repo.byClient(B.id, 'client-maria'), []);
+  assert.equal(
+    (await sell({ description: 'X', price: 1, customer: { name: '' }, method: 'Pix' })).status,
+    400,
+  );
+
+  // Excluir o cliente mantém a venda no caixa, só sem o vínculo.
+  await db.migrationQuery(`DELETE FROM clients WHERE id = 'client-maria'`);
+  const kept = await repo.get(A.id, known.body.sale.id);
+  assert.equal(kept.value, 85);
+  assert.equal(kept.client, undefined);
+});

@@ -4,9 +4,17 @@ import type { PaymentMethod } from '@/lib/payment-methods';
 import { policy, movementContext } from '@/lib/repos/stock';
 
 export class QuickSaleError extends Error {
-  status = 409;
-  code = 'INSUFFICIENT_STOCK';
+  constructor(
+    message: string,
+    readonly status = 409,
+    readonly code = 'INSUFFICIENT_STOCK',
+  ) {
+    super(message);
+  }
 }
+
+/** Cliente da venda: um já cadastrado ou um novo, só com o nome. */
+export type SaleCustomer = { id: string } | { name: string };
 
 /** Venda rápida: entrada no caixa sem OS vinculada. */
 export type QuickSaleRecord = {
@@ -20,6 +28,7 @@ export type QuickSaleRecord = {
   partId?: string;
   method: string;
   date: string;
+  client?: { id: string; name: string };
   items?: QuickSaleItem[];
 };
 
@@ -42,6 +51,8 @@ type Row = {
   part_id: string | null;
   method: string | null;
   date: string;
+  client_id: string | null;
+  client_name: string | null;
 };
 
 type ItemRow = {
@@ -54,6 +65,9 @@ type ItemRow = {
 };
 
 const DATE = `COALESCE(date, (created_at AT TIME ZONE 'America/Sao_Paulo')::date)`;
+const COLUMNS = `id, description, value, discount, cost, quantity, part_id, method, ${DATE}::text AS date,
+  client_id, (SELECT name FROM clients cl
+    WHERE cl.account_id = cash_entries.account_id AND cl.id = cash_entries.client_id) AS client_name`;
 
 const toRecord = (row: Row): QuickSaleRecord => ({
   id: row.id,
@@ -65,6 +79,9 @@ const toRecord = (row: Row): QuickSaleRecord => ({
   ...(row.part_id === null ? {} : { partId: row.part_id }),
   method: row.method || '',
   date: row.date,
+  ...(row.client_id && row.client_name
+    ? { client: { id: row.client_id, name: row.client_name } }
+    : {}),
 });
 
 const toItem = (row: ItemRow): QuickSaleItem => ({
@@ -105,12 +122,14 @@ export async function create(
     quantity?: number;
     partId?: string;
     items?: QuickSaleItem[];
+    customer?: SaleCustomer;
     acknowledgeNegativeStock?: boolean;
     method: PaymentMethod;
   },
   date: string,
 ): Promise<QuickSaleRecord> {
   return tenantTransaction(accountId, async (run) => {
+    const client = sale.customer && (await saleClient(accountId, sale.customer, run));
     const items = sale.items?.length
       ? sale.items
       : [
@@ -169,9 +188,11 @@ export async function create(
     const quantity = persisted.reduce((total, item) => total + item.quantity, 0);
     const [row] = await run<Row>(
       `INSERT INTO cash_entries
-         (id, account_id, kind, description, value, method, date, cost, discount, quantity, part_id)
-       VALUES ($1, $2, 'in', $3, $4, $5, $6, $7, $8, $9, $10)
-       RETURNING id, description, value, discount, cost, quantity, part_id, method, date::text AS date`,
+         (id, account_id, kind, description, value, method, date, cost, discount, quantity, part_id,
+          client_id)
+       VALUES ($1, $2, 'in', $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING id, description, value, discount, cost, quantity, part_id, method, date::text AS date,
+         client_id, NULL AS client_name`,
       [
         id,
         accountId,
@@ -183,6 +204,7 @@ export async function create(
         discount || null,
         quantity,
         persisted.length === 1 ? (persisted[0].partId ?? null) : null,
+        client?.id ?? null,
       ],
     );
     for (const [position, item] of persisted.entries())
@@ -202,14 +224,33 @@ export async function create(
           item.partId ?? null,
         ],
       );
-    return { ...toRecord(row), items: persisted };
+    return { ...toRecord(row), ...(client ? { client } : {}), items: persisted };
   });
+}
+
+/** O cliente escolhido precisa ser da loja; um nome novo vira cadastro. */
+async function saleClient(accountId: string, customer: SaleCustomer, run: Query) {
+  if ('id' in customer) {
+    const [found] = await run<{ id: string; name: string }>(
+      'SELECT id, name FROM clients WHERE account_id = $1 AND id = $2',
+      [accountId, customer.id],
+    );
+    if (!found) throw new QuickSaleError('Cliente não encontrado.', 400, 'CLIENT_NOT_FOUND');
+    return found;
+  }
+  const client = { id: `client-${crypto.randomUUID()}`, name: customer.name.trim() };
+  await run(`INSERT INTO clients (id, account_id, name, automatic) VALUES ($1, $2, $3, true)`, [
+    client.id,
+    accountId,
+    client.name,
+  ]);
+  return client;
 }
 
 /** Vendas rápidas desde `from` (data de competência), da mais recente para a mais antiga. */
 export async function since(accountId: string, from: string): Promise<QuickSaleRecord[]> {
   const rows = await tenantQueryFor(accountId)<Row>(
-    `SELECT id, description, value, discount, cost, quantity, part_id, method, ${DATE}::text AS date
+    `SELECT ${COLUMNS}
      FROM cash_entries
      WHERE account_id = $1 AND kind = 'in' AND order_id IS NULL AND ${DATE} >= $2::date
      ORDER BY ${DATE} DESC, created_at DESC, id DESC`,
@@ -221,7 +262,7 @@ export async function since(accountId: string, from: string): Promise<QuickSaleR
 /** Uma venda rápida com a hora do registro (horário de Brasília), para o comprovante. */
 export async function get(accountId: string, id: string) {
   const [row] = await tenantQueryFor(accountId)<Row & { issued_at: string }>(
-    `SELECT id, description, value, discount, cost, quantity, part_id, method, ${DATE}::text AS date,
+    `SELECT ${COLUMNS},
             to_char(created_at AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY HH24:MI') AS issued_at
      FROM cash_entries
      WHERE account_id = $1 AND id = $2 AND kind = 'in' AND order_id IS NULL`,
@@ -230,6 +271,30 @@ export async function get(accountId: string, id: string) {
   return row
     ? { ...toRecord(row), items: await itemsFor(accountId, id), issuedAt: row.issued_at }
     : undefined;
+}
+
+/** Compras do cliente em vendas rápidas, da mais recente para a mais antiga, com os itens. */
+export async function byClient(accountId: string, clientId: string): Promise<QuickSaleRecord[]> {
+  const execute = tenantQueryFor(accountId);
+  const rows = await execute<Row>(
+    `SELECT ${COLUMNS}
+     FROM cash_entries
+     WHERE account_id = $1 AND client_id = $2 AND kind = 'in' AND order_id IS NULL
+     ORDER BY ${DATE} DESC, created_at DESC, id DESC`,
+    [accountId, clientId],
+  );
+  if (!rows.length) return [];
+  const items = await execute<ItemRow & { sale_id: string }>(
+    `SELECT sale_id, description, price, discount, cost, quantity, part_id
+       FROM quick_sale_items
+      WHERE account_id = $1 AND sale_id = ANY($2::text[])
+      ORDER BY position`,
+    [accountId, rows.map((row) => row.id)],
+  );
+  return rows.map((row) => ({
+    ...toRecord(row),
+    items: items.filter((item) => item.sale_id === row.id).map(toItem),
+  }));
 }
 
 export async function remove(accountId: string, id: string, run?: Query) {

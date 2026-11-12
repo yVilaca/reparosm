@@ -170,3 +170,28 @@ test('the A4 receipt itemizes the sale and is also marked non-fiscal', async () 
   );
   assert.doesNotMatch(plain, /Subtotal|Desconto/);
 });
+
+test('the client is optional and can be searched among the registered ones', () => {
+  const html = render({ clients: [{ id: 'c1', name: 'Maria', phone: '11988887777' }] });
+  assert.match(html, /Cliente <span[^>]*>\(opcional\)<\/span>/);
+  assert.match(
+    html,
+    /id="sale-customer"[^>]*role="combobox"|role="combobox"[^>]*id="sale-customer"/,
+  );
+  assert.doesNotMatch(html, /id="sale-customer"[^>]*required/);
+});
+
+test("today's sales name the client when there is one", () => {
+  const html = render({
+    todaySales: [
+      {
+        id: 's1',
+        description: 'Capinha',
+        value: 30,
+        method: 'Pix',
+        client: { id: 'c1', name: 'Maria' },
+      },
+    ],
+  });
+  assert.match(html, /Maria · Pix/);
+});

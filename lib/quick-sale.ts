@@ -123,6 +123,40 @@ export function matchProducts<P extends ProductOption>(products: P[], query: str
     .map(({ product }) => product);
 }
 
+/** Cliente cadastrado oferecido na venda rápida. */
+export type ClientOption = { id: string; name: string; phone?: string };
+
+/** Clientes pelo nome (sem diferenciar acentos) ou por parte do WhatsApp. */
+export function matchClients<C extends ClientOption>(clients: C[], query: string, limit = 6) {
+  const wanted = plainText(query.trim());
+  if (!wanted) return [];
+  const digits = query.replace(/\D/g, '');
+  return clients
+    .filter(
+      (client) =>
+        plainText(client.name).includes(wanted) ||
+        (digits.length >= 3 && (client.phone || '').replace(/\D/g, '').includes(digits)),
+    )
+    .sort(
+      (a, b) =>
+        Number(plainText(b.name).startsWith(wanted)) -
+          Number(plainText(a.name).startsWith(wanted)) || a.name.localeCompare(b.name, 'pt-BR'),
+    )
+    .slice(0, limit);
+}
+
+/**
+ * Para quem a venda é: o cliente escolhido na lista; o único cadastrado com
+ * exatamente o nome digitado; ou, sem nenhum, um cliente novo com esse nome.
+ */
+export function saleCustomer(clients: ClientOption[], chosen: ClientOption | null, text: string) {
+  if (chosen) return { id: chosen.id };
+  const name = text.trim().replace(/\s+/g, ' ');
+  if (!name) return undefined;
+  const same = clients.filter((client) => plainText(client.name.trim()) === plainText(name));
+  return same.length === 1 ? { id: same[0].id } : { name };
+}
+
 /** Desconto em reais ("5", "5,50") ou em percentual do preço ("10%"). Vazio é zero. */
 export function parseDiscount(text: string, price: number): number {
   const typed = text.trim();
