@@ -41,6 +41,18 @@ test('returns only the entries of the chosen period', { skip }, async () => {
   );
 });
 
+test('totals the dashboard periods, with the last 30 days counting today', { skip }, async () => {
+  // 31/03 menos 29 dias cai em 02/03, o dia do aluguel: ele entra.
+  const last30 = await cash.periodTotals('account-hist', 'last-30-days', '2026-03-31');
+  assert.equal(last30.income, 350);
+  assert.equal(last30.expense, 900);
+  const year = await cash.periodTotals('account-hist', 'year', '2026-03-31');
+  assert.equal(year.income, 420);
+  const previous = await cash.periodTotals('account-hist', 'previous-month', '2026-03-31');
+  assert.equal(previous.income, 70);
+  assert.equal(previous.expense, 0);
+});
+
 test('carries the originating order when there is one', { skip }, async () => {
   const [row] = await cash.history('account-hist', 'today', '2026-03-31');
   assert.deepEqual(row.order, { id: 'order-hist', code: 'OS-9' });

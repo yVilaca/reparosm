@@ -13,6 +13,8 @@ import {
 
 import IconChip from '@/components/ui/icon-chip';
 
+import Segmented from '@/components/ui/segmented';
+
 import StatCard, { StatGroup } from '@/components/ui/stat-card';
 
 import { toneText as statusText, type Tone as StatusTone } from '@/components/ui/tone';
@@ -29,7 +31,10 @@ import PageHeader from '@/components/ui/page-header';
 
 import { formatMoney, hasValidWhatsapp } from '@/lib/format';
 
+import type { FinanceTotals } from '@/lib/finance';
+
 import type {
+  CashPeriod,
   CashTotals,
   MethodTotal,
   MonthlyCashTotals,
@@ -37,6 +42,14 @@ import type {
 } from '@/lib/repos/cash';
 
 import type { BenchStage, DashboardAction } from '@/lib/repos/dashboard';
+
+/** Períodos dos totais do topo; o primeiro é o padrão. */
+export const dashboardPeriods: Array<{ value: CashPeriod; label: string }> = [
+  { value: 'month', label: 'Mês atual' },
+  { value: 'previous-month', label: 'Mês passado' },
+  { value: 'last-30-days', label: 'Últimos 30 dias' },
+  { value: 'year', label: 'Este ano' },
+];
 
 type Tone = 'late' | 'waiting' | 'neutral';
 
@@ -354,11 +367,17 @@ export default function DashboardRoute({
   actions,
   bench,
   today,
+  period,
+  periodTotals,
   orderTotals,
   trend,
   forecast,
 }: {
   asOfDate: string;
+  period: CashPeriod;
+  /** Recebimentos e custos do período escolhido. */
+  periodTotals: FinanceTotals;
+  /** Só os saldos a receber são usados: eles valem para hoje, sem período. */
   actions: DashboardAction[];
   bench: BenchStage[];
   today: CashTotals & { methods: MethodTotal[] };
@@ -387,31 +406,42 @@ export default function DashboardRoute({
           </Button>
         }
       />
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-semibold">Resultados</h2>
+        <Segmented
+          label="Período dos resultados"
+          options={dashboardPeriods.map((item) => ({
+            ...item,
+            href: `/?periodo=${item.value}`,
+          }))}
+          value={period}
+        />
+      </div>
       <StatGroup aria-label="Totais financeiros" className="mb-5 grid-cols-2 xl:grid-cols-4">
         <StatCard
-          detail="Valores recebidos de OS não canceladas e vendas avulsas."
+          detail="Recebimentos de OS e vendas avulsas no período."
           icon={ArrowDownLeft}
           label="Total Bruto"
           tone="success"
-          value={formatMoney(orderTotals.gross)}
+          value={formatMoney(periodTotals.income)}
         />
         <StatCard
-          detail="Resultado de OS e vendas avulsas, sem a margem ainda a receber."
+          detail={`Custos: ${formatMoney(periodTotals.cost)}. Antes das saídas.`}
           icon={Wallet}
           label="Total Líquido"
           tone="success"
-          value={formatMoney(orderTotals.net)}
-          valueTone={orderTotals.net < 0 ? 'danger' : undefined}
+          value={formatMoney(periodTotals.net)}
+          valueTone={periodTotals.net < 0 ? 'danger' : undefined}
         />
         <StatCard
-          detail="Saldo pendente apenas das OS, após os recebimentos."
+          detail="Saldo pendente das OS hoje, em qualquer período."
           icon={Receipt}
           label="Bruto a receber"
           tone="warning"
           value={formatMoney(orderTotals.grossReceivable)}
         />
         <StatCard
-          detail="Margem das OS proporcional ao saldo ainda a receber."
+          detail="Margem das OS proporcional ao saldo a receber hoje."
           icon={Receipt}
           label="Líquido a receber"
           tone="warning"
