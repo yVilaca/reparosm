@@ -44,7 +44,9 @@ import {
 import { todayInSaoPaulo } from '@/lib/warranty';
 import { cashNewestFirst } from '@/lib/sorting';
 
-type FinanceRow = MoneyRow & Pick<CashHistoryRow, 'order' | 'cost' | 'createdAt'>;
+type FinanceRow = MoneyRow &
+  Pick<CashHistoryRow, 'order' | 'cost' | 'createdAt'> &
+  Partial<Pick<CashHistoryRow, 'costKnown' | 'customer'>>;
 
 const toFinanceRow = (row: CashHistoryRow): FinanceRow => ({
   ...row,
@@ -54,9 +56,156 @@ const toFinanceRow = (row: CashHistoryRow): FinanceRow => ({
 
 const variation = (current: number, previous: number) => {
   const absolute = current - previous;
-  const percent = previous === 0 ? null : (absolute / previous) * 100;
+  // Sobre o valor absoluto: de −100 para −50 é melhora, não queda.
+  const percent = previous === 0 ? null : (absolute / Math.abs(previous)) * 100;
   return { absolute, percent };
 };
+
+const comparison: Array<{
+  key: keyof FinanceTotals;
+  label: string;
+  detail: string;
+  /** Nas saídas, subir é piorar. */
+  inverse?: boolean;
+}> = [
+  { key: 'income', label: 'Total Bruto', detail: 'Recebimentos de OS e vendas avulsas' },
+  { key: 'net', label: 'Total Líquido', detail: 'Recebimentos menos o custo do que foi vendido' },
+  { key: 'expense', label: 'Saídas', detail: 'Despesas e compras pagas', inverse: true },
+  { key: 'balance', label: 'Saldo', detail: 'Bruto menos saídas do caixa' },
+];
+
+const monthName = (isoDate: string) =>
+  new Intl.DateTimeFormat('pt-BR', { month: 'long', timeZone: 'UTC' }).format(
+    new Date(`${isoDate}T12:00:00Z`),
+  );
+
+/** Os dias comparados: do dia 1 até hoje e os mesmos dias do mês anterior. */
+function comparedDays(asOfDate: string) {
+  const [year, month, day] = asOfDate.split('-').map(Number);
+  const lastOfPrevious = new Date(Date.UTC(year, month - 1, 0)).getUTCDate();
+  const previous = new Date(Date.UTC(year, month - 2, 1)).toISOString().slice(0, 10);
+  return {
+    current: `1 a ${day} de ${monthName(asOfDate)}`,
+    previous: `1 a ${Math.min(day, lastOfPrevious)} de ${monthName(previous)}`,
+  };
+}
+
+const signedMoney = (value: number) =>
+  `${value > 0 ? '+' : value < 0 ? '−' : ''}${formatMoney(Math.abs(value))}`;
+const signedPercent = (value: number | null) =>
+  value === null
+    ? 'sem base'
+    : `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(value).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+
+function MonthComparison({
+  current,
+  previous,
+  asOfDate,
+}: {
+  current: FinanceTotals;
+  previous: FinanceTotals;
+  asOfDate: string;
+}) {
+  const days = comparedDays(asOfDate);
+  const rows = comparison.map((item) => {
+    const change = variation(current[item.key], previous[item.key]);
+    const better = item.inverse ? change.absolute < 0 : change.absolute > 0;
+    const tone =
+      change.absolute === 0 ? 'text-muted-foreground' : better ? toneText.success : toneText.danger;
+    return { ...item, change, tone };
+  });
+  return (
+    <>
+      {/* No celular, cada indicador vira um bloco: a tabela não cabe na largura. */}
+      <div className="grid gap-3 sm:hidden">
+        <p className="text-xs text-muted-foreground">
+          Este mês: {days.current} · Mês passado: {days.previous}
+        </p>
+        <ul className="divide-y">
+          {rows.map((item) => (
+            <li className="grid gap-2 py-3" key={item.key}>
+              <p className="font-medium">{item.label}</p>
+              <dl className="grid grid-cols-3 gap-2 text-sm">
+                <div>
+                  <dt className="text-xs text-muted-foreground">Este mês</dt>
+                  <dd
+                    className={`font-semibold tabular-nums ${current[item.key] < 0 ? toneText.danger : ''}`}
+                  >
+                    {formatMoney(current[item.key])}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Mês passado</dt>
+                  <dd className="text-muted-foreground tabular-nums">
+                    {formatMoney(previous[item.key])}
+                  </dd>
+                </div>
+                <div className="text-right">
+                  <dt className="text-xs text-muted-foreground">Variação</dt>
+                  <dd className={`tabular-nums ${item.tone}`}>
+                    {signedMoney(item.change.absolute)}
+                    <span className="block text-xs">{signedPercent(item.change.percent)}</span>
+                  </dd>
+                </div>
+              </dl>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="hidden overflow-x-auto sm:block">
+        <table className="w-full min-w-[34rem] text-sm">
+          <caption className="sr-only">
+            {days.current} comparado com {days.previous}
+          </caption>
+          <thead>
+            <tr className="border-b text-left text-muted-foreground">
+              <th className="py-2 pr-3 font-medium" scope="col">
+                <span className="sr-only">Indicador</span>
+              </th>
+              <th className="px-3 py-2 text-right font-medium" scope="col">
+                Este mês
+                <span className="block text-xs font-normal">{days.current}</span>
+              </th>
+              <th className="px-3 py-2 text-right font-medium" scope="col">
+                Mês passado
+                <span className="block text-xs font-normal">{days.previous}</span>
+              </th>
+              <th className="py-2 pl-3 text-right font-medium" scope="col">
+                Variação
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ change, tone, ...item }) => {
+              return (
+                <tr className="border-b last:border-0" key={item.key}>
+                  <th className="py-3 pr-3 text-left font-normal" scope="row">
+                    <span className="block font-medium">{item.label}</span>
+                    <span className="block text-xs text-muted-foreground">{item.detail}</span>
+                  </th>
+                  <td
+                    className={`px-3 py-3 text-right font-semibold tabular-nums ${current[item.key] < 0 ? toneText.danger : ''}`}
+                  >
+                    {formatMoney(current[item.key])}
+                  </td>
+                  <td
+                    className={`px-3 py-3 text-right tabular-nums ${previous[item.key] < 0 ? toneText.danger : 'text-muted-foreground'}`}
+                  >
+                    {formatMoney(previous[item.key])}
+                  </td>
+                  <td className={`py-3 pl-3 text-right tabular-nums ${tone}`}>
+                    <span className="block font-medium">{signedMoney(change.absolute)}</span>
+                    <span className="block text-xs">{signedPercent(change.percent)}</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
 
 const periods: Array<{ value: CashPeriod; label: string }> = [
   { value: 'today', label: 'Hoje' },
@@ -132,7 +281,6 @@ const fromPayable = (row: { id: string }) => row.id.startsWith('cash-payable-');
 function Methods({ methods }: { methods: MethodTotal[] }) {
   return (
     <div className="grid gap-2">
-      <p className="text-sm font-medium">Por forma de pagamento</p>
       {methods.length ? (
         <ul className="grid gap-2 text-sm">
           {methods.map((item) => (
@@ -293,9 +441,6 @@ export default function FinanceRoute({
 
   const currentMonth = summary.month.current;
   const previousMonth = summary.month.previous;
-  const resultVariation = variation(currentMonth.balance, previousMonth.balance);
-  const incomeVariation = variation(currentMonth.income, previousMonth.income);
-  const expenseVariation = variation(currentMonth.expense, previousMonth.expense);
   const sorted = [...rows].sort(cashNewestFirst);
   const totals = summarizeCash(rows);
   const methodTotals = new Map<string, number>();
@@ -502,35 +647,17 @@ export default function FinanceRoute({
           <div className="mt-4 grid gap-4">
             <Card>
               <CardHeader>
-                <CardTitle>Este mês</CardTitle>
-                <CardDescription>Comparação com o mesmo período anterior.</CardDescription>
+                <CardTitle>Este mês e o mês passado</CardTitle>
+                <CardDescription>
+                  Do dia 1 até hoje, comparado com os mesmos dias do mês anterior.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_16rem]">
-                <div className="grid gap-3">
-                  <p className="text-sm font-medium">Mês atual</p>
-                  <TotalsGrid totals={currentMonth} />
-                </div>
-                <div className="grid gap-3">
-                  <p className="text-sm font-medium">Mesmo período anterior</p>
-                  <TotalsGrid totals={previousMonth} />
-                </div>
-                <div className="grid content-start gap-2 rounded-lg border p-3 text-sm">
-                  <p className="font-medium">Variação do resultado</p>
-                  <p className="font-semibold tabular-nums">
-                    {formatMoney(resultVariation.absolute)}
-                  </p>
-                  <p className="text-muted-foreground">
-                    {resultVariation.percent === null
-                      ? '—'
-                      : `${resultVariation.percent.toFixed(1)}%`}
-                  </p>
-                  <p className="sr-only">
-                    Receita:{' '}
-                    {incomeVariation.percent === null ? '—' : `${incomeVariation.percent}%`};
-                    despesas:{' '}
-                    {expenseVariation.percent === null ? '—' : `${expenseVariation.percent}%`}
-                  </p>
-                </div>
+              <CardContent>
+                <MonthComparison
+                  asOfDate={asOfDate}
+                  current={currentMonth}
+                  previous={previousMonth}
+                />
               </CardContent>
             </Card>
 
@@ -641,12 +768,15 @@ export default function FinanceRoute({
                             ) : (
                               row.reference
                             )}
-                            {(row.order || row.reference) && row.method ? ' · ' : ''}
-                            {row.method}
+                            {(row.order || row.reference) && (row.customer || row.method)
+                              ? ' · '
+                              : ''}
+                            {[row.customer, row.method].filter(Boolean).join(' · ')}
                             {entry && (
                               <span className="block text-xs text-muted-foreground">
-                                Custo: {formatMoney(row.cost)} · Líquido:{' '}
-                                {formatMoney(row.value - (row.cost || 0))}
+                                {row.costKnown === false
+                                  ? 'Sem custo informado'
+                                  : `Custo: ${formatMoney(row.cost)} · Líquido: ${formatMoney(row.value - (row.cost || 0))}`}
                               </span>
                             )}
                           </>
@@ -660,7 +790,12 @@ export default function FinanceRoute({
                         }
                         note={brDate(String(row.date || ''))}
                         srPrefix={entry ? 'Entrada: ' : 'Saída: '}
-                        title={row.description}
+                        // O recebimento de uma OS se chama pelo código, que já está na etiqueta.
+                        title={
+                          row.order && row.order.device && row.description === row.order.code
+                            ? row.order.device
+                            : row.description
+                        }
                         value={`${entry ? '+' : '−'}${formatMoney(row.value)}`}
                         valueClassName={entry ? toneText.success : undefined}
                       />

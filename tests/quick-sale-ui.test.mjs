@@ -171,14 +171,29 @@ test('the A4 receipt itemizes the sale and is also marked non-fiscal', async () 
   assert.doesNotMatch(plain, /Subtotal|Desconto/);
 });
 
-test('the client is optional and can be searched among the registered ones', () => {
+test('the client is asked when receiving, not in the sale form', () => {
   const html = render({ clients: [{ id: 'c1', name: 'Maria', phone: '11988887777' }] });
+  assert.doesNotMatch(html, /id="sale-customer"/);
+});
+
+test('the client field is optional and searches the registered ones', async () => {
+  const { default: SaleCustomerField } = await import('../components/sale-customer-field.tsx');
+  const html = renderToStaticMarkup(
+    createElement(SaleCustomerField, {
+      autoFocus: true,
+      chosen: null,
+      clients: [{ id: 'c1', name: 'Maria', phone: '11988887777' }],
+      onChoose() {},
+      onText() {},
+      text: '',
+    }),
+  );
   assert.match(html, /Cliente <span[^>]*>\(opcional\)<\/span>/);
   assert.match(
     html,
     /id="sale-customer"[^>]*role="combobox"|role="combobox"[^>]*id="sale-customer"/,
   );
-  assert.doesNotMatch(html, /id="sale-customer"[^>]*required/);
+  assert.doesNotMatch(html, /required/);
 });
 
 test("today's sales name the client when there is one", () => {

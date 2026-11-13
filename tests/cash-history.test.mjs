@@ -55,7 +55,10 @@ test('totals the dashboard periods, with the last 30 days counting today', { ski
 
 test('carries the originating order when there is one', { skip }, async () => {
   const [row] = await cash.history('account-hist', 'today', '2026-03-31');
-  assert.deepEqual(row.order, { id: 'order-hist', code: 'OS-9' });
+  assert.deepEqual(row.order, { id: 'order-hist', code: 'OS-9', device: 'iPhone' });
+  // O cliente vem da OS; o custo de uma OS é conhecido.
+  assert.equal(row.customer, 'Ana');
+  assert.equal(row.costKnown, true);
   const [expense] = await cash.history('account-hist', 'previous-month', '2026-03-31');
   assert.equal(expense.order, null);
 });
@@ -83,6 +86,10 @@ test(
     ('tie-z','account-hist','in','Empate Z',0,0,'2026-03-31',NULL,'2026-01-01T12:00:00Z')`);
     const rows = await cash.history('account-hist', { from: '2026-03-30', to: '2026-03-31' });
     const costs = Object.fromEntries(rows.map((row) => [row.id, row.cost]));
+    // Venda com custo informado (mesmo zero) é conhecida; sem custo, não.
+    const known = Object.fromEntries(rows.map((row) => [row.id, row.costKnown]));
+    assert.equal(known['hist-sale'], true);
+    assert.equal(known['tie-a'], true);
     assert.equal(costs['hist-1'], 140);
     assert.equal(costs['hist-sale'], 30);
     assert.equal(costs['hist-partial-receipt'], 15);

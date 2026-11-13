@@ -30,19 +30,22 @@ export default async function PaymentsPage() {
         ...(data.cost ? { cost: Number(data.cost) } : {}),
         stock: Number(data.stock || 0),
       }))}
-      // A sugestão usa o preço cheio (o que entrou mais o desconto dado).
+      // A sugestão usa o preço cheio (o que entrou mais o desconto dado). Vendas de
+      // vários itens ficam de fora: a descrição delas é um resumo ("2 itens: …").
       suggestions={frequentSales(
-        sales.map((sale) => {
-          const quantity = sale.quantity || 1;
-          return {
-            description: sale.description,
-            value: (Math.round(((sale.value + sale.discount) / quantity) * 100) || 0) / 100,
-            date: sale.date,
-            ...(sale.cost === undefined
-              ? {}
-              : { cost: (Math.round((sale.cost / quantity) * 100) || 0) / 100 }),
-          };
-        }),
+        sales
+          .filter((sale) => !/^\d+ itens: /.test(sale.description))
+          .map((sale) => {
+            const quantity = sale.quantity || 1;
+            return {
+              description: sale.description,
+              value: (Math.round(((sale.value + sale.discount) / quantity) * 100) || 0) / 100,
+              date: sale.date,
+              ...(sale.cost === undefined
+                ? {}
+                : { cost: (Math.round((sale.cost / quantity) * 100) || 0) / 100 }),
+            };
+          }),
       )}
       todaySales={sales.filter((sale) => sale.date === today)}
     />

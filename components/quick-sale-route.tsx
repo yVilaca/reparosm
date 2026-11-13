@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { cn } from 'cn';
 import { useFeedback } from '@/components/feedback';
-import SaleCustomerField from '@/components/sale-customer-field';
+import SaleCustomerDialog from '@/components/sale-customer-dialog';
 import StockAlertDialog, { StockCheckStatus } from '@/components/stock-alert-dialog';
 import { uniqueStockProduct, useStockCheck } from '@/components/use-stock-check';
 import { Button } from '@/components/ui/button';
@@ -40,12 +40,12 @@ import {
   parseDiscount,
   parseMoney,
   parseQuantity,
-  saleCustomer,
   saleProfit,
   saleTotals,
   type ClientOption,
   type ProductOption,
 } from '@/lib/quick-sale';
+import type { SaleCustomer } from '@/lib/repos/quick-sales';
 import { stockTone } from '@/lib/status-tones';
 
 export type QuickSale = {
@@ -126,8 +126,8 @@ export default function QuickSaleRoute({
   const [given, setGiven] = useState('');
   const [saving, setSaving] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [customerText, setCustomerText] = useState('');
-  const [customer, setCustomer] = useState<ClientOption | null>(null);
+  // Conferido o estoque, a venda espera aqui a escolha do cliente.
+  const [finishing, setFinishing] = useState<{ acknowledgeNegativeStock?: true } | null>(null);
   const linkedProduct = product || uniqueStockProduct(products, description);
 
   const matches = useMemo(
@@ -278,11 +278,21 @@ export default function QuickSaleRoute({
       );
       return;
     }
+    const stockDecision = await stock.confirm();
+    if (stockDecision) setFinishing(stockDecision);
+  };
+
+  const receive = async (
+    checked: { acknowledgeNegativeStock?: true },
+    customer: SaleCustomer | undefined,
+  ) => {
+    setFinishing(null);
+    if (savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
     try {
       for (let attempt = 0; attempt < 2; attempt++) {
-        const stockDecision = await stock.confirm();
+        const stockDecision = attempt ? await stock.confirm() : checked;
         if (!stockDecision) return;
         const response = await fetch('/api/quick-sales', {
           method: 'POST',
@@ -290,7 +300,7 @@ export default function QuickSaleRoute({
           body: JSON.stringify({
             ...stockDecision,
             items: saleItems,
-            customer: saleCustomer(clients, customer, customerText),
+            customer,
             method,
           }),
         });
@@ -309,8 +319,6 @@ export default function QuickSaleRoute({
         notify(`Venda de ${formatMoney(result.sale.value)} registrada.`, 'success');
         reset();
         setCart([]);
-        setCustomerText('');
-        setCustomer(null);
         router.refresh();
         return;
       }
@@ -349,6 +357,14 @@ export default function QuickSaleRoute({
   return (
     <>
       <StockAlertDialog alert={stock.alert} onDecision={stock.decide} />
+      <SaleCustomerDialog
+        clients={clients}
+        method={method}
+        onCancel={() => setFinishing(null)}
+        onConfirm={(customer) => finishing && void receive(finishing, customer)}
+        open={Boolean(finishing)}
+        total={total}
+      />
       <PageHeader
         title="Venda rápida"
         description="Venda de balcão com recebimento imediato."
@@ -692,14 +708,6 @@ export default function QuickSaleRoute({
                 <p className="text-right text-sm font-semibold">Total: {formatMoney(total)}</p>
               )}
             </div>
-
-            <SaleCustomerField
-              chosen={customer}
-              clients={clients}
-              onChoose={setCustomer}
-              onText={setCustomerText}
-              text={customerText}
-            />
 
             <fieldset className="grid gap-2">
               <legend className="mb-2 text-sm font-medium">Forma de pagamento</legend>
