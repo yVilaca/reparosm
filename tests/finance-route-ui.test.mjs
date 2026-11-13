@@ -41,7 +41,38 @@ const router = {
   refresh() {},
   replace() {},
 };
-const html = (initialSection) =>
+const looseAndOrder = [
+  {
+    id: 'loose-sale',
+    kind: 'in',
+    description: 'Troca de conector',
+    value: 80,
+    cost: 0,
+    costKnown: false,
+    customer: 'Maria Souza',
+    method: 'Pix',
+    date: '2026-10-05',
+    createdAt: '2026-10-05T12:30:00Z',
+    reference: null,
+    order: null,
+  },
+  {
+    id: 'order-receipt',
+    kind: 'in',
+    description: 'OS-12',
+    value: 450,
+    cost: 210,
+    costKnown: true,
+    customer: 'Carla',
+    method: 'Pix',
+    date: '2026-10-05',
+    createdAt: '2026-10-05T12:40:00Z',
+    reference: null,
+    order: { id: 'o12', code: 'OS-12', device: 'iPhone 13 troca de tela' },
+  },
+];
+
+const html = (initialSection, extraHistory = []) =>
   renderToStaticMarkup(
     createElement(
       AppRouterContext.Provider,
@@ -75,9 +106,11 @@ const html = (initialSection) =>
               reference: null,
               order: null,
             },
+            ...extraHistory,
           ],
           summary,
           initialSection,
+          asOfDate: '2026-10-05',
         }),
       ),
     ),
@@ -94,8 +127,28 @@ test('shows the daily close with the breakdown by method', () => {
   assert.match(markup, /Aplicar/);
 });
 
-test('keeps the monthly comparison in the analysis section', () => {
-  assert.match(html('analysis'), /Mesmo período anterior/i);
+test('compares this month with the same days of last month, row by row', () => {
+  const markup = html('analysis');
+  const text = markup.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(text, /Este mês 1 a 5 de outubro/);
+  assert.match(text, /Mês passado 1 a 5 de setembro/);
+  // Bruto: 890 contra 900, queda de 10 (−1,1%).
+  assert.match(text, /Total Bruto .*?R\$ 890,00 R\$ 900,00 −R\$ 10,00 −1,1%/);
+  // Saídas que sobem pioram o resultado; sem base no mês passado, não há percentual.
+  assert.match(text, /Saídas .*?R\$ 120,00 R\$ 0,00 \+R\$ 120,00 sem base/);
+  assert.doesNotMatch(markup, /Variação do resultado/);
+});
+
+test('the entries show the client, an unknown cost and the device of an order', () => {
+  const text = html('entries', looseAndOrder)
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ');
+  assert.match(text, /Troca de conector Maria Souza · Pix Sem custo informado/);
+  assert.match(
+    text,
+    /iPhone 13 troca de tela .*?Carla · Pix Custo: R\$ 210,00 · Líquido: R\$ 240,00/,
+  );
+  assert.doesNotMatch(text, /Custo: R\$ 0,00 · Líquido: R\$ 80,00/);
 });
 
 test('keeps the overview focused on receivables', () => {

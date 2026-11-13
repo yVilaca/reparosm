@@ -17,7 +17,9 @@ export default function SaleCustomerField({
   chosen,
   onText,
   onChoose,
+  autoFocus,
 }: {
+  autoFocus?: boolean;
   clients: ClientOption[];
   text: string;
   chosen: ClientOption | null;
@@ -72,6 +74,7 @@ export default function SaleCustomerField({
           aria-controls="sale-clients"
           aria-expanded={listOpen}
           autoComplete="off"
+          autoFocus={autoFocus}
           className="pl-9"
           id="sale-customer"
           maxLength={120}

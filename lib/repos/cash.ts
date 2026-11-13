@@ -294,8 +294,12 @@ export type CashHistoryRow = {
   date: string;
   value: number;
   cost: number;
+  /** Falso numa entrada avulsa sem custo informado: o custo zero ali não é real. */
+  costKnown: boolean;
   createdAt: string;
-  order: { id: string; code: string } | null;
+  /** Cliente da venda rápida ou da OS. */
+  customer: string | null;
+  order: { id: string; code: string; device: string } | null;
 };
 
 export async function history(
@@ -320,11 +324,17 @@ export async function history(
     created_at: Date;
     order_id: string | null;
     order_code: string | null;
+    order_device: string | null;
+    cost_known: boolean;
+    customer: string | null;
   }>(
     `SELECT c.id, c.kind, c.description, c.reference, c.method, ${COMPETENCE}::text AS date, c.value,
-            ROUND(${RECEIPT_COST}, 2) AS cost, c.created_at, c.order_id, o.code AS order_code
+            ROUND(${RECEIPT_COST}, 2) AS cost, c.created_at, c.order_id, o.code AS order_code,
+            o.device AS order_device, (c.order_id IS NOT NULL OR c.cost IS NOT NULL) AS cost_known,
+            COALESCE(cl.name, NULLIF(BTRIM(o.customer), '')) AS customer
      FROM cash_entries c
      LEFT JOIN orders o ON o.account_id = c.account_id AND o.id = c.order_id
+     LEFT JOIN clients cl ON cl.account_id = c.account_id AND cl.id = c.client_id
      WHERE c.account_id = $1 AND ${COMPETENCE} BETWEEN $2::date AND $3::date
      ORDER BY ${COMPETENCE} DESC, c.created_at DESC, c.id DESC`,
     [accountId, window.from, window.to],
@@ -338,7 +348,12 @@ export async function history(
     date: row.date,
     value: money(row.value),
     cost: money(row.cost),
+    costKnown: row.kind === 'in' && row.cost_known,
     createdAt: new Date(row.created_at).toISOString(),
-    order: row.order_id && row.order_code ? { id: row.order_id, code: row.order_code } : null,
+    customer: row.customer,
+    order:
+      row.order_id && row.order_code
+        ? { id: row.order_id, code: row.order_code, device: row.order_device || '' }
+        : null,
   }));
 }
